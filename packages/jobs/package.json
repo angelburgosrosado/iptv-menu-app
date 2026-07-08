@@ -1,0 +1,15 @@
+{
+  "name": "@iptv-menu/jobs",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@iptv-menu/types": "1.0.0",
+    "@iptv-menu/db": "1.0.0",
+    "@iptv-menu/logging": "1.0.0",
+    "typescript": "^5.0.0"
+  }
+}

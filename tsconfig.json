@@ -1,0 +1,53 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "module": "ESNext",
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "allowJs": true,
+    "jsx": "react-jsx",
+    "paths": {
+      "@/*": [
+        "./*"
+      ],
+      "react-native": [
+        "./src/shims/react-native.tsx"
+      ],
+      "@shopify/flash-list": [
+        "./src/shims/flash-list.tsx"
+      ],
+      "expo-router": [
+        "./src/shims/expo-router.tsx"
+      ],
+      "expo-video": [
+        "./src/shims/expo-video.tsx"
+      ],
+      "expo-image": [
+        "./src/shims/expo-image.tsx"
+      ],
+      "react-native-mmkv": [
+        "./src/shims/react-native-mmkv.ts"
+      ]
+    },
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  },
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "apps",
+    "packages"
+  ]
+}

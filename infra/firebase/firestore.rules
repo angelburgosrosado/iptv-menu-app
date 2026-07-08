@@ -1,0 +1,186 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ==========================================
+    // 1. GLOBAL SAFETY NET
+    // ==========================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ==========================================
+    // 2. GLOBAL HELPER FUNCTIONS
+    // ==========================================
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isVerifiedUser() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      // Hardcoded admin bootstrap for angelburgosrosado@gmail.com and database admins collection lookups
+      return isVerifiedUser() && (
+        request.auth.token.email == 'angelburgosrosado@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 3 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // ==========================================
+    // 3. ENTITY VALIDATORS
+    // ==========================================
+    
+    function isValidUserProfile(data) {
+      return data.uid is string && data.uid == request.auth.uid &&
+             data.email is string && data.email.size() <= 256 &&
+             (data.displayName == null || (data.displayName is string && data.displayName.size() <= 128)) &&
+             (data.photoURL == null || (data.photoURL is string && data.photoURL.size() <= 2048)) &&
+             data.role in ['user', 'pro', 'builder', 'admin'] &&
+             data.subscriptionTier in ['free', 'pro', 'builder'] &&
+             data.accountStatus in ['active', 'suspended'];
+    }
+
+    function isValidPlaylist(data) {
+      return data.playlistId is string && data.playlistId.size() <= 128 &&
+             data.uid is string && data.uid == request.auth.uid &&
+             data.name is string && data.name.size() <= 256 &&
+             data.sourceType in ['url', 'upload'] &&
+             (data.originalFilePath == null || data.originalFilePath is string) &&
+             (data.cleanedFilePath == null || data.cleanedFilePath is string) &&
+             data.channelCount is int && data.channelCount >= 0 &&
+             data.status in ['pending', 'parsing', 'cleaning', 'validating', 'ready', 'failed'] &&
+             data.visibility in ['private', 'public'];
+    }
+
+    function isValidPlaylistRun(data) {
+      return data.runId is string &&
+             data.playlistId is string &&
+             data.type in ['parse', 'clean', 'validate'] &&
+             data.status in ['queued', 'running', 'completed', 'failed'] &&
+             data.startedAt is string;
+    }
+
+    function isValidEpgFeed(data) {
+      return data.epgId is string &&
+             data.uid is string && data.uid == request.auth.uid &&
+             data.playlistId is string &&
+             data.status in ['pending', 'generating', 'ready', 'failed'] &&
+             data.sourceConfig is map;
+    }
+
+    function isValidBuildRequest(data) {
+      return data.buildId is string &&
+             data.uid is string && data.uid == request.auth.uid &&
+             data.appName is string && data.appName.size() <= 128 &&
+             data.brandConfig is map &&
+             data.playlistSource is map &&
+             data.status in ['queued', 'building', 'succeeded', 'failed'];
+    }
+
+    // ==========================================
+    // 4. COLLECTION RULES
+    // ==========================================
+
+    // Users Collection
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
+      
+      // Prevent users from escalating their own role or setting a suspended status
+      allow create: if isOwner(userId) && isValidUserProfile(incoming()) && 
+                       incoming().role == 'user' && 
+                       incoming().accountStatus == 'active';
+                       
+      allow update: if isOwner(userId) && isValidUserProfile(incoming()) && 
+                       incoming().role == existing().role && 
+                       incoming().accountStatus == existing().accountStatus &&
+                       incoming().subscriptionTier == existing().subscriptionTier &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'photoURL']);
+
+      // Admin Override
+      allow write: if isAdmin();
+    }
+
+    // Playlists Collection
+    match /playlists/{playlistId} {
+      allow get: if (existing().visibility == 'public') || isOwner(existing().uid) || isAdmin();
+      allow list: if isVerifiedUser() && (resource.data.uid == request.auth.uid || isAdmin());
+      
+      allow create: if isVerifiedUser() && isValidId(playlistId) && isValidPlaylist(incoming()) && 
+                       incoming().uid == request.auth.uid &&
+                       incoming().status == 'pending';
+                       
+      allow update: if isVerifiedUser() && isValidId(playlistId) && isOwner(existing().uid) && isValidPlaylist(incoming()) &&
+                       incoming().uid == existing().uid &&
+                       // Check what fields can be modified on update (e.g., cannot change original owner)
+                       incoming().diff(existing()).affectedKeys().hasAny(['name', 'visibility', 'status', 'channelCount', 'cleanedFilePath']);
+                       
+      allow delete: if isVerifiedUser() && isValidId(playlistId) && isOwner(existing().uid);
+
+      // Subcollection: Runs (Job progress trackers)
+      match /runs/{runId} {
+        allow read: if isOwner(get(/databases/$(database)/documents/playlists/$(playlistId)).data.uid) || isAdmin();
+        
+        // Allowed to create run triggers
+        allow create: if isVerifiedUser() && isValidId(runId) && isValidPlaylistRun(incoming()) &&
+                         isOwner(get(/databases/$(database)/documents/playlists/$(playlistId)).data.uid) &&
+                         incoming().status == 'queued';
+                         
+        // Only internal workers/admins or system service accounts should update execution states
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    // EpgFeeds Collection
+    match /epgFeeds/{epgId} {
+      allow read: if isOwner(resource.data.uid) || isAdmin();
+      allow list: if isVerifiedUser() && (resource.data.uid == request.auth.uid || isAdmin());
+      
+      allow create: if isVerifiedUser() && isValidId(epgId) && isValidEpgFeed(incoming()) &&
+                       incoming().uid == request.auth.uid;
+                       
+      allow update: if isVerifiedUser() && isValidId(epgId) && isOwner(existing().uid) && isValidEpgFeed(incoming()) &&
+                       incoming().uid == existing().uid;
+                       
+      allow delete: if isVerifiedUser() && isValidId(epgId) && isOwner(existing().uid);
+    }
+
+    // BuildRequests Collection
+    match /buildRequests/{buildId} {
+      allow read: if isOwner(resource.data.uid) || isAdmin();
+      allow list: if isVerifiedUser() && (resource.data.uid == request.auth.uid || isAdmin());
+      
+      allow create: if isVerifiedUser() && isValidId(buildId) && isValidBuildRequest(incoming()) &&
+                       incoming().uid == request.auth.uid &&
+                       incoming().status == 'queued';
+                       
+      allow update: if isVerifiedUser() && isValidId(buildId) && isOwner(existing().uid) && isValidBuildRequest(incoming()) &&
+                       incoming().uid == existing().uid;
+                       
+      allow delete: if isVerifiedUser() && isValidId(buildId) && isOwner(existing().uid);
+    }
+
+    // Admin Action Audits (Strict read/write for actual administrators only)
+    match /adminActions/{actionId} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

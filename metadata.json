@@ -1,0 +1,6 @@
+{
+  "name": "IPTV Mobile App Simulator",
+  "description": "An interactive IPTV client and React Native Expo code builder with a resilient M3U parser, dynamic HLS H3U8 stream player, group categories, and local storage favorites.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,26 @@
+{
+  "name": "iptv-worker",
+  "version": "1.0.0",
+  "private": true,
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@iptv-menu/config": "1.0.0",
+    "@iptv-menu/types": "1.0.0",
+    "@iptv-menu/auth": "1.0.0",
+    "@iptv-menu/db": "1.0.0",
+    "@iptv-menu/storage": "1.0.0",
+    "@iptv-menu/jobs": "1.0.0",
+    "@iptv-menu/logging": "1.0.0",
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "typescript": "~5.8.2",
+    "tsx": "^4.21.0"
+  }
+}
