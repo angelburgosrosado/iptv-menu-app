@@ -28,7 +28,8 @@ import {
 } from '@iptv-menu/billing';
 import { 
   dispatchPlaylistJob, 
-  dispatchBuildJob 
+  dispatchBuildJob,
+  dispatchEpgJob
 } from '@iptv-menu/jobs';
 import { UserProfile, Playlist, EpgFeed, BuildRequest, AdminAction, UserRole } from '@iptv-menu/types';
 
@@ -312,7 +313,11 @@ app.post('/api/epg', async (req: any, res) => {
     };
 
     await epgRepo.createEpg(feed);
-    res.status(201).json(feed);
+
+    // Dispatch the EPG job to the worker queue
+    await dispatchEpgJob(epgId);
+
+    res.status(201).json({ success: true, epgId });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

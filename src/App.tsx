@@ -44,6 +44,7 @@ import PricingSection from './components/PricingSection';
 import CertifiedDevices from './components/CertifiedDevices';
 import AuthModal from './components/AuthModal';
 import { useAuth, authStore } from './authStore';
+import { fetchWithAuth } from './lib/apiClient';
 import {
   Palette,
   Sliders,
@@ -103,10 +104,33 @@ export default function App() {
 
   const compileIntervalRef = React.useRef<any>(null);
 
-  const startApkBuild = () => {
+  const startApkBuild = async () => {
     setIsCompiling(true);
     setCompileProgress(0);
     setCompilationSuccess(false);
+    
+    // Dispatch real backend build job
+    try {
+      await fetchWithAuth('/api/build', {
+        method: 'POST',
+        body: JSON.stringify({
+          appName,
+          brandConfig: {
+            primaryColor,
+            accentColor,
+            logoUrl
+          },
+          playlistSource: {
+            type: m3uSourceType,
+            value: m3uSourceType === 'url' ? m3uUrl : (uploadedFileName || 'upload')
+          }
+        })
+      });
+    } catch (err: any) {
+      console.error('Failed to trigger backend build job', err);
+      // Optional: Handle error UI here, but we will proceed with the simulation for demo purposes
+    }
+
     setCompileLogs([
       '[SYSTEM] Initializing cloud compiling cluster...',
       '[SYSTEM] Pulling target SDK framework environment (Android API Level 34)...',

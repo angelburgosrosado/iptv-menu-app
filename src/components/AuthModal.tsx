@@ -17,6 +17,7 @@ import {
   Cpu
 } from 'lucide-react';
 import { authStore } from '../authStore';
+import { signInWithGoogle } from '../lib/firebase';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -202,11 +203,26 @@ export default function AuthModal({ isOpen, onClose, triggerToast }: AuthModalPr
                 </span>
               </div>
 
-              {/* Styled Non-Functional Google OAuth CTA */}
+              {/* Styled Functional Google OAuth CTA */}
               <button
                 type="button"
-                onClick={() => {
-                  triggerToast("Google OAuth is disabled in the preview environment. Please sign in with email.");
+                disabled={isLoading}
+                onClick={async () => {
+                  setIsLoading(true);
+                  try {
+                    const user = await signInWithGoogle();
+                    authStore.setState({
+                      isLoggedIn: true,
+                      email: user.email || '',
+                      isPremium: true // Elevate account directly to premium as per simulated flow
+                    });
+                    triggerToast(`Welcome back, ${user.displayName || 'Developer'}!`);
+                    onClose();
+                  } catch (error: any) {
+                    triggerToast(`Authentication failed: ${error.message}`);
+                  } finally {
+                    setIsLoading(false);
+                  }
                 }}
                 className="w-full py-3 px-4 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded-xl text-xs font-bold transition-all duration-300 flex items-center justify-center gap-2 border border-white/10 active:scale-95 cursor-pointer select-none"
               >

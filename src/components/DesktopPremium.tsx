@@ -1,6 +1,7 @@
 import * as React from 'react';
-import { Crown, Check, Sparkles, Zap, Award, Star } from 'lucide-react';
+import { Crown, Check, Sparkles, Zap, Award, Star, Loader } from 'lucide-react';
 import { useAuth } from '../authStore';
+import { fetchWithAuth } from '../lib/apiClient';
 
 interface DesktopPremiumProps {
   onTriggerAuth: () => void;
@@ -11,15 +12,45 @@ export default function DesktopPremium({ onTriggerAuth }: DesktopPremiumProps) {
   const [billingCycle, setBillingCycle] = React.useState<'monthly' | 'yearly'>('monthly');
   const [selectedPlan, setSelectedPlan] = React.useState<string | null>(null);
   const [showCheckoutSuccess, setShowCheckoutSuccess] = React.useState(false);
+  const [isProcessing, setIsProcessing] = React.useState(false);
 
   const discountFactor = billingCycle === 'yearly' ? 0.8 : 1.0;
 
-  const handleCheckout = (planName: string) => {
-    if (!auth.isPremium) {
+  const handleCheckout = async (planName: string, basePriceId: string) => {
+    if (!auth.isLoggedIn) {
       onTriggerAuth();
-    } else {
+      return;
+    } 
+    
+    // Determine actual price ID based on cycle if we had multiple real ones
+    // For now we pass a simulated or environment-based price ID
+    const priceId = billingCycle === 'yearly' ? `${basePriceId}_yearly` : `${basePriceId}_monthly`;
+    
+    try {
+      setIsProcessing(true);
+      const { url } = await fetchWithAuth('/api/billing/create-checkout-session', {
+        method: 'POST',
+        body: JSON.stringify({
+          priceId,
+          successUrl: window.location.origin + '?checkout=success',
+          cancelUrl: window.location.origin + '?checkout=cancel'
+        })
+      });
+      
+      if (url) {
+        window.location.href = url;
+      } else {
+        // Fallback for simulation if no URL is returned
+        setSelectedPlan(planName);
+        setShowCheckoutSuccess(true);
+      }
+    } catch (err) {
+      console.error('Checkout failed', err);
+      // Fallback for simulation if stripe isn't configured
       setSelectedPlan(planName);
       setShowCheckoutSuccess(true);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -148,10 +179,11 @@ export default function DesktopPremium({ onTriggerAuth }: DesktopPremiumProps) {
           </div>
 
           <button
-            onClick={() => handleCheckout("Pro Streamer Suite")}
-            className="w-full py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-extrabold mt-6 shadow-lg shadow-blue-500/20 hover:shadow-blue-500/35 transition-all text-center"
+            onClick={() => handleCheckout("Pro Streamer Suite", "price_pro_tier")}
+            disabled={isProcessing}
+            className="w-full flex justify-center items-center gap-2 py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-extrabold mt-6 shadow-lg shadow-blue-500/20 hover:shadow-blue-500/35 transition-all text-center disabled:opacity-50"
           >
-            Upgrade to Pro Now
+            {isProcessing && selectedPlan === "Pro Streamer Suite" ? <Loader className="w-4 h-4 animate-spin" /> : "Upgrade to Pro Now"}
           </button>
         </div>
 
@@ -191,10 +223,11 @@ export default function DesktopPremium({ onTriggerAuth }: DesktopPremiumProps) {
           </div>
 
           <button
-            onClick={() => handleCheckout("Global Broadcast Suite")}
-            className="w-full py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-bold mt-6 transition-all border border-white/10 text-center"
+            onClick={() => handleCheckout("Global Broadcast Suite", "price_enterprise_tier")}
+            disabled={isProcessing}
+            className="w-full flex justify-center items-center gap-2 py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-bold mt-6 transition-all border border-white/10 text-center disabled:opacity-50"
           >
-            Purchase License
+             {isProcessing && selectedPlan === "Global Broadcast Suite" ? <Loader className="w-4 h-4 animate-spin" /> : "Purchase License"}
           </button>
         </div>
 

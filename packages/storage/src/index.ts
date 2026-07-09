@@ -100,3 +100,18 @@ export async function deleteFromBucket(bucketName: string, filePath: string): Pr
     throw error;
   }
 }
+
+export async function downloadFromBucket(bucketName: string, filePath: string): Promise<Buffer> {
+  try {
+    const storage = getStorageClient();
+    const bucket = storage.bucket(bucketName);
+    const file = bucket.file(filePath);
+    
+    const [buffer] = await file.download();
+    logger.info(`Successfully downloaded file from GCS`, { bucketName, filePath });
+    return buffer;
+  } catch (error) {
+    logger.error(`Failed to download from bucket ${bucketName} at ${filePath}`, error);
+    throw error;
+  }
+}

@@ -1,10 +1,11 @@
-import { PlaylistRepository, BuildRepository, getFirestoreDB } from '@iptv-menu/db';
-import { PlaylistRun, BuildRequest, RunType, RunStatus, BuildStatus } from '@iptv-menu/types';
+import { PlaylistRepository, BuildRepository, EpgRepository, getFirestoreDB } from '@iptv-menu/db';
+import { PlaylistRun, BuildRequest, RunType, RunStatus, BuildStatus, EpgFeed } from '@iptv-menu/types';
 import { Logger } from '@iptv-menu/logging';
 
 const logger = new Logger('jobs-queue');
 const playlistRepo = new PlaylistRepository();
 const buildRepo = new BuildRepository();
+const epgRepo = new EpgRepository();
 
 /**
  * Dispatches a playlist run task by writing a queued run into Firestore
@@ -58,6 +59,16 @@ export async function dispatchBuildJob(
   logger.info(`Dispatching app build job`, { uid, appName, buildId });
   await buildRepo.createBuild(buildRequest);
   return buildId;
+}
+
+/**
+ * Dispatches an EPG generation job by updating the EPG Feed status
+ */
+export async function dispatchEpgJob(epgId: string): Promise<void> {
+  logger.info(`Dispatching EPG job`, { epgId });
+  // Currently the API creates the EPG record as 'pending', so we just need to ensure it's picked up.
+  // The worker will poll for 'pending' EPG feeds.
+  await epgRepo.updateEpg(epgId, { status: 'pending' });
 }
 
 /**
@@ -121,6 +132,35 @@ export async function pollNextBuildJob(): Promise<BuildRequest | null> {
     return { ...build, status: 'building' };
   } catch (error) {
     logger.error('Error polling or locking build requests', error);
+    return null;
+  }
+}
+
+export async function pollNextEpgJob(): Promise<EpgFeed | null> {
+  const db = getFirestoreDB();
+  
+  try {
+    const snapshot = await db.collection('epgFeeds')
+      .where('status', '==', 'pending')
+      .limit(1)
+      .get();
+
+    if (snapshot.empty) return null;
+
+    const doc = snapshot.docs[0];
+    const epg = doc.data() as EpgFeed;
+    
+    // Lock the task
+    const docRef = doc.ref;
+    await docRef.update({
+      status: 'generating',
+      lastGeneratedAt: new Date().toISOString(),
+    });
+
+    logger.info('Locked EPG generation job', { epgId: epg.epgId });
+    return { ...epg, status: 'generating' };
+  } catch (error) {
+    logger.error('Error polling or locking EPG feeds', error);
     return null;
   }
 }

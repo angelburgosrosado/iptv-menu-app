@@ -25,9 +25,9 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      // Hardcoded admin bootstrap for angelburgosrosado@gmail.com and database admins collection lookups
+      // Hardcoded admin bootstrap for angelburgosrosado@gmail.com and abglco@protonmail.com
       return isVerifiedUser() && (
-        request.auth.token.email == 'angelburgosrosado@gmail.com' ||
+        request.auth.token.email in ['angelburgosrosado@gmail.com', 'abglco@protonmail.com'] ||
         exists(/databases/$(database)/documents/admins/$(request.auth.uid))
       );
     }

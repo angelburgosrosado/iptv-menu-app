@@ -2,6 +2,8 @@ import * as React from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { UploadCloud, Link, FileText, Check, AlertCircle, RefreshCw, Layers } from 'lucide-react';
 import { parseM3U } from '../utils/m3uParser';
+import { authStore } from '../authStore';
+import { fetchWithAuth, uploadFileToSignedUrl } from '../lib/apiClient';
 
 export default function DesktopM3uUpload() {
   const { playlistUrl, setPlaylistUrl, loadPlaylist, channels } = usePlayerStore();
@@ -64,31 +66,65 @@ export default function DesktopM3uUpload() {
     }
   };
 
+  const processFileUpload = async (file: File) => {
+    try {
+      const { isLoggedIn, isPremium } = authStore.getState();
+      
+      if (!isLoggedIn) {
+        setLocalStatus({ type: 'error', message: 'You must be signed in to upload a playlist.' });
+        return;
+      }
+      
+      if (!isPremium) {
+        setLocalStatus({ type: 'error', message: 'Premium is required to sync custom M3U files to the Cloud.' });
+        return;
+      }
+
+      setLocalStatus({ type: 'loading', message: 'Generating secure upload URL...' });
+
+      // 1. Create Playlist Record in DB and get Upload URL
+      const { playlist, uploadUrl } = await fetchWithAuth('/api/playlists', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: file.name.replace(/\.[^/.]+$/, ""), // Remove extension
+          sourceType: 'upload',
+          originalFileName: file.name
+        })
+      });
+
+      // 2. Upload file directly to GCS using the signed URL
+      setLocalStatus({ type: 'loading', message: `Uploading ${file.name} to Cloud Storage...` });
+      await uploadFileToSignedUrl(uploadUrl, file);
+
+      // 3. Dispatch Parse Job
+      setLocalStatus({ type: 'loading', message: 'Dispatching parsing job to async workers...' });
+      const { runId } = await fetchWithAuth(`/api/playlists/${playlist.playlistId}/parse`, {
+        method: 'POST'
+      });
+
+      setLocalStatus({ 
+        type: 'success', 
+        message: `Playlist uploaded successfully! Job ID: ${runId}. It will appear in your channels once processed.`
+      });
+
+    } catch (err: any) {
+      setLocalStatus({ type: 'error', message: `Upload failed: ${err.message}` });
+    }
+  };
+
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
 
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0];
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const text = event.target?.result as string;
-        parseM3uText(text);
-      };
-      reader.readAsText(file);
+      processFileUpload(e.dataTransfer.files[0]);
     }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const text = event.target?.result as string;
-        parseM3uText(text);
-      };
-      reader.readAsText(file);
+      processFileUpload(e.target.files[0]);
     }
   };
 
