@@ -23,7 +23,10 @@ FROM nginx:alpine AS runner
 # Copy the built Vite assets to Nginx
 COPY --from=builder /usr/src/app/dist /usr/share/nginx/html
 
-# Expose port 80
-EXPOSE 80
+# Change Nginx default port to 8080 to comply with Cloud Run defaults
+RUN sed -i 's/listen  *80;/listen 8080;/g' /etc/nginx/conf.d/default.conf
+
+# Expose port 8080
+EXPOSE 8080
 
 CMD ["nginx", "-g", "daemon off;"]
