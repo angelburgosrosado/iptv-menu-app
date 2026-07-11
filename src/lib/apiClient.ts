@@ -1,7 +1,8 @@
 import { auth } from './firebase';
 
 const getBaseUrl = () => {
-  return import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  const url = import.meta.env.VITE_API_URL || "__VITE_API_URL__";
+  return url.startsWith('__') ? 'http://localhost:3001' : url;
 };
 
 export const fetchWithAuth = async (endpoint: string, options: RequestInit = {}) => {

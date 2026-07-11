@@ -26,7 +26,11 @@ COPY --from=builder /usr/src/app/dist /usr/share/nginx/html
 # Change Nginx default port to 8080 to comply with Cloud Run defaults
 RUN sed -i 's/listen  *80;/listen 8080;/g' /etc/nginx/conf.d/default.conf
 
+# Copy entrypoint script
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 # Expose port 8080
 EXPOSE 8080
 
-CMD ["nginx", "-g", "daemon off;"]
+ENTRYPOINT ["/entrypoint.sh"]
