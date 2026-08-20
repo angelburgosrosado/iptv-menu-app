@@ -36,6 +36,9 @@
       ],
       "react-native-mmkv": [
         "./src/shims/react-native-mmkv.ts"
+      ],
+      "@iptv-menu/types": [
+        "./packages/types/src/index.ts"
       ]
     },
     "allowImportingTsExtensions": true,

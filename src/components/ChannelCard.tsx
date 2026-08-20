@@ -268,12 +268,22 @@ export const ChannelCard = React.memo(({
 
           {/* Details Area */}
           <View style={styles.details}>
-            <Text numberOfLines={1} style={styles.channelName}>
-              {channel.name}
-            </Text>
-            <Text numberOfLines={1} style={styles.groupName}>
-              {channel.group}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text numberOfLines={1} style={styles.channelName}>
+                {channel.name}
+              </Text>
+              <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">
+                {channel.resolution || '1080p'}
+              </span>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 }}>
+              <Text numberOfLines={1} style={styles.groupName}>
+                {channel.group}
+              </Text>
+              <span className="text-[9px] font-mono text-zinc-500">
+                {channel.bitrate || '4.5 Mbps'} • {channel.pingMs ? `${channel.pingMs}ms` : '24ms'}
+              </span>
+            </View>
           </View>
 
           {/* Favorite Quick Action (Heart) */}

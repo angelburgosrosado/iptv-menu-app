@@ -2,6 +2,8 @@ import { PlaylistRepository, BuildRepository, EpgRepository, getFirestoreDB } fr
 import { PlaylistRun, BuildRequest, RunType, RunStatus, BuildStatus, EpgFeed } from '@iptv-menu/types';
 import { Logger } from '@iptv-menu/logging';
 
+export * from './easBuildClient';
+
 const logger = new Logger('jobs-queue');
 const playlistRepo = new PlaylistRepository();
 const buildRepo = new BuildRepository();

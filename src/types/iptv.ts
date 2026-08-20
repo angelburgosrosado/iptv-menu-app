@@ -10,6 +10,23 @@ export interface Channel {
   url: string;        // HLS H3U8 stream URL
   group: string;      // Group category name (e.g., News, Entertainment)
   tvgId: string;      // Raw epg identifier
+  resolution?: string; // 4K, 1080p, 720p, SD
+  bitrate?: string;    // e.g., 4.5 Mbps
+  fps?: number;        // e.g., 60, 30
+  pingMs?: number;     // live latency ms
+  codec?: string;      // H.264 / AAC / HEVC
+  streamType?: 'live' | 'vod' | 'series';
+  directSource?: 'm3u' | 'xtream';
+}
+
+export interface XtreamAccount {
+  serverUrl: string;
+  username: string;
+  password: string;
+  port?: string;
+  status: 'connected' | 'error' | 'idle';
+  expirationDate?: string;
+  maxConnections?: number;
 }
 
 export interface Group {

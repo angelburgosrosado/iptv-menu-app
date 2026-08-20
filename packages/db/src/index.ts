@@ -2,7 +2,7 @@ import { getFirebaseAdmin } from '@iptv-menu/auth';
 import { Logger } from '@iptv-menu/logging';
 import { 
   UserProfile, Playlist, PlaylistRun, EpgFeed, BuildRequest, 
-  AdminAction, UserRole, AccountStatus 
+  AdminAction, UserRole, AccountStatus, Workspace
 } from '@iptv-menu/types';
 
 const logger = new Logger('db-repository');
@@ -359,3 +359,60 @@ export class AuditLogRepository {
     }
   }
 }
+
+// ==========================================
+// WORKSPACE REPOSITORY
+// ==========================================
+export class WorkspaceRepository {
+  private collection = 'workspaces';
+
+  private get db() {
+    return getFirestoreDB();
+  }
+
+  async getWorkspace(workspaceId: string): Promise<Workspace | null> {
+    try {
+      const doc = await this.db.collection(this.collection).doc(workspaceId).get();
+      if (!doc.exists) return null;
+      return doc.data() as Workspace;
+    } catch (err) {
+      handleFirestoreError(err, DbOperation.GET, this.collection, workspaceId);
+    }
+  }
+
+  async createWorkspace(workspace: Workspace): Promise<void> {
+    try {
+      await this.db.collection(this.collection).doc(workspace.workspaceId).set({
+        ...workspace,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+    } catch (err) {
+      handleFirestoreError(err, DbOperation.CREATE, this.collection, workspace.workspaceId);
+    }
+  }
+
+  async updateWorkspace(workspaceId: string, data: Partial<Omit<Workspace, 'workspaceId' | 'ownerUid' | 'createdAt'>>): Promise<void> {
+    try {
+      await this.db.collection(this.collection).doc(workspaceId).update({
+        ...data,
+        updatedAt: new Date().toISOString()
+      });
+    } catch (err) {
+      handleFirestoreError(err, DbOperation.UPDATE, this.collection, workspaceId);
+    }
+  }
+
+  async listUserWorkspaces(uid: string): Promise<Workspace[]> {
+    try {
+      const snapshot = await this.db.collection(this.collection)
+        .where('ownerUid', '==', uid)
+        .orderBy('createdAt', 'desc')
+        .get();
+      return snapshot.docs.map((d: any) => d.data() as Workspace);
+    } catch (err) {
+      handleFirestoreError(err, DbOperation.LIST, this.collection);
+    }
+  }
+}
+

@@ -18,6 +18,9 @@ export interface AppEnvConfig {
   GCS_BUILD_BUCKET: string;
   INTERNAL_WORKER_URL: string;
   ADMIN_ALLOWED_EMAILS: string[];
+  EXPO_ACCESS_TOKEN?: string;
+  EXPO_ACCOUNT_NAME?: string;
+  EXPO_PROJECT_ID?: string;
 }
 
 export const config: AppEnvConfig = {
@@ -40,6 +43,9 @@ export const config: AppEnvConfig = {
     .split(',')
     .map(email => email.trim().toLowerCase())
     .filter(Boolean),
+  EXPO_ACCESS_TOKEN: process.env.EXPO_ACCESS_TOKEN || '',
+  EXPO_ACCOUNT_NAME: process.env.EXPO_ACCOUNT_NAME || '',
+  EXPO_PROJECT_ID: process.env.EXPO_PROJECT_ID || '',
 };
 
 export const features = {

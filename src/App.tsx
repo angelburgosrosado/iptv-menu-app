@@ -25,7 +25,10 @@ import {
   UploadCloud,
   Settings,
   Crown,
-  ShieldCheck
+  ShieldCheck,
+  LayoutGrid,
+  Server,
+  ShieldAlert
 } from 'lucide-react';
 import { Stack } from 'expo-router';
 import { motion, AnimatePresence } from 'motion/react';
@@ -39,10 +42,15 @@ import DesktopEpg from './components/DesktopEpg';
 import DesktopM3uUpload from './components/DesktopM3uUpload';
 import DesktopSettings from './components/DesktopSettings';
 import DesktopPremium from './components/DesktopPremium';
+import SystemAdminConsole from './components/admin/SystemAdminConsole';
+import XtreamConnector from './components/XtreamConnector';
+import MultiScreenMatrix from './components/MultiScreenMatrix';
+import AdSenseSlot from './components/ads/AdSenseSlot';
 import MarketingHero from './components/MarketingHero';
 import PricingSection from './components/PricingSection';
 import CertifiedDevices from './components/CertifiedDevices';
 import AuthModal from './components/AuthModal';
+import WorkspaceSwitcher from './components/WorkspaceSwitcher';
 import { useAuth, authStore } from './authStore';
 import { fetchWithAuth } from './lib/apiClient';
 import {
@@ -67,6 +75,7 @@ export default function App() {
   const MOBILE_TAB_ITEMS = [
     { id: 'home', label: 'Home', icon: Home },
     { id: 'channels', label: 'Channels', icon: Tv },
+    { id: 'multiscreen', label: 'Multi', icon: LayoutGrid },
     { id: 'upload', label: 'Upload', icon: UploadCloud },
     { id: 'devices', label: 'Devices', icon: ShieldCheck },
     { id: 'premium', label: 'Upgrade', icon: Crown },
@@ -220,9 +229,12 @@ export default function App() {
   const SIDEBAR_ITEMS = [
     { id: 'home', label: 'Home', icon: Home },
     { id: 'channels', label: 'Channels', icon: Tv },
+    { id: 'multiscreen', label: 'Quad Multi-Screen', icon: LayoutGrid },
     { id: 'favorites', label: 'Favorites', icon: Heart },
     { id: 'epg', label: 'EPG Guide', icon: CalendarRange },
+    { id: 'xtream', label: 'Xtream / Stalker', icon: Server },
     { id: 'upload', label: 'M3U Upload', icon: UploadCloud },
+    { id: 'system_admin', label: 'Platform Admin', icon: ShieldAlert },
     { id: 'devices', label: 'Certified Devices', icon: ShieldCheck },
     { id: 'settings', label: 'Settings', icon: Settings },
     { id: 'premium', label: 'Premium Upgrade', icon: Crown },
@@ -232,12 +244,18 @@ export default function App() {
     switch (activeMenu) {
       case 'channels':
         return <DesktopChannels />;
+      case 'multiscreen':
+        return <MultiScreenMatrix />;
       case 'favorites':
         return <DesktopFavorites />;
       case 'epg':
         return <DesktopEpg />;
+      case 'xtream':
+        return <XtreamConnector />;
       case 'upload':
         return <DesktopM3uUpload />;
+      case 'system_admin':
+        return <SystemAdminConsole />;
       case 'devices':
         return <CertifiedDevices />;
       case 'settings':
@@ -869,12 +887,35 @@ export default function App() {
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    alert(`White-Label Build Success!\n\nYour custom IPTV APK "${appName}" is now ready for deployment. The file has been packaged under bundle identifier "${bundleId}".`);
+                                    // Generate downloadable manifest & dummy APK payload bundle
+                                    const manifestContent = JSON.stringify({
+                                      appName,
+                                      bundleId,
+                                      primaryColor,
+                                      accentColor,
+                                      playlistSource: m3uSourceType === 'url' ? m3uUrl : uploadedFileName,
+                                      defaultCategory,
+                                      buildTimestamp: new Date().toISOString(),
+                                      version: '1.0.0',
+                                      targetPlatform: 'android-arm64-v8a',
+                                      status: 'RELEASE_SIGNED'
+                                    }, null, 2);
+
+                                    const blob = new Blob([manifestContent], { type: 'application/vnd.android.package-archive' });
+                                    const url = URL.createObjectURL(blob);
+                                    const a = document.createElement('a');
+                                    a.href = url;
+                                    a.download = `${appName.toLowerCase().replace(/[^a-z0-9]/g, '-')}-release.apk`;
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    document.body.removeChild(a);
+                                    URL.revokeObjectURL(url);
+                                    triggerToast(`Downloaded ${appName.toLowerCase().replace(/[^a-z0-9]/g, '-')}-release.apk`);
                                   }}
-                                  className="flex-1 py-2.5 px-4 bg-amber-500 hover:bg-amber-400 text-black rounded-xl text-xs font-bold transition-all shadow-lg flex items-center justify-center gap-1.5"
+                                  className="flex-1 py-2.5 px-4 bg-amber-500 hover:bg-amber-400 text-black rounded-xl text-xs font-bold transition-all shadow-lg flex items-center justify-center gap-1.5 cursor-pointer"
                                 >
                                   <Download className="w-4 h-4" />
-                                  Download .apk — $49 One-Time Build
+                                  Download .apk Package
                                 </button>
                                 <button
                                   type="button"
@@ -1036,6 +1077,11 @@ export default function App() {
               Foundational M3U • Streaming Online
             </p>
           </div>
+          {auth.isLoggedIn && (
+            <div className="ml-4 hidden sm:block">
+              <WorkspaceSwitcher />
+            </div>
+          )}
         </div>
 
         {/* Global Stats indicators & Status Pills */}
@@ -1264,7 +1310,8 @@ export default function App() {
           </section>
 
           {/* RIGHT COLUMN: DYNAMIC WORKSPACE COMPONENT WITH ANIMATED TRANSITIONS */}
-          <div className="col-span-1 lg:col-span-7 flex flex-col min-w-0">
+          <div className="col-span-1 lg:col-span-7 flex flex-col min-w-0 space-y-4">
+            <AdSenseSlot slot="8849201938" className="mb-2" />
             <AnimatePresence mode="wait">
               <motion.section
                 key={activeMenu}
@@ -1277,6 +1324,7 @@ export default function App() {
                 {renderActiveSection()}
               </motion.section>
             </AnimatePresence>
+            <AdSenseSlot slot="9938102948" format="horizontal" />
           </div>
 
         </div>

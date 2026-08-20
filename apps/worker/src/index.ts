@@ -156,20 +156,25 @@ async function runWorker() {
       // 2. Poll for App Build Compilation Requests
       const buildJob = await pollNextBuildJob();
       if (buildJob) {
-        logger.info(`Compiling app launch container`, { buildId: buildJob.buildId });
+        logger.info(`Compiling app launch container via EAS engine`, { buildId: buildJob.buildId });
         try {
-          // Fake compile delay
-          await new Promise(resolve => setTimeout(resolve, 5000));
+          const { triggerEasAndroidBuild } = require('@iptv-menu/jobs');
+          
+          const buildResult = await triggerEasAndroidBuild({
+            buildId: buildJob.buildId,
+            appName: buildJob.appName,
+            brandConfig: buildJob.brandConfig,
+            playlistSource: buildJob.playlistSource
+          });
 
-          const artifactPath = `users/${buildJob.uid}/builds/${buildJob.buildId}_android_release.apk`;
-          await uploadToBucket(config.GCS_BUILD_BUCKET, artifactPath, 'mock-apk-binary-content', 'application/vnd.android.package-archive');
+          const artifactPath = buildResult.downloadUrl || `users/${buildJob.uid}/builds/${buildJob.buildId}_android_release.apk`;
 
           await buildRepo.updateBuild(buildJob.buildId, {
-            status: 'succeeded',
+            status: buildResult.status === 'FINISHED' ? 'succeeded' : 'processing',
             artifactPath,
             buildLogPath: `users/${buildJob.uid}/builds/logs/${buildJob.buildId}.log`
           });
-          logger.info(`Custom IPTV launcher build completed successfully`, { buildId: buildJob.buildId });
+          logger.info(`Custom IPTV launcher build dispatched successfully`, { buildId: buildJob.buildId, easId: buildResult.easBuildId });
         } catch (buildErr: any) {
           logger.error(`Build failed`, buildErr);
           await buildRepo.updateBuild(buildJob.buildId, {

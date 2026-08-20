@@ -13,7 +13,8 @@ import {
   PlaylistRepository, 
   EpgRepository, 
   BuildRepository, 
-  AuditLogRepository 
+  AuditLogRepository,
+  WorkspaceRepository
 } from '@iptv-menu/db';
 import { 
   getSignedUrl, 
@@ -31,7 +32,8 @@ import {
   dispatchBuildJob,
   dispatchEpgJob
 } from '@iptv-menu/jobs';
-import { UserProfile, Playlist, EpgFeed, BuildRequest, AdminAction, UserRole } from '@iptv-menu/types';
+import { UserProfile, Playlist, EpgFeed, BuildRequest, AdminAction, UserRole, Workspace } from '@iptv-menu/types';
+import { attachWorkspaceContext, checkWorkspaceQuota } from './middleware/workspaceGuard';
 
 const logger = new Logger('api-server');
 
@@ -44,6 +46,7 @@ const playlistRepo = new PlaylistRepository();
 const epgRepo = new EpgRepository();
 const buildRepo = new BuildRepository();
 const auditRepo = new AuditLogRepository();
+const workspaceRepo = new WorkspaceRepository();
 
 // Global Middlewares
 app.use(cors({ origin: true }));
@@ -103,10 +106,11 @@ app.post('/api/public/contact', async (req, res) => {
 
 // Authenticated requests pass through this middleware
 app.use('/api/me', authenticateFirebaseToken);
-app.use('/api/playlists', authenticateFirebaseToken);
-app.use('/api/epg', authenticateFirebaseToken);
-app.use('/api/builds', authenticateFirebaseToken);
+app.use('/api/playlists', authenticateFirebaseToken, attachWorkspaceContext);
+app.use('/api/epg', authenticateFirebaseToken, attachWorkspaceContext);
+app.use('/api/builds', authenticateFirebaseToken, attachWorkspaceContext);
 app.use('/api/billing', authenticateFirebaseToken);
+app.use('/api/workspaces', authenticateFirebaseToken);
 
 // User info
 app.get('/api/me', async (req: any, res) => {
@@ -161,7 +165,7 @@ app.get('/api/me/subscription', async (req: any, res) => {
 });
 
 // Playlists
-app.post('/api/playlists', async (req: any, res) => {
+app.post('/api/playlists', checkWorkspaceQuota('maxPlaylists'), async (req: any, res) => {
   try {
     const uid = req.user.uid;
     const { name, sourceType, originalFileName } = req.body;
@@ -295,7 +299,7 @@ app.get('/api/playlists/:playlistId/runs', async (req: any, res) => {
 });
 
 // EPG
-app.post('/api/epg', async (req: any, res) => {
+app.post('/api/epg', checkWorkspaceQuota('maxHostedPlaylists'), async (req: any, res) => {
   try {
     const uid = req.user.uid;
     const { playlistId, urls, refreshIntervalHours } = req.body;
@@ -346,8 +350,103 @@ app.get('/api/epg/:epgId', async (req: any, res) => {
   }
 });
 
+// Workspaces
+app.post('/api/workspaces', async (req: any, res) => {
+  try {
+    const uid = req.user.uid;
+    const { name } = req.body;
+    const workspaceId = `ws_${Math.random().toString(36).substring(2, 15)}`;
+
+    const newWorkspace: Workspace = {
+      workspaceId,
+      name,
+      ownerUid: uid,
+      plan: 'free',
+      subscriptionStatus: 'active',
+      stripeSubscriptionId: null,
+      stripeCustomerId: null,
+      entitlements: {
+        maxPlaylists: 1,
+        maxHostedPlaylists: 0,
+        maxDailyCleanups: 1,
+        maxMonthlyBuilds: 0,
+        allowBrandingCustomization: false,
+        allowWhiteLabel: false
+      },
+      usage: {
+        activePlaylistsCount: 0,
+        activeHostedPlaylistsCount: 0,
+        dailyCleanupsUsed: 0,
+        monthlyBuildsUsed: 0
+      },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    await workspaceRepo.createWorkspace(newWorkspace);
+    res.status(201).json(newWorkspace);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/workspaces', async (req: any, res) => {
+  try {
+    const uid = req.user.uid;
+    let list = await workspaceRepo.listUserWorkspaces(uid);
+    
+    // Auto-bootstrap a personal workspace if none exist
+    if (list.length === 0) {
+      const workspaceId = `ws_${Math.random().toString(36).substring(2, 15)}`;
+      const personalWs: Workspace = {
+        workspaceId,
+        name: 'Personal Workspace',
+        ownerUid: uid,
+        plan: 'free',
+        subscriptionStatus: 'active',
+        stripeSubscriptionId: null,
+        stripeCustomerId: null,
+        entitlements: {
+          maxPlaylists: 1,
+          maxHostedPlaylists: 0,
+          maxDailyCleanups: 1,
+          maxMonthlyBuilds: 0,
+          allowBrandingCustomization: false,
+          allowWhiteLabel: false
+        },
+        usage: {
+          activePlaylistsCount: 0,
+          activeHostedPlaylistsCount: 0,
+          dailyCleanupsUsed: 0,
+          monthlyBuildsUsed: 0
+        },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      await workspaceRepo.createWorkspace(personalWs);
+      list = [personalWs];
+    }
+    res.json(list);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/workspaces/:workspaceId', async (req: any, res) => {
+  try {
+    const { workspaceId } = req.params;
+    const ws = await workspaceRepo.getWorkspace(workspaceId);
+    if (!ws || ws.ownerUid !== req.user.uid) {
+      return res.status(404).json({ error: 'Workspace not found' });
+    }
+    res.json(ws);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Builds
-app.post('/api/builds', async (req: any, res) => {
+app.post('/api/builds', checkWorkspaceQuota('maxMonthlyBuilds'), async (req: any, res) => {
   try {
     const uid = req.user.uid;
     const { appName, brandConfig, playlistSource } = req.body;

@@ -1,6 +1,32 @@
 export type UserRole = 'user' | 'pro' | 'builder' | 'admin';
 export type AccountStatus = 'active' | 'suspended';
 
+export interface Workspace {
+  workspaceId: string;
+  name: string;
+  ownerUid: string;
+  plan: 'free' | 'starter' | 'builder' | 'agency';
+  subscriptionStatus: 'active' | 'canceled' | 'past_due' | 'incomplete';
+  stripeSubscriptionId: string | null;
+  stripeCustomerId: string | null;
+  entitlements: {
+    maxPlaylists: number;
+    maxHostedPlaylists: number;
+    maxDailyCleanups: number;
+    maxMonthlyBuilds: number;
+    allowBrandingCustomization: boolean;
+    allowWhiteLabel: boolean;
+  };
+  usage: {
+    activePlaylistsCount: number;
+    activeHostedPlaylistsCount: number;
+    dailyCleanupsUsed: number;
+    monthlyBuildsUsed: number;
+  };
+  createdAt: Date | string;
+  updatedAt: Date | string;
+}
+
 export interface UserProfile {
   uid: string;
   email: string;
