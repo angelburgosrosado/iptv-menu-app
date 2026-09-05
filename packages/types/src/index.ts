@@ -121,6 +121,7 @@ export interface BuildRequest {
   status: BuildStatus;
   artifactPath: string | null;
   buildLogPath: string | null;
+  appConfigId?: string | null;
   createdAt: Date | string;
   updatedAt: Date | string;
 }
@@ -151,4 +152,24 @@ export interface SystemHealth {
     worker: 'up' | 'down';
     db: 'up' | 'down';
   };
+}
+
+export interface AppConfig {
+  appId: string;
+  workspaceId: string;
+  ownerUid: string;
+  name: string;
+  slug: string;
+  theme: {
+    primaryColor: string;
+    accentColor: string;
+    logoUrl?: string;
+  };
+  playlistUrl: string;
+  epgUrl?: string | null;
+  announcement?: string | null;
+  version: number;
+  active: boolean;
+  createdAt: Date | string;
+  updatedAt: Date | string;
 }

@@ -28,7 +28,8 @@ import {
   ShieldCheck,
   LayoutGrid,
   Server,
-  ShieldAlert
+  ShieldAlert,
+  Radio
 } from 'lucide-react';
 import { Stack } from 'expo-router';
 import { motion, AnimatePresence } from 'motion/react';
@@ -40,6 +41,7 @@ import DesktopChannels from './components/DesktopChannels';
 import DesktopFavorites from './components/DesktopFavorites';
 import DesktopEpg from './components/DesktopEpg';
 import DesktopM3uUpload from './components/DesktopM3uUpload';
+import DesktopRemoteApps from './components/DesktopRemoteApps';
 import DesktopSettings from './components/DesktopSettings';
 import DesktopPremium from './components/DesktopPremium';
 import SystemAdminConsole from './components/admin/SystemAdminConsole';
@@ -76,6 +78,7 @@ export default function App() {
   const MOBILE_TAB_ITEMS = [
     { id: 'home', label: 'Home', icon: Home },
     { id: 'channels', label: 'Channels', icon: Tv },
+    { id: 'remote_apps', label: 'OTA', icon: Radio },
     { id: 'multiscreen', label: 'Multi', icon: LayoutGrid },
     { id: 'upload', label: 'Upload', icon: UploadCloud },
     { id: 'devices', label: 'Devices', icon: ShieldCheck },
@@ -105,6 +108,7 @@ export default function App() {
   const [m3uUrl, setM3uUrl] = React.useState<string>('https://iptv.menu/test-playlist.m3u');
   const [uploadedFileName, setUploadedFileName] = React.useState<string | null>(null);
   const [defaultCategory, setDefaultCategory] = React.useState<string>('All Channels');
+  const [boundAppConfigId, setBoundAppConfigId] = React.useState<string>('');
 
   // Compiling Simulation States
   const [isCompiling, setIsCompiling] = React.useState<boolean>(false);
@@ -135,7 +139,8 @@ export default function App() {
           playlistSource: {
             type: m3uSourceType,
             value: m3uSourceType === 'url' ? m3uUrl : (uploadedFileName || 'upload')
-          }
+          },
+          appConfigId: boundAppConfigId || null
         })
       });
       if (res && res.buildId) {
@@ -239,6 +244,7 @@ export default function App() {
     { id: 'epg', label: 'EPG Guide', icon: CalendarRange },
     { id: 'xtream', label: 'Xtream / Stalker', icon: Server },
     { id: 'upload', label: 'M3U Upload', icon: UploadCloud },
+    { id: 'remote_apps', label: 'Remote Apps (OTA)', icon: Radio },
     { id: 'system_admin', label: 'Platform Admin', icon: ShieldAlert },
     { id: 'devices', label: 'Certified Devices', icon: ShieldCheck },
     { id: 'settings', label: 'Settings', icon: Settings },
@@ -259,6 +265,8 @@ export default function App() {
         return <XtreamConnector />;
       case 'upload':
         return <DesktopM3uUpload />;
+      case 'remote_apps':
+        return <DesktopRemoteApps />;
       case 'system_admin':
         return <SystemAdminConsole />;
       case 'devices':
@@ -734,6 +742,29 @@ export default function App() {
                                 <option value="Entertainment">Entertainment & TV Shows</option>
                               </select>
                               <p className="text-[8px] text-zinc-500 mt-1 leading-relaxed">The group that will load automatically on application startup to ensure instant video streaming buffer caches.</p>
+                            </div>
+
+                            {/* Dynamic Remote OTA Binding */}
+                            <div>
+                              <div className="flex items-center justify-between mb-1.5">
+                                <label className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-400 flex items-center gap-1.5">
+                                  <Radio className="w-3 h-3 text-emerald-400 animate-pulse" />
+                                  Dynamic OTA App ID (Optional)
+                                </label>
+                                <span className="text-[8px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.5 rounded font-bold">
+                                  RECOMMENDED
+                                </span>
+                              </div>
+                              <input
+                                type="text"
+                                value={boundAppConfigId}
+                                onChange={(e) => setBoundAppConfigId(e.target.value)}
+                                className="w-full bg-zinc-950/60 border border-white/5 rounded-xl px-3 py-2.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-emerald-500/50 transition-colors font-mono"
+                                placeholder="e.g. app_living-room-iptv_x7k2a"
+                              />
+                              <p className="text-[8px] text-zinc-500 mt-1 leading-relaxed">
+                                Bakes this App ID into the APK so you can push live stream, EPG, theme, and announcement updates remotely.
+                              </p>
                             </div>
 
                             {/* Stream routing diagram */}

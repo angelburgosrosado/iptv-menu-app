@@ -20,7 +20,38 @@ export async function attachWorkspaceContext(req: any, res: any, next: () => voi
       // Fallback: Find the first workspace owned by the user
       const workspacesList = await workspaceRepo.listUserWorkspaces(uid);
       if (workspacesList.length === 0) {
-        return res.status(404).json({ error: 'No workspace found. Please create one.' });
+        try {
+          const newWs = await workspaceRepo.createWorkspace({
+            workspaceId: `ws_${Math.random().toString(36).substring(2, 12)}`,
+            name: 'Personal Workspace',
+            ownerUid: uid,
+            plan: 'free',
+            subscriptionStatus: 'active',
+            entitlements: {
+              maxPlaylists: 1,
+              maxHostedPlaylists: 0,
+              maxDailyCleanups: 1,
+              maxMonthlyBuilds: 0,
+              allowBrandingCustomization: false,
+              allowWhiteLabel: false
+            },
+            usage: {
+              activePlaylistsCount: 0,
+              activeHostedPlaylistsCount: 0,
+              dailyCleanupsUsed: 0,
+              monthlyBuildsUsed: 0
+            },
+            stripeSubscriptionId: null,
+            stripeCustomerId: null,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          });
+          req.workspace = newWs;
+          return next();
+        } catch (wsErr) {
+          // If workspace creation failed, return 404
+          return res.status(404).json({ error: 'No workspace found. Please create one.' });
+        }
       }
       req.workspace = workspacesList[0];
       return next();

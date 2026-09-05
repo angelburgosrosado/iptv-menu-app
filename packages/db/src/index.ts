@@ -2,7 +2,7 @@ import { getFirebaseAdmin } from '@iptv-menu/auth';
 import { Logger } from '@iptv-menu/logging';
 import { 
   UserProfile, Playlist, PlaylistRun, EpgFeed, BuildRequest, 
-  AdminAction, UserRole, AccountStatus, Workspace
+  AdminAction, UserRole, AccountStatus, Workspace, AppConfig
 } from '@iptv-menu/types';
 import { eq, desc } from 'drizzle-orm';
 import { getDb, schema } from './client';
@@ -1039,6 +1039,218 @@ export class AuditLogRepository {
       return snapshot.docs.map((d: any) => d.data() as AdminAction);
     } catch (err) {
       handleFirestoreError(err, DbOperation.LIST, this.collection);
+    }
+  }
+}
+
+// ==========================================
+// APP CONFIG REPOSITORY (DYNAMIC REMOTE OTA)
+// ==========================================
+export class AppConfigRepository {
+  private collection = 'app_configs';
+
+  private get db() {
+    return getFirestoreDB();
+  }
+
+  async getAppConfig(appId: string): Promise<AppConfig | null> {
+    if (process.env.DATABASE_URL) {
+      try {
+        const db = getDb();
+        const [row] = await db.select().from(schema.appConfigs).where(eq(schema.appConfigs.appId, appId)).limit(1);
+        if (!row) return null;
+        return {
+          appId: row.appId,
+          workspaceId: row.workspaceId,
+          ownerUid: row.ownerUid,
+          name: row.name,
+          slug: row.slug,
+          theme: row.theme,
+          playlistUrl: row.playlistUrl,
+          epgUrl: row.epgUrl,
+          announcement: row.announcement,
+          version: row.version,
+          active: row.active === 'true',
+          createdAt: row.createdAt.toISOString(),
+          updatedAt: row.updatedAt.toISOString(),
+        };
+      } catch (err) {
+        logger.error('Neon Drizzle error in getAppConfig', err);
+        throw err;
+      }
+    }
+
+    try {
+      const doc = await this.db.collection(this.collection).doc(appId).get();
+      if (!doc.exists) return null;
+      return doc.data() as AppConfig;
+    } catch (err) {
+      handleFirestoreError(err, DbOperation.GET, this.collection, appId);
+    }
+  }
+
+  async createAppConfig(data: Omit<AppConfig, 'createdAt' | 'updatedAt' | 'version'>): Promise<AppConfig> {
+    const now = new Date();
+    const configRecord: AppConfig = {
+      ...data,
+      version: 1,
+      active: data.active ?? true,
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    };
+
+    if (process.env.DATABASE_URL) {
+      try {
+        const db = getDb();
+        await db.insert(schema.appConfigs).values({
+          appId: configRecord.appId,
+          workspaceId: configRecord.workspaceId,
+          ownerUid: configRecord.ownerUid,
+          name: configRecord.name,
+          slug: configRecord.slug,
+          theme: configRecord.theme,
+          playlistUrl: configRecord.playlistUrl,
+          epgUrl: configRecord.epgUrl || null,
+          announcement: configRecord.announcement || null,
+          version: 1,
+          active: configRecord.active ? 'true' : 'false',
+          createdAt: now,
+          updatedAt: now,
+        } as any);
+        return configRecord;
+      } catch (err) {
+        logger.error('Neon Drizzle error in createAppConfig', err);
+        throw err;
+      }
+    }
+
+    try {
+      await this.db.collection(this.collection).doc(configRecord.appId).set(configRecord);
+      return configRecord;
+    } catch (err) {
+      handleFirestoreError(err, DbOperation.CREATE, this.collection, configRecord.appId);
+    }
+  }
+
+  async updateAppConfig(appId: string, updates: Partial<Omit<AppConfig, 'appId' | 'workspaceId' | 'ownerUid'>>): Promise<AppConfig> {
+    const now = new Date();
+    if (process.env.DATABASE_URL) {
+      try {
+        const db = getDb();
+        const [existing] = await db.select().from(schema.appConfigs).where(eq(schema.appConfigs.appId, appId)).limit(1);
+        if (!existing) throw new Error(`AppConfig ${appId} not found`);
+
+        const newVersion = (existing.version || 1) + 1;
+        const updatePayload: any = {
+          updatedAt: now,
+          version: newVersion,
+        };
+        if (updates.name !== undefined) updatePayload.name = updates.name;
+        if (updates.slug !== undefined) updatePayload.slug = updates.slug;
+        if (updates.theme !== undefined) updatePayload.theme = updates.theme;
+        if (updates.playlistUrl !== undefined) updatePayload.playlistUrl = updates.playlistUrl;
+        if (updates.epgUrl !== undefined) updatePayload.epgUrl = updates.epgUrl;
+        if (updates.announcement !== undefined) updatePayload.announcement = updates.announcement;
+        if (updates.active !== undefined) updatePayload.active = updates.active ? 'true' : 'false';
+
+        await db.update(schema.appConfigs).set(updatePayload).where(eq(schema.appConfigs.appId, appId));
+
+        const [updated] = await db.select().from(schema.appConfigs).where(eq(schema.appConfigs.appId, appId)).limit(1);
+        return {
+          appId: updated.appId,
+          workspaceId: updated.workspaceId,
+          ownerUid: updated.ownerUid,
+          name: updated.name,
+          slug: updated.slug,
+          theme: updated.theme,
+          playlistUrl: updated.playlistUrl,
+          epgUrl: updated.epgUrl,
+          announcement: updated.announcement,
+          version: updated.version,
+          active: updated.active === 'true',
+          createdAt: updated.createdAt.toISOString(),
+          updatedAt: updated.updatedAt.toISOString(),
+        };
+      } catch (err) {
+        logger.error('Neon Drizzle error in updateAppConfig', err);
+        throw err;
+      }
+    }
+
+    try {
+      const docRef = this.db.collection(this.collection).doc(appId);
+      const snapshot = await docRef.get();
+      if (!snapshot.exists) throw new Error(`AppConfig ${appId} not found`);
+      const existing = snapshot.data() as AppConfig;
+      const newVersion = (existing.version || 1) + 1;
+      const finalData: AppConfig = {
+        ...existing,
+        ...updates,
+        version: newVersion,
+        updatedAt: now.toISOString(),
+      };
+      await docRef.set(finalData, { merge: true });
+      return finalData;
+    } catch (err) {
+      handleFirestoreError(err, DbOperation.UPDATE, this.collection, appId);
+    }
+  }
+
+  async listAppConfigsByWorkspace(workspaceId: string): Promise<AppConfig[]> {
+    if (process.env.DATABASE_URL) {
+      try {
+        const db = getDb();
+        const rows = await db.select().from(schema.appConfigs)
+          .where(eq(schema.appConfigs.workspaceId, workspaceId))
+          .orderBy(desc(schema.appConfigs.updatedAt));
+        return rows.map((row) => ({
+          appId: row.appId,
+          workspaceId: row.workspaceId,
+          ownerUid: row.ownerUid,
+          name: row.name,
+          slug: row.slug,
+          theme: row.theme,
+          playlistUrl: row.playlistUrl,
+          epgUrl: row.epgUrl,
+          announcement: row.announcement,
+          version: row.version,
+          active: row.active === 'true',
+          createdAt: row.createdAt.toISOString(),
+          updatedAt: row.updatedAt.toISOString(),
+        }));
+      } catch (err) {
+        logger.error('Neon Drizzle error in listAppConfigsByWorkspace', err);
+        throw err;
+      }
+    }
+
+    try {
+      const snapshot = await this.db.collection(this.collection)
+        .where('workspaceId', '==', workspaceId)
+        .orderBy('updatedAt', 'desc')
+        .get();
+      return snapshot.docs.map((d: any) => d.data() as AppConfig);
+    } catch (err) {
+      handleFirestoreError(err, DbOperation.LIST, this.collection);
+    }
+  }
+
+  async deleteAppConfig(appId: string): Promise<void> {
+    if (process.env.DATABASE_URL) {
+      try {
+        const db = getDb();
+        await db.delete(schema.appConfigs).where(eq(schema.appConfigs.appId, appId));
+        return;
+      } catch (err) {
+        logger.error('Neon Drizzle error in deleteAppConfig', err);
+        throw err;
+      }
+    }
+
+    try {
+      await this.db.collection(this.collection).doc(appId).delete();
+    } catch (err) {
+      handleFirestoreError(err, DbOperation.DELETE, this.collection, appId);
     }
   }
 }

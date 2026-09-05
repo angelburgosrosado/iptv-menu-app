@@ -15,6 +15,7 @@ import {
   BuildRepository, 
   AuditLogRepository,
   WorkspaceRepository,
+  AppConfigRepository,
   getFirestoreDB
 } from '@iptv-menu/db';
 import { 
@@ -33,7 +34,7 @@ import {
   dispatchBuildJob,
   dispatchEpgJob
 } from '@iptv-menu/jobs';
-import { UserProfile, Playlist, EpgFeed, BuildRequest, AdminAction, UserRole, Workspace } from '@iptv-menu/types';
+import { UserProfile, Playlist, EpgFeed, BuildRequest, AdminAction, UserRole, Workspace, AppConfig } from '@iptv-menu/types';
 import { attachWorkspaceContext, checkWorkspaceQuota } from './middleware/workspaceGuard';
 
 const logger = new Logger('api-server');
@@ -48,6 +49,7 @@ const epgRepo = new EpgRepository();
 const buildRepo = new BuildRepository();
 const auditRepo = new AuditLogRepository();
 const workspaceRepo = new WorkspaceRepository();
+const appConfigRepo = new AppConfigRepository();
 
 // Global Middlewares
 app.use(cors({ origin: true }));
@@ -102,6 +104,36 @@ app.post('/api/public/contact', async (req, res) => {
 });
 
 // ==========================================
+// DYNAMIC REMOTE OTA APP CONFIGURATION (PUBLIC CLIENT API)
+// ==========================================
+app.get('/api/v1/apps/:appId/config', async (req, res) => {
+  try {
+    const { appId } = req.params;
+    const config = await appConfigRepo.getAppConfig(appId);
+    if (!config || !config.active) {
+      return res.status(404).json({ error: 'App configuration not found or currently inactive.' });
+    }
+
+    // Set high-performance edge cache headers: cache for 60s, serve stale up to 5min
+    res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+    res.json({
+      appId: config.appId,
+      name: config.name,
+      slug: config.slug,
+      theme: config.theme,
+      playlistUrl: config.playlistUrl,
+      epgUrl: config.epgUrl,
+      announcement: config.announcement,
+      version: config.version,
+      updatedAt: config.updatedAt
+    });
+  } catch (error: any) {
+    logger.error('Error serving dynamic app config', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==========================================
 // AUTHENTICATED USER ROUTES
 // ==========================================
 
@@ -110,6 +142,7 @@ app.use('/api/me', authenticateFirebaseToken);
 app.use('/api/playlists', authenticateFirebaseToken, attachWorkspaceContext);
 app.use('/api/epg', authenticateFirebaseToken, attachWorkspaceContext);
 app.use('/api/builds', authenticateFirebaseToken, attachWorkspaceContext);
+app.use('/api/apps', authenticateFirebaseToken, attachWorkspaceContext);
 app.use('/api/billing', authenticateFirebaseToken);
 app.use('/api/workspaces', authenticateFirebaseToken);
 
@@ -450,9 +483,9 @@ app.get('/api/workspaces/:workspaceId', async (req: any, res) => {
 app.post('/api/builds', checkWorkspaceQuota('maxMonthlyBuilds'), async (req: any, res) => {
   try {
     const uid = req.user.uid;
-    const { appName, brandConfig, playlistSource } = req.body;
+    const { appName, brandConfig, playlistSource, appConfigId } = req.body;
     
-    const buildId = await dispatchBuildJob(uid, appName, brandConfig, playlistSource);
+    const buildId = await dispatchBuildJob(uid, appName, brandConfig, playlistSource, appConfigId);
 
     // Track monthlyBuildsUsed quota in active workspace
     if (req.workspace) {
@@ -493,6 +526,101 @@ app.get('/api/builds/:buildId', async (req: any, res) => {
       return res.status(404).json({ error: 'Build request not found' });
     }
     res.json(build);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==========================================
+// DYNAMIC REMOTE APPS (OPERATOR MANAGEMENT)
+// ==========================================
+
+app.get('/api/apps', async (req: any, res) => {
+  try {
+    const workspaceId = req.workspace.workspaceId;
+    const list = await appConfigRepo.listAppConfigsByWorkspace(workspaceId);
+    res.json(list);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/apps', async (req: any, res) => {
+  try {
+    const { name, theme, playlistUrl, epgUrl, announcement } = req.body;
+    if (!name || !playlistUrl) {
+      return res.status(400).json({ error: 'App name and playlistUrl are required.' });
+    }
+    const workspaceId = req.workspace.workspaceId;
+    const uid = req.user.uid;
+    const slug = name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+    const appId = `app_${slug}_${Math.random().toString(36).substring(2, 7)}`;
+
+    const created = await appConfigRepo.createAppConfig({
+      appId,
+      workspaceId,
+      ownerUid: uid,
+      name,
+      slug,
+      theme: theme || { primaryColor: '#059669', accentColor: '#f59e0b' },
+      playlistUrl,
+      epgUrl: epgUrl || null,
+      announcement: announcement || null,
+      active: true,
+    });
+
+    res.status(201).json(created);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/apps/:appId', async (req: any, res) => {
+  try {
+    const { appId } = req.params;
+    const config = await appConfigRepo.getAppConfig(appId);
+    if (!config || config.workspaceId !== req.workspace.workspaceId) {
+      return res.status(404).json({ error: 'App configuration not found.' });
+    }
+    res.json(config);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.put('/api/apps/:appId', async (req: any, res) => {
+  try {
+    const { appId } = req.params;
+    const existing = await appConfigRepo.getAppConfig(appId);
+    if (!existing || existing.workspaceId !== req.workspace.workspaceId) {
+      return res.status(404).json({ error: 'App configuration not found.' });
+    }
+
+    const { name, theme, playlistUrl, epgUrl, announcement, active } = req.body;
+    const updated = await appConfigRepo.updateAppConfig(appId, {
+      ...(name !== undefined && { name }),
+      ...(theme !== undefined && { theme }),
+      ...(playlistUrl !== undefined && { playlistUrl }),
+      ...(epgUrl !== undefined && { epgUrl }),
+      ...(announcement !== undefined && { announcement }),
+      ...(active !== undefined && { active }),
+    });
+
+    res.json(updated);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete('/api/apps/:appId', async (req: any, res) => {
+  try {
+    const { appId } = req.params;
+    const existing = await appConfigRepo.getAppConfig(appId);
+    if (!existing || existing.workspaceId !== req.workspace.workspaceId) {
+      return res.status(404).json({ error: 'App configuration not found.' });
+    }
+    await appConfigRepo.deleteAppConfig(appId);
+    res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

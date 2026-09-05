@@ -6,7 +6,8 @@ import type {
   EpgFeed, 
   BuildRequest, 
   AdminAction, 
-  Workspace 
+  Workspace,
+  AppConfig 
 } from '@iptv-menu/types';
 
 // ==========================================
@@ -98,6 +99,7 @@ export const buildRequests = pgTable('build_requests', {
   status: text('status').default('queued').notNull(), // 'queued' | 'building' | 'succeeded' | 'failed'
   artifactPath: text('artifact_path'),
   buildLogPath: text('build_log_path'),
+  appConfigId: text('app_config_id'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
@@ -113,4 +115,23 @@ export const adminActions = pgTable('admin_actions', {
   targetId: text('target_id').notNull(),
   notes: text('notes').notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+// ==========================================
+// 8. APP CONFIGS (DYNAMIC REMOTE OTA) TABLE
+// ==========================================
+export const appConfigs = pgTable('app_configs', {
+  appId: text('app_id').primaryKey(),
+  workspaceId: text('workspace_id').references(() => workspaces.workspaceId, { onDelete: 'cascade' }).notNull(),
+  ownerUid: text('owner_uid').references(() => users.uid, { onDelete: 'cascade' }).notNull(),
+  name: text('name').notNull(),
+  slug: text('slug').notNull(),
+  theme: jsonb('theme').$type<AppConfig['theme']>().notNull(),
+  playlistUrl: text('playlist_url').notNull(),
+  epgUrl: text('epg_url'),
+  announcement: text('announcement'),
+  version: integer('version').default(1).notNull(),
+  active: text('active').default('true').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });

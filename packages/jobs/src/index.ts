@@ -41,7 +41,8 @@ export async function dispatchBuildJob(
   uid: string,
   appName: string,
   brandConfig: BuildRequest['brandConfig'],
-  playlistSource: BuildRequest['playlistSource']
+  playlistSource: BuildRequest['playlistSource'],
+  appConfigId?: string | null
 ): Promise<string> {
   const buildId = `build_${Math.random().toString(36).substring(2, 15)}`;
 
@@ -54,11 +55,12 @@ export async function dispatchBuildJob(
     status: 'queued',
     artifactPath: null,
     buildLogPath: null,
+    appConfigId: appConfigId || null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
 
-  logger.info(`Dispatching app build job`, { uid, appName, buildId });
+  logger.info(`Dispatching app build job`, { uid, appName, buildId, appConfigId });
   await buildRepo.createBuild(buildRequest);
   return buildId;
 }

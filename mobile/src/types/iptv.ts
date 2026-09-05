@@ -12,6 +12,12 @@ export interface Group {
   channels: Channel[];
 }
 
+export interface RemoteTheme {
+  primaryColor: string;
+  accentColor: string;
+  logoUrl?: string;
+}
+
 export interface AppState {
   // Collection States
   channels: Channel[];
@@ -25,9 +31,17 @@ export interface AppState {
   error: string | null;
   playlistUrl: string;
 
+  // Dynamic Remote OTA Configuration
+  appConfigId: string | null;
+  remoteVersion: number;
+  announcement: string | null;
+  theme: RemoteTheme;
+
   // Actions
   setPlaylistUrl: (url: string) => void;
   loadPlaylist: (url?: string) => Promise<void>;
+  syncRemoteConfig: (appId?: string) => Promise<void>;
+  dismissAnnouncement: () => void;
   toggleFavorite: (channelId: string) => void;
   addToHistory: (channelId: string) => void;
   clearHistory: () => void;
