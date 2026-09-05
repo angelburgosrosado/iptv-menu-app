@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "build:all": "npm run build"
   },
   "dependencies": {
     "@iptv-menu/config": "1.0.0",

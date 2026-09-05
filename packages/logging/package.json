@@ -4,7 +4,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "build:all": "npm run build"
   },
   "dependencies": {
     "typescript": "^5.0.0"

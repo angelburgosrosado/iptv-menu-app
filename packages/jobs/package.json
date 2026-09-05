@@ -4,7 +4,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "build:all": "npm run build"
   },
   "dependencies": {
     "@iptv-menu/types": "1.0.0",
