@@ -4,12 +4,16 @@
   "version": "0.0.0",
   "type": "module",
   "workspaces": [
-    "apps/*",
+    "apps/api",
+    "apps/worker",
     "packages/*"
   ],
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
-    "build": "vite build",
+    "build:packages": "npm run build --workspaces --if-present",
+    "build:web": "vite build",
+    "build": "npm run build:packages && vite build",
+    "build:all": "npm run build:packages && vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
@@ -19,7 +23,6 @@
     "build:apk:wait": "cd mobile && eas build --platform android --profile preview --wait",
     "db:push": "npm --workspace=@iptv-menu/db run db:push",
     "db:studio": "npm --workspace=@iptv-menu/db run db:studio",
-    "build:all": "npm run build && npm --workspace=@iptv-menu/db run build && npm --workspace=@iptv-menu/storage run build && npm --workspace=@iptv-menu/jobs run build && npm --workspace=iptv-api run build && npm --workspace=iptv-worker run build",
     "build:api": "npm --workspace=iptv-api run build",
     "build:worker": "npm --workspace=iptv-worker run build"
   },
