@@ -10,7 +10,7 @@ COPY apps/worker ./apps/worker
 
 # Install dependencies and build
 RUN npm install
-RUN npm --workspace=@iptv-menu/db run build && npm --workspace=@iptv-menu/storage run build && npm --workspace=@iptv-menu/jobs run build && npm --workspace=iptv-worker run build
+RUN npm run build:packages && npm --workspace=iptv-worker run build
 
 # Production runner image
 FROM node:20-alpine AS runner

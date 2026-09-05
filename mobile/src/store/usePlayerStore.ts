@@ -159,7 +159,15 @@ export const usePlayerStore = create<AppState>((set, get) => ({
       clearTimeout(timeoutId);
 
       if (res.ok) {
-        const config = await res.json();
+        const contentType = res.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+          console.warn('[OTA] Received non-JSON response from config endpoint:', contentType);
+          return;
+        }
+
+        const config = await res.json().catch(() => null);
+        if (!config) return;
+
         const currentVersion = get().remoteVersion;
         const currentUrl = get().playlistUrl;
         const newVersion = typeof config.version === 'number' ? config.version : currentVersion;

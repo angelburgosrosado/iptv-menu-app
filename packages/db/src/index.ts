@@ -85,6 +85,38 @@ export class UserRepository {
     }
   }
 
+  async getUserByEmail(email: string): Promise<UserProfile | null> {
+    if (process.env.DATABASE_URL) {
+      try {
+        const db = getDb();
+        const [row] = await db.select().from(schema.users).where(eq(schema.users.email, email)).limit(1);
+        if (!row) return null;
+        return {
+          uid: row.uid,
+          email: row.email,
+          displayName: row.displayName || undefined,
+          photoURL: row.photoURL || null,
+          role: row.role as any,
+          accountStatus: row.accountStatus as any,
+          subscriptionTier: row.subscriptionTier as any,
+          createdAt: row.createdAt.toISOString(),
+          updatedAt: row.updatedAt.toISOString(),
+        };
+      } catch (err) {
+        logger.error('Neon Drizzle error in getUserByEmail', err);
+        throw err;
+      }
+    }
+
+    try {
+      const snap = await this.db.collection(this.collection).where('email', '==', email).limit(1).get();
+      if (snap.empty) return null;
+      return snap.docs[0].data() as UserProfile;
+    } catch (err) {
+      handleFirestoreError(err, DbOperation.GET, this.collection, email);
+    }
+  }
+
   async createUser(profile: UserProfile): Promise<void> {
     if (process.env.DATABASE_URL) {
       try {

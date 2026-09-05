@@ -1,173 +1,90 @@
-# Dynamic Remote Over-The-Air (OTA) App Configuration Implementation Plan
+# Full Platform Roadmap Implementation Plan: Options 1 to 5
 
-Enable IPTV.menu operators to remotely update channel playlists, EPG sources, branding themes, and broadcast announcements across all installed Android APKs in real-time without recompiling or reinstalling the app.
-
----
-
-## Architecture Overview
-
-```
-                      ┌──────────────────────────────────────────────┐
-                      │            Operator Web Dashboard            │
-                      │  - Update Playlist URL / EPG Link            │
-                      │  - Change Brand Colors / Logo                │
-                      │  - Publish Live Banner Announcement          │
-                      └───────────────────────┬──────────────────────┘
-                                              │ PUT /api/apps/:appId
-                                              ▼
-                      ┌──────────────────────────────────────────────┐
-                      │          Neon PostgreSQL + Drizzle           │
-                      │         Table: `app_configs` (Versioned)     │
-                      └───────────────────────┬──────────────────────┘
-                                              │
-                      ┌───────────────────────┴──────────────────────┐
-                      │             Vercel Serverless API            │
-                      │         GET /api/v1/apps/:appId/config       │
-                      │      (Edge-cached, public low-latency)       │
-                      └───────────────────────▲──────────────────────┘
-                                              │ GET on launch / poll
-                                              │
-                      ┌───────────────────────┴──────────────────────┐
-                      │         Installed Mobile Player (APK)        │
-                      │  - Checks config on boot                     │
-                      │  - Dynamically switches M3U channels         │
-                      │  - Updates UI theme & shows announcement     │
-                      │  - Offline fallback to MMKV cache            │
-                      └──────────────────────────────────────────────┘
-```
+This implementation plan executes all five requested capability enhancements sequentially, turning IPTV.menu into a fully automated, revenue-ready IPTV distribution and app management platform.
 
 ---
 
 ## User Review Required
 
 > [!IMPORTANT]
-> **Zero Downtime Migration**: The new `app_configs` table will be created in Neon PostgreSQL without modifying existing tables. Existing APKs will continue to function normally, while new APKs or configured clients will receive dynamic live updates.
+> - **EAS Process Cleanup**: There is currently a hung background process (`eas build --platform all`) launched from `/Volumes/MacAI/ABGlobalCEO` instead of the `mobile/` directory. We will terminate this hung process and run `npm run build:apk` inside `mobile/` in non-interactive mode.
+> - **Stripe Webhook Secret**: Stripe webhooks require a raw request body buffer before body parsing middleware. We will mount `/api/billing/webhook` with `express.raw({ type: 'application/json' })` so signature verification succeeds.
 
 ---
 
-## Proposed Changes
+## Execution Sequence
 
-### 1. Data Models & Type System (`packages/types`)
-
-#### [MODIFY] [`packages/types/src/index.ts`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/packages/types/src/index.ts)
-- Add `AppConfig` interface:
-  ```ts
-  export interface AppConfig {
-    appId: string;
-    workspaceId: string;
-    ownerUid: string;
-    name: string;
-    slug: string;
-    theme: {
-      primaryColor: string;
-      accentColor: string;
-      logoUrl?: string;
-    };
-    playlistUrl: string;
-    epgUrl?: string | null;
-    announcement?: string | null;
-    version: number;
-    active: boolean;
-    createdAt: Date | string;
-    updatedAt: Date | string;
-  }
-  ```
+### Phase 1: Build Updated `.apk` with Dynamic OTA Engine (Option 1)
+- Terminate the hung EAS build process running outside the workspace.
+- Navigate to [`mobile/`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/mobile).
+- Launch `npm run build:apk` (`eas build --platform android --profile preview --non-interactive`).
+- Monitor build status using `npx eas-cli build:list` and retrieve the downloadable `.apk` URL with the Dynamic OTA client pre-installed.
 
 ---
 
-### 2. Database Schema & Repository (`packages/db`)
-
-#### [MODIFY] [`packages/db/src/schema.ts`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/packages/db/src/schema.ts)
-- Define `appConfigs` table with foreign keys to `workspaces` and `users`.
-- Export typed Drizzle table representation.
-
-#### [MODIFY] [`packages/db/src/index.ts`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/packages/db/src/index.ts)
-- Implement `AppConfigRepository`:
-  - `createAppConfig(data: Omit<AppConfig, 'createdAt' | 'updatedAt' | 'version'>): Promise<AppConfig>`
-  - `getAppConfig(appId: string): Promise<AppConfig | null>`
-  - `updateAppConfig(appId: string, updates: Partial<AppConfig>): Promise<AppConfig>`
-  - `listAppConfigsByWorkspace(workspaceId: string): Promise<AppConfig[]>`
-  - `deleteAppConfig(appId: string): Promise<void>`
+### Phase 2: Deploy & Configure Background Worker (`apps/worker`) (Option 2)
+- **Containerization Fix**: Update [`apps/worker/Dockerfile`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/apps/worker/Dockerfile) to build all packages using `npm run build:packages && npm --workspace=iptv-worker run build`, ensuring all TypeScript dependencies and compiled dist artifacts are copied into the runner stage.
+- **Worker Optimization**: Refactor [`apps/worker/src/index.ts`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/apps/worker/src/index.ts):
+  - Clean up redundant imports and ensure proper singleton repositories (`playlistRepo`, `buildRepo`, `epgRepo`).
+  - Add robust graceful shutdown handlers (`SIGTERM`, `SIGINT`) for Docker/Cloud Run deployment.
+  - Implement task polling with exponential backoff on idle queues.
 
 ---
 
-### 3. REST API Engine (`apps/api`)
-
-#### [MODIFY] [`apps/api/src/server.ts`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/apps/api/src/server.ts)
-- **Public Client Endpoint**:
-  - `GET /api/v1/apps/:appId/config`:
-    - Public edge-cached route (`Cache-Control: public, s-maxage=60, stale-while-revalidate=300`).
-    - Returns `{ appId, name, theme, playlistUrl, epgUrl, announcement, version }`.
-- **Operator CRUD Endpoints** (Protected by Firebase Auth & Workspace Context):
-  - `GET /api/apps`: List all dynamic app configs in active workspace.
-  - `POST /api/apps`: Create new dynamic app config.
-  - `GET /api/apps/:appId`: Fetch specific configuration.
-  - `PUT /api/apps/:appId`: Update config (automatically increments `version`).
-  - `DELETE /api/apps/:appId`: Remove config.
+### Phase 3: Automated Stream Health Monitor & Channel Validator (Option 3)
+- **Stream Prober Engine**: Enhance `processPlaylistValidate` in [`apps/worker/src/index.ts`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/apps/worker/src/index.ts):
+  - Concurrency pool (batch probing 10 streams simultaneously via `p-limit` or chunked promises).
+  - Send lightweight `HEAD` request with fallback to streaming `GET` with abort controller (to catch providers blocking HEAD).
+  - Verify HLS manifest headers (`Content-Type: application/vnd.apple.mpegurl` or `application/x-mpegurl`).
+  - Calculate channel latency, online/offline status, and dead stream counts.
+- **Auto-Cleaner Option**: When validating, automatically generate a pruned M3U file with dead links stripped, saving the clean output to storage and updating the playlist record.
 
 ---
 
-### 4. Mobile Client Integration (`mobile/`)
-
-#### [MODIFY] [`mobile/src/store/usePlayerStore.ts`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/mobile/src/store/usePlayerStore.ts)
-- Add state properties:
-  - `appConfigId: string | null`
-  - `remoteVersion: number`
-  - `announcement: string | null`
-  - `theme: { primaryColor: string; accentColor: string }`
-- Add `syncRemoteConfig()` action:
-  - Fetches `/api/v1/apps/:appId/config` on boot.
-  - If `version > cachedVersion` or `playlistUrl` has changed:
-    - Stores new config in MMKV.
-    - Updates theme and announcement.
-    - Triggers `loadPlaylist()` with the newly assigned remote URL.
-  - Gracefully falls back to cached channels if device is offline.
-
-#### [MODIFY] [`mobile/app/index.tsx`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/mobile/app/index.tsx)
-- Call `syncRemoteConfig()` in initial `useEffect`.
-- Display dismissible announcement banner if `announcement` is populated.
+### Phase 4: Stripe Billing Webhooks & Workspace Entitlement Sync (Option 4)
+- **Webhook Endpoint**: In [`apps/api/src/server.ts`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/apps/api/src/server.ts), mount `POST /api/billing/webhook` with `express.raw({ type: 'application/json' })`.
+- **Event Lifecycle Handlers**:
+  - `checkout.session.completed`: Detect subscription plan (`pro` vs `builder`), find associated workspace, and upgrade plan status to `active`.
+  - `customer.subscription.updated`: Update subscription status and adjust quotas:
+    - **Free Tier**: 1 playlist, 0 hosted, 1 daily cleanup, 0 builds.
+    - **Pro Tier ($9.99/mo)**: 10 playlists, 5 hosted, 20 daily cleanups, 2 builds, custom branding enabled.
+    - **App Builder Tier ($29.99/mo)**: Unlimited playlists, 20 hosted, unlimited cleanups, 10 builds, white label enabled.
+  - `customer.subscription.deleted`: Revert workspace to free tier.
 
 ---
 
-### 5. Web Dashboard UI (`src/`)
-
-#### [NEW] [`src/components/DesktopRemoteApps.tsx`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/src/components/DesktopRemoteApps.tsx)
-- Add "Remote Apps (OTA)" management panel:
-  - List of active dynamic applications with real-time status and version badges.
-  - Live editor for:
-    - Target M3U Playlist URL (switch between source links or hosted playlists with 1 click).
-    - Optional XMLTV EPG URL.
-    - Brand Colors & Custom Logo.
-    - Broadcast Announcement Banner.
-  - One-click "Push Live Update" button that bumps version and broadcasts changes.
-  - Quick test link to inspect live JSON output.
-
-#### [MODIFY] [`src/App.tsx`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/src/App.tsx)
-- Add "Remote Apps (OTA)" tab to the main sidebar.
-- Link the APK Builder step to select or generate a Dynamic App Config, pre-binding the APK to live OTA updates.
+### Phase 5: Browser Verification of the OTA Dashboard (Option 5)
+- Verify that the local Vite dev server is active and accessible.
+- Launch browser subagent to inspect the **"Remote Apps (OTA)"** view:
+  - Verify layout, icons, glassmorphism cards, and responsiveness.
+  - Test creating a new remote app configuration.
+  - Verify that version bumps reflect on the live preview card.
+  - Take a screenshot artifact to document visual correctness.
 
 ---
 
 ## Verification Plan
 
-### Automated Tests
-1. **TypeScript Typecheck**:
-   ```bash
-   npm run lint
-   ```
-2. **Monorepo Build**:
-   ```bash
-   npm run build
-   ```
+### Automated Verification
+```bash
+# 1. Monorepo and package integrity
+npm run build:packages
 
-### API & Database Verification
-1. Create a test app config via Neon SQL / Drizzle script.
-2. Query `GET /api/v1/apps/app_test/config` using curl:
-   ```bash
-   curl -i http://localhost:3000/api/v1/apps/app_test/config
-   ```
-   Verify 200 OK, JSON payload, and cache headers.
-3. Update config in database and query again: verify `version` increment and updated `playlistUrl`.
+# 2. Worker compilation
+npm run build --workspace=iptv-worker
 
-### Mobile Simulation Verification
-1. Run mobile test harness verifying `syncRemoteConfig()` retrieves and loads channels dynamically.
+# 3. API server compilation
+npm run build --workspace=iptv-api
+
+# 4. Web client compilation
+npm run build
+
+# 5. Mobile client TypeScript checks
+cd mobile && npx tsc --noEmit
+```
+
+### Functional Verification
+- Check EAS CLI build status for Android `.apk`.
+- Test Stripe webhook signature and mock event dispatch.
+- Test stream validator on sample live HLS streams.
+- Live DOM and screenshot verification of the Web Dashboard.

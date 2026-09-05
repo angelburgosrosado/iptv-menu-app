@@ -55,7 +55,7 @@ const appConfigRepo = new AppConfigRepository();
 app.use(cors({ origin: true }));
 // Standard body parsers (Stripe webhook needs raw body, handled specifically)
 app.use((req, res, next) => {
-  if (req.originalUrl === '/api/webhooks/stripe') {
+  if (req.originalUrl === '/api/webhooks/stripe' || req.originalUrl === '/api/billing/webhook') {
     next();
   } else {
     bodyParser.json()(req, res, next);
@@ -143,7 +143,8 @@ app.use('/api/playlists', authenticateFirebaseToken, attachWorkspaceContext);
 app.use('/api/epg', authenticateFirebaseToken, attachWorkspaceContext);
 app.use('/api/builds', authenticateFirebaseToken, attachWorkspaceContext);
 app.use('/api/apps', authenticateFirebaseToken, attachWorkspaceContext);
-app.use('/api/billing', authenticateFirebaseToken);
+app.use('/api/billing/create-checkout-session', authenticateFirebaseToken);
+app.use('/api/billing/create-portal-session', authenticateFirebaseToken);
 app.use('/api/workspaces', authenticateFirebaseToken);
 
 // User info
@@ -676,7 +677,7 @@ app.post('/api/billing/create-portal-session', async (req: any, res) => {
 // WEBHOOKS / PUBLIC INCOMING
 // ==========================================
 
-app.post('/api/webhooks/stripe', bodyParser.raw({ type: 'application/json' }), async (req, res) => {
+const handleStripeWebhook = async (req: any, res: any) => {
   const sig = req.headers['stripe-signature'];
   let event;
 
@@ -754,30 +755,30 @@ app.post('/api/webhooks/stripe', bodyParser.raw({ type: 'application/json' }), a
       const customer = await stripe.customers.retrieve(customerId);
       const email = customer.email;
       
-      // Demote subscription
-      const db = getFirestoreDB();
-      const userSnap = await db.collection('users').where('email', '==', email).get();
-      if (!userSnap.empty) {
-        const uid = userSnap.docs[0].id;
-        await userRepo.updateUser(uid, { subscriptionTier: 'free' });
-        
-        // Reset workspace entitlements to free tier
-        const userWorkspaces = await workspaceRepo.listUserWorkspaces(uid);
-        for (const ws of userWorkspaces) {
-          await workspaceRepo.updateWorkspace(ws.workspaceId, {
-            plan: 'free',
-            subscriptionStatus: 'canceled',
-            entitlements: {
-              maxPlaylists: 1,
-              maxHostedPlaylists: 0,
-              maxDailyCleanups: 1,
-              maxMonthlyBuilds: 0,
-              allowBrandingCustomization: false,
-              allowWhiteLabel: false
-            }
-          });
+      if (email) {
+        const user = await userRepo.getUserByEmail(email);
+        if (user) {
+          const uid = user.uid;
+          await userRepo.updateUser(uid, { subscriptionTier: 'free' });
+          
+          // Reset workspace entitlements to free tier
+          const userWorkspaces = await workspaceRepo.listUserWorkspaces(uid);
+          for (const ws of userWorkspaces) {
+            await workspaceRepo.updateWorkspace(ws.workspaceId, {
+              plan: 'free',
+              subscriptionStatus: 'canceled',
+              entitlements: {
+                maxPlaylists: 1,
+                maxHostedPlaylists: 0,
+                maxDailyCleanups: 1,
+                maxMonthlyBuilds: 0,
+                allowBrandingCustomization: false,
+                allowWhiteLabel: false
+              }
+            });
+          }
+          logger.info(`Downgraded user & workspaces due to Stripe subscription cancellation`, { uid });
         }
-        logger.info(`Downgraded user & workspaces due to Stripe subscription cancellation`, { uid });
       }
     }
 
@@ -817,7 +818,10 @@ app.post('/api/webhooks/stripe', bodyParser.raw({ type: 'application/json' }), a
     logger.error('Stripe event parsing failure', err);
     res.status(500).json({ error: 'Internal logic handler failed' });
   }
-});
+};
+
+app.post('/api/webhooks/stripe', bodyParser.raw({ type: 'application/json' }), handleStripeWebhook);
+app.post('/api/billing/webhook', bodyParser.raw({ type: 'application/json' }), handleStripeWebhook);
 
 // Internal loops for jobs (invoked securely by GCP Cloud Scheduler or Service-to-Service)
 app.post('/api/internal/jobs/playlist-clean', async (req, res) => {

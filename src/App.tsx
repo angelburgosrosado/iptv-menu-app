@@ -116,7 +116,7 @@ export default function App() {
   const [compileLogs, setCompileLogs] = React.useState<string[]>([]);
   const [compilationSuccess, setCompilationSuccess] = React.useState<boolean>(false);
   const [activeBuildId, setActiveBuildId] = React.useState<string>('34cdb52a-7b6e-40e9-b5b8-1c8c2730f55d');
-  const [apkArtifactUrl, setApkArtifactUrl] = React.useState<string | null>('https://expo.dev/artifacts/eas/4Y9x5B2hzK9juzbgnLV3AAINRI383uRemO5Cw8dscyc.apk');
+  const [apkArtifactUrl, setApkArtifactUrl] = React.useState<string | null>('https://expo.dev/artifacts/eas/dEaxtp1LoGphYwP6ntPVI1BJmHi_45_UiRZ4Tj8CKXw.apk');
 
   const compileIntervalRef = React.useRef<any>(null);
 

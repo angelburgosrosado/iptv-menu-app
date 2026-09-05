@@ -42,7 +42,15 @@ export async function authenticateXtreamCodes(account: XtreamAccount): Promise<{
       return { success: false, error: `Server responded with HTTP ${res.status}` };
     }
 
-    const data = await res.json();
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      return { success: false, error: 'Server returned HTML instead of Xtream API JSON.' };
+    }
+
+    const data = await res.json().catch(() => null);
+    if (!data) {
+      return { success: false, error: 'Malformed JSON returned from Xtream server.' };
+    }
     if (data.user_info && data.user_info.auth === 1) {
       return {
         success: true,
