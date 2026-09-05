@@ -287,11 +287,11 @@ export const ActivityIndicator = ({ size = 'small', color = '#ffffff' }: any) =>
   return (
     <div className="flex items-center justify-center">
       <div
-        className="animate-spin rounded-full border-2 border-t-transparent"
+        className="animate-spin rounded-full border-2"
         style={{
           width: pixelSize,
           height: pixelSize,
-          borderColor: `${color} border-t-transparent`,
+          borderColor: color,
           borderTopColor: 'transparent',
         }}
       />

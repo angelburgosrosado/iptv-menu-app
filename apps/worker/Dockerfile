@@ -1,36 +1,27 @@
-# Base node engine image
+# Multi-stage Dockerfile for IPTV.menu Background Worker
 FROM node:20-alpine AS builder
 
-WORKDIR /usr/src/app
+WORKDIR /app
 
-COPY package*.json ./
-COPY tsconfig.json ./
+# Copy root workspace and lockfiles
+COPY package.json package-lock.json ./
+COPY packages ./packages
+COPY apps/worker ./apps/worker
 
-COPY packages/ ./packages/
-COPY apps/worker/ ./apps/worker/
+# Install dependencies and build
+RUN npm install
+RUN npm --workspace=@iptv-menu/worker run build
 
-RUN npm ci
-RUN npm run build -w @iptv-menu/types
-RUN npm run build -w @iptv-menu/config
-RUN npm run build -w @iptv-menu/logging
-RUN npm run build -w @iptv-menu/auth
-RUN npm run build -w @iptv-menu/db
-RUN npm run build -w @iptv-menu/storage
-RUN npm run build -w @iptv-menu/jobs
-
-WORKDIR /usr/src/app/apps/worker
-RUN npm run build
-
+# Production runner image
 FROM node:20-alpine AS runner
 
-WORKDIR /usr/src/app
-
+WORKDIR /app
 ENV NODE_ENV=production
 
-COPY package*.json ./
-COPY --from=builder /usr/src/app/node_modules ./node_modules
-COPY --from=builder /usr/src/app/packages ./packages
-COPY --from=builder /usr/src/app/apps/worker/package.json ./apps/worker/
-COPY --from=builder /usr/src/app/apps/worker/dist ./apps/worker/dist
+COPY package.json package-lock.json ./
+COPY --from=builder /app/packages ./packages
+COPY --from=builder /app/apps/worker/package.json ./apps/worker/
+COPY --from=builder /app/apps/worker/dist ./apps/worker/dist
+COPY --from=builder /app/node_modules ./node_modules
 
 CMD ["node", "apps/worker/dist/index.js"]

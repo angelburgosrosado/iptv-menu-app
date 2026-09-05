@@ -4,13 +4,21 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "db:push": "drizzle-kit push",
+    "db:generate": "drizzle-kit generate",
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
     "@iptv-menu/config": "1.0.0",
     "@iptv-menu/types": "1.0.0",
     "@iptv-menu/logging": "1.0.0",
+    "@neondatabase/serverless": "^0.10.4",
+    "drizzle-orm": "^0.38.4",
     "firebase-admin": "^12.0.0",
     "typescript": "^5.0.0"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.30.2"
   }
 }

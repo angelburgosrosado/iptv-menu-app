@@ -10,6 +10,7 @@
     "@iptv-menu/config": "1.0.0",
     "@iptv-menu/logging": "1.0.0",
     "@google-cloud/storage": "^7.7.0",
+    "@vercel/blob": "^0.27.1",
     "typescript": "^5.0.0"
   }
 }

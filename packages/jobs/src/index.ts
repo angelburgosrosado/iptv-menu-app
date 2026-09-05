@@ -1,4 +1,4 @@
-import { PlaylistRepository, BuildRepository, EpgRepository, getFirestoreDB } from '@iptv-menu/db';
+import { PlaylistRepository, BuildRepository, EpgRepository, getFirestoreDB, getDb, schema, eq } from '@iptv-menu/db';
 import { PlaylistRun, BuildRequest, RunType, RunStatus, BuildStatus, EpgFeed } from '@iptv-menu/types';
 import { Logger } from '@iptv-menu/logging';
 
@@ -10,7 +10,7 @@ const buildRepo = new BuildRepository();
 const epgRepo = new EpgRepository();
 
 /**
- * Dispatches a playlist run task by writing a queued run into Firestore
+ * Dispatches a playlist run task by writing a queued run into Firestore or Neon
  */
 export async function dispatchPlaylistJob(
   playlistId: string,
@@ -35,7 +35,7 @@ export async function dispatchPlaylistJob(
 }
 
 /**
- * Dispatches a build app task by creating a build request in Firestore
+ * Dispatches a build app task by creating a build request in Firestore or Neon
  */
 export async function dispatchBuildJob(
   uid: string,
@@ -68,8 +68,6 @@ export async function dispatchBuildJob(
  */
 export async function dispatchEpgJob(epgId: string): Promise<void> {
   logger.info(`Dispatching EPG job`, { epgId });
-  // Currently the API creates the EPG record as 'pending', so we just need to ensure it's picked up.
-  // The worker will poll for 'pending' EPG feeds.
   await epgRepo.updateEpg(epgId, { status: 'pending' });
 }
 
@@ -77,6 +75,46 @@ export async function dispatchEpgJob(epgId: string): Promise<void> {
  * Polling and locking queue helper for workers to safely fetch tasks
  */
 export async function pollNextPlaylistJob(): Promise<{ playlistId: string; run: PlaylistRun } | null> {
+  if (process.env.DATABASE_URL) {
+    try {
+      const db = getDb();
+      const [row] = await db
+        .select()
+        .from(schema.playlistRuns)
+        .where(eq(schema.playlistRuns.status, 'queued'))
+        .limit(1);
+
+      if (!row) return null;
+
+      const startedAt = new Date();
+      await db
+        .update(schema.playlistRuns)
+        .set({
+          status: 'running',
+          startedAt,
+        } as any)
+        .where(eq(schema.playlistRuns.runId, row.runId));
+
+      logger.info('Successfully locked next playlist run job from Neon', { runId: row.runId, playlistId: row.playlistId });
+      return {
+        playlistId: row.playlistId,
+        run: {
+          runId: row.runId,
+          playlistId: row.playlistId,
+          type: row.type as any,
+          status: 'running',
+          startedAt: startedAt.toISOString(),
+          completedAt: null,
+          summary: row.summary as any,
+          error: null,
+        },
+      };
+    } catch (error) {
+      logger.error('Error polling or locking playlist runs on Neon', error);
+      return null;
+    }
+  }
+
   const db = getFirestoreDB();
   
   try {
@@ -110,6 +148,45 @@ export async function pollNextPlaylistJob(): Promise<{ playlistId: string; run: 
 }
 
 export async function pollNextBuildJob(): Promise<BuildRequest | null> {
+  if (process.env.DATABASE_URL) {
+    try {
+      const db = getDb();
+      const [row] = await db
+        .select()
+        .from(schema.buildRequests)
+        .where(eq(schema.buildRequests.status, 'queued'))
+        .limit(1);
+
+      if (!row) return null;
+
+      const updatedAt = new Date();
+      await db
+        .update(schema.buildRequests)
+        .set({
+          status: 'building',
+          updatedAt,
+        } as any)
+        .where(eq(schema.buildRequests.buildId, row.buildId));
+
+      logger.info('Locked build request job from Neon', { buildId: row.buildId });
+      return {
+        buildId: row.buildId,
+        uid: row.uid,
+        appName: row.appName,
+        brandConfig: row.brandConfig,
+        playlistSource: row.playlistSource,
+        status: 'building',
+        artifactPath: row.artifactPath || null,
+        buildLogPath: row.buildLogPath || null,
+        createdAt: row.createdAt.toISOString(),
+        updatedAt: updatedAt.toISOString(),
+      };
+    } catch (error) {
+      logger.error('Error polling or locking build requests on Neon', error);
+      return null;
+    }
+  }
+
   const db = getFirestoreDB();
   
   try {
@@ -139,6 +216,43 @@ export async function pollNextBuildJob(): Promise<BuildRequest | null> {
 }
 
 export async function pollNextEpgJob(): Promise<EpgFeed | null> {
+  if (process.env.DATABASE_URL) {
+    try {
+      const db = getDb();
+      const [row] = await db
+        .select()
+        .from(schema.epgFeeds)
+        .where(eq(schema.epgFeeds.status, 'pending'))
+        .limit(1);
+
+      if (!row) return null;
+
+      const lastGeneratedAt = new Date();
+      await db
+        .update(schema.epgFeeds)
+        .set({
+          status: 'generating',
+          lastGeneratedAt,
+        } as any)
+        .where(eq(schema.epgFeeds.epgId, row.epgId));
+
+      logger.info('Locked EPG generation job from Neon', { epgId: row.epgId });
+      return {
+        epgId: row.epgId,
+        uid: row.uid,
+        playlistId: row.playlistId,
+        status: 'generating',
+        sourceConfig: row.sourceConfig,
+        outputFilePath: row.outputFilePath || null,
+        createdAt: row.createdAt.toISOString(),
+        lastGeneratedAt: lastGeneratedAt.toISOString(),
+      };
+    } catch (error) {
+      logger.error('Error polling or locking EPG feeds on Neon', error);
+      return null;
+    }
+  }
+
   const db = getFirestoreDB();
   
   try {

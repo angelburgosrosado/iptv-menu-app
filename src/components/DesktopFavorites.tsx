@@ -57,12 +57,13 @@ export default function DesktopFavorites() {
                 <div className="flex items-center gap-3.5 mb-4">
                   <div className="w-12 h-12 rounded-xl bg-black/40 border border-white/5 flex items-center justify-center p-2 overflow-hidden flex-shrink-0">
                     <img
-                      src={c.logo || null}
+                      src={c.logo || 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=120&auto=format&fit=crop&q=60'}
                       alt={c.name}
+                      referrerPolicy="no-referrer"
+                      className="max-w-full max-h-full object-contain"
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=120&auto=format&fit=crop&q=60';
                       }}
-                      className="w-full h-full object-contain"
                     />
                   </div>
                   <div className="min-w-0">

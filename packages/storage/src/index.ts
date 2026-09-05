@@ -32,8 +32,12 @@ export function getStorageClient(): Storage {
   return gcsStorageInstance;
 }
 
+import { uploadToBlob, deleteFromBlob, downloadFromBlob } from './blob';
+
+export * from './blob';
+
 /**
- * Generates a Signed URL allowing direct client uploads/downloads to/from GCS
+ * Generates a Signed URL allowing direct client uploads/downloads to/from storage
  */
 export async function getSignedUrl(
   bucketName: string,
@@ -41,6 +45,15 @@ export async function getSignedUrl(
   action: 'read' | 'write' = 'read',
   expiresInMinutes = 15
 ): Promise<string> {
+  if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+    return filePath;
+  }
+
+  if (process.env.BLOB_READ_WRITE_TOKEN) {
+    // In Vercel Blob public mode, files are directly referenced by their URL
+    return filePath;
+  }
+
   try {
     const storage = getStorageClient();
     const bucket = storage.bucket(bucketName);
@@ -62,7 +75,7 @@ export async function getSignedUrl(
 }
 
 /**
- * High-performance file streamer/uploader from buffer to bucket
+ * High-performance file streamer/uploader from buffer to bucket or Vercel Blob
  */
 export async function uploadToBucket(
   bucketName: string,
@@ -70,6 +83,10 @@ export async function uploadToBucket(
   content: Buffer | string,
   contentType = 'application/octet-stream'
 ): Promise<string> {
+  if (process.env.BLOB_READ_WRITE_TOKEN) {
+    return uploadToBlob(filePath, content, contentType);
+  }
+
   try {
     const storage = getStorageClient();
     const bucket = storage.bucket(bucketName);
@@ -88,7 +105,12 @@ export async function uploadToBucket(
     throw error;
   }
 }
+
 export async function deleteFromBucket(bucketName: string, filePath: string): Promise<void> {
+  if (filePath.startsWith('http://') || filePath.startsWith('https://') || process.env.BLOB_READ_WRITE_TOKEN) {
+    return deleteFromBlob(filePath);
+  }
+
   try {
     const storage = getStorageClient();
     const bucket = storage.bucket(bucketName);
@@ -102,6 +124,10 @@ export async function deleteFromBucket(bucketName: string, filePath: string): Pr
 }
 
 export async function downloadFromBucket(bucketName: string, filePath: string): Promise<Buffer> {
+  if (filePath.startsWith('http://') || filePath.startsWith('https://') || process.env.BLOB_READ_WRITE_TOKEN) {
+    return downloadFromBlob(filePath);
+  }
+
   try {
     const storage = getStorageClient();
     const bucket = storage.bucket(bucketName);
@@ -115,3 +141,4 @@ export async function downloadFromBucket(bucketName: string, filePath: string): 
     throw error;
   }
 }
+

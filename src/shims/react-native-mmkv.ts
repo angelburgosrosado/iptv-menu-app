@@ -9,6 +9,21 @@ interface MMKVConfiguration {
   encryptionKey?: string;
 }
 
+const getStorageSafe = () => {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    return window.localStorage;
+  }
+  const memoryStore: Record<string, string> = {};
+  return {
+    getItem: (k: string) => memoryStore[k] ?? null,
+    setItem: (k: string, v: string) => { memoryStore[k] = v; },
+    removeItem: (k: string) => { delete memoryStore[k]; },
+    clear: () => { Object.keys(memoryStore).forEach(k => delete memoryStore[k]); },
+    get length() { return Object.keys(memoryStore).length; },
+    key: (i: number) => Object.keys(memoryStore)[i] ?? null,
+  };
+};
+
 export class MMKV {
   private id: string;
 
@@ -21,14 +36,16 @@ export class MMKV {
   }
 
   public set(key: string, value: boolean | string | number): void {
+    const storage = getStorageSafe();
     const prefixed = this.getPrefixedKey(key);
-    localStorage.setItem(prefixed, JSON.stringify(value));
+    storage.setItem(prefixed, JSON.stringify(value));
   }
 
   public getString(key: string): string | undefined {
+    const storage = getStorageSafe();
     const prefixed = this.getPrefixedKey(key);
-    const item = localStorage.getItem(prefixed);
-    if (item === null) return undefined;
+    const item = storage.getItem(prefixed);
+    if (item === null || item === undefined) return undefined;
     try {
       const parsed = JSON.parse(item);
       return typeof parsed === 'string' ? parsed : item;
@@ -38,9 +55,10 @@ export class MMKV {
   }
 
   public getNumber(key: string): number | undefined {
+    const storage = getStorageSafe();
     const prefixed = this.getPrefixedKey(key);
-    const item = localStorage.getItem(prefixed);
-    if (item === null) return undefined;
+    const item = storage.getItem(prefixed);
+    if (item === null || item === undefined) return undefined;
     try {
       const num = Number(JSON.parse(item));
       return isNaN(num) ? undefined : num;
@@ -50,9 +68,10 @@ export class MMKV {
   }
 
   public getBoolean(key: string): boolean | undefined {
+    const storage = getStorageSafe();
     const prefixed = this.getPrefixedKey(key);
-    const item = localStorage.getItem(prefixed);
-    if (item === null) return undefined;
+    const item = storage.getItem(prefixed);
+    if (item === null || item === undefined) return undefined;
     try {
       const parsed = JSON.parse(item);
       return typeof parsed === 'boolean' ? parsed : undefined;
@@ -62,17 +81,21 @@ export class MMKV {
   }
 
   public delete(key: string): void {
+    const storage = getStorageSafe();
     const prefixed = this.getPrefixedKey(key);
-    localStorage.removeItem(prefixed);
+    storage.removeItem(prefixed);
   }
 
   public clearAll(): void {
-    const keys = Object.keys(localStorage);
-    const prefix = `@MMKV:${this.id}:`;
-    keys.forEach((k) => {
-      if (k.startsWith(prefix)) {
-        localStorage.removeItem(k);
-      }
-    });
+    const storage = getStorageSafe();
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const keys = Object.keys(window.localStorage);
+      const prefix = `@MMKV:${this.id}:`;
+      keys.forEach((k) => {
+        if (k.startsWith(prefix)) {
+          window.localStorage.removeItem(k);
+        }
+      });
+    }
   }
 }

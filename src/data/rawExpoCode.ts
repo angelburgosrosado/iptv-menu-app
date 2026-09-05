@@ -22,12 +22,17 @@ export const EXPO_CODEBASE = [
     "zustand": "^4.5.2",
     "react-native-mmkv": "^2.12.2",
     "@shopify/flash-list": "^1.6.4",
-    "expo-video": "~1.0.10",
+    "expo-video": "~1.1.0",
     "expo-image": "~1.12.11",
-    "lucide-react": "^0.379.0"
+    "expo-build-properties": "~0.12.5",
+    "expo-constants": "~16.0.2",
+    "expo-linking": "~6.3.1",
+    "lucide-react-native": "^0.379.0",
+    "react-native-svg": "15.2.0"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
+    "babel-preset-expo": "~11.0.0",
     "@types/react": "~18.2.45",
     "typescript": "^5.1.3"
   },

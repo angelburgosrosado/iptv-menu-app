@@ -1,0 +1,48 @@
+{
+  "expo": {
+    "name": "IPTV Player Pro",
+    "slug": "iptv-menu-app",
+    "scheme": "iptvplayer",
+    "version": "1.0.0",
+    "orientation": "default",
+    "userInterfaceStyle": "dark",
+    "plugins": [
+      "expo-router",
+      [
+        "expo-video",
+        {
+          "supportsBackgroundPlayback": true,
+          "supportsPictureInPicture": true
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.iptv.pro.player"
+    },
+    "android": {
+      "package": "com.iptv.pro.player",
+      "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
+        "ACCESS_WIFI_STATE",
+        "WAKE_LOCK",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+      ]
+    },
+    "extra": {
+      "eas": {
+        "projectId": "1437b933-39d1-42b3-bb8d-803a5f33909e"
+      }
+    }
+  }
+}

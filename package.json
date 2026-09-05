@@ -3,12 +3,25 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "deploy:hosting": "npx -y firebase-tools deploy --only hosting",
+    "build:apk": "cd mobile && eas build --platform android --profile preview --non-interactive",
+    "build:apk:prod": "cd mobile && eas build --platform android --profile production --non-interactive",
+    "build:apk:wait": "cd mobile && eas build --platform android --profile preview --wait",
+    "db:push": "npm --workspace=@iptv-menu/db run db:push",
+    "db:studio": "npm --workspace=@iptv-menu/db run db:studio",
+    "build:all": "npm run build && npm --workspace=@iptv-menu/db run build && npm --workspace=@iptv-menu/storage run build && npm --workspace=@iptv-menu/jobs run build && npm --workspace=iptv-api run build && npm --workspace=iptv-worker run build",
+    "build:api": "npm --workspace=iptv-api run build",
+    "build:worker": "npm --workspace=iptv-worker run build"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
@@ -27,6 +40,8 @@
   "devDependencies": {
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
     "autoprefixer": "^10.4.21",
     "esbuild": "^0.25.0",
     "tailwindcss": "^4.1.14",

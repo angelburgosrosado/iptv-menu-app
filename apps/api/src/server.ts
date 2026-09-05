@@ -14,7 +14,8 @@ import {
   EpgRepository, 
   BuildRepository, 
   AuditLogRepository,
-  WorkspaceRepository
+  WorkspaceRepository,
+  getFirestoreDB
 } from '@iptv-menu/db';
 import { 
   getSignedUrl, 
@@ -38,7 +39,7 @@ import { attachWorkspaceContext, checkWorkspaceQuota } from './middleware/worksp
 const logger = new Logger('api-server');
 
 const app = express();
-const PORT = process.env.PORT || 3001; // Can run alongside web on port 3000
+const PORT = Number(process.env.PORT) || 3001; // Can run alongside web on port 3000
 
 // Repositories
 const userRepo = new UserRepository();
@@ -452,6 +453,22 @@ app.post('/api/builds', checkWorkspaceQuota('maxMonthlyBuilds'), async (req: any
     const { appName, brandConfig, playlistSource } = req.body;
     
     const buildId = await dispatchBuildJob(uid, appName, brandConfig, playlistSource);
+
+    // Track monthlyBuildsUsed quota in active workspace
+    if (req.workspace) {
+      const currentUsed = req.workspace.usage?.monthlyBuildsUsed || 0;
+      await workspaceRepo.updateWorkspace(req.workspace.workspaceId, {
+        usage: {
+          ...req.workspace.usage,
+          monthlyBuildsUsed: currentUsed + 1
+        }
+      });
+      logger.info('Tracked build quota usage in workspace', {
+        workspaceId: req.workspace.workspaceId,
+        monthlyBuildsUsed: currentUsed + 1
+      });
+    }
+
     res.status(201).json({ success: true, buildId });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -499,7 +516,7 @@ app.post('/api/billing/create-checkout-session', async (req: any, res) => {
       priceId,
       successUrl,
       cancelUrl,
-      { uid, email: profile.email }
+      { uid, email: profile.email, priceId: priceId || '' }
     );
 
     res.json({ url });
@@ -545,13 +562,59 @@ app.post('/api/webhooks/stripe', bodyParser.raw({ type: 'application/json' }), a
   try {
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as any;
-      const uid = session.metadata.uid;
-      const planPriceId = session.line_items?.data[0]?.price?.id;
+      const uid = session.metadata?.uid;
+      const planPriceId = session.line_items?.data?.[0]?.price?.id || session.metadata?.priceId;
       
-      const tier = planPriceId === 'price_builder_subscription' ? 'builder' : 'pro';
+      const isBuilder = 
+        planPriceId === 'price_builder_subscription' ||
+        planPriceId === 'price_enterprise_tier' ||
+        planPriceId?.includes('builder') ||
+        planPriceId?.includes('enterprise');
+
+      const tier = isBuilder ? 'builder' : 'pro';
       
-      await userRepo.updateUser(uid, { subscriptionTier: tier });
-      logger.info(`Upgraded user via Stripe webhook`, { uid, tier });
+      if (uid) {
+        // 1. Upgrade User
+        await userRepo.updateUser(uid, { subscriptionTier: tier });
+        logger.info(`Upgraded user tier via Stripe webhook`, { uid, tier, planPriceId });
+
+        // 2. Upgrade Workspace Entitlements
+        const userWorkspaces = await workspaceRepo.listUserWorkspaces(uid);
+        for (const ws of userWorkspaces) {
+          const entitlements = isBuilder
+            ? {
+                maxPlaylists: 20,
+                maxHostedPlaylists: 10,
+                maxDailyCleanups: 50,
+                maxMonthlyBuilds: 5,
+                allowBrandingCustomization: true,
+                allowWhiteLabel: true
+              }
+            : {
+                maxPlaylists: 10,
+                maxHostedPlaylists: 5,
+                maxDailyCleanups: 20,
+                maxMonthlyBuilds: 0,
+                allowBrandingCustomization: false,
+                allowWhiteLabel: false
+              };
+
+          await workspaceRepo.updateWorkspace(ws.workspaceId, {
+            plan: tier === 'pro' ? 'starter' : (tier as any),
+            subscriptionStatus: 'active',
+            stripeCustomerId: session.customer || ws.stripeCustomerId,
+            stripeSubscriptionId: session.subscription || ws.stripeSubscriptionId,
+            entitlements
+          });
+
+          logger.info(`Promoted workspace entitlements via Stripe webhook`, {
+            workspaceId: ws.workspaceId,
+            tier,
+            maxMonthlyBuilds: entitlements.maxMonthlyBuilds,
+            allowWhiteLabel: entitlements.allowWhiteLabel
+          });
+        }
+      }
     }
     
     if (event.type === 'customer.subscription.deleted') {
@@ -569,7 +632,55 @@ app.post('/api/webhooks/stripe', bodyParser.raw({ type: 'application/json' }), a
       if (!userSnap.empty) {
         const uid = userSnap.docs[0].id;
         await userRepo.updateUser(uid, { subscriptionTier: 'free' });
-        logger.info(`Downgraded user due to Stripe subscription cancellation`, { uid });
+        
+        // Reset workspace entitlements to free tier
+        const userWorkspaces = await workspaceRepo.listUserWorkspaces(uid);
+        for (const ws of userWorkspaces) {
+          await workspaceRepo.updateWorkspace(ws.workspaceId, {
+            plan: 'free',
+            subscriptionStatus: 'canceled',
+            entitlements: {
+              maxPlaylists: 1,
+              maxHostedPlaylists: 0,
+              maxDailyCleanups: 1,
+              maxMonthlyBuilds: 0,
+              allowBrandingCustomization: false,
+              allowWhiteLabel: false
+            }
+          });
+        }
+        logger.info(`Downgraded user & workspaces due to Stripe subscription cancellation`, { uid });
+      }
+    }
+
+    if (event.type === 'invoice.payment_succeeded') {
+      // Monthly cycle rollover: reset usage counters for active billing period
+      const invoice = event.data.object as any;
+      const subscriptionId = invoice.subscription;
+      if (subscriptionId) {
+        try {
+          const stripe = require('stripe')(config.STRIPE_SECRET_KEY);
+          const sub = await stripe.subscriptions.retrieve(subscriptionId);
+          const uid = sub.metadata?.uid;
+          if (uid) {
+            const userWorkspaces = await workspaceRepo.listUserWorkspaces(uid);
+            for (const ws of userWorkspaces) {
+              await workspaceRepo.updateWorkspace(ws.workspaceId, {
+                usage: {
+                  ...ws.usage,
+                  monthlyBuildsUsed: 0,
+                  dailyCleanupsUsed: 0
+                }
+              });
+              logger.info('Reset workspace monthly build quotas for new billing cycle', {
+                workspaceId: ws.workspaceId,
+                uid
+              });
+            }
+          }
+        } catch (subErr) {
+          logger.warn('Could not inspect subscription for cycle reset', subErr);
+        }
       }
     }
 
@@ -694,7 +805,12 @@ app.get('/api/admin/audit-logs', adminGuard, async (req, res) => {
   }
 });
 
-// Bind server and listen
-app.listen(PORT, '0.0.0.0', () => {
-  logger.info(`IPTV REST API Server is boot-running successfully on port ${PORT}`);
-});
+// Bind server and listen if running directly as standalone service
+if (!process.env.VERCEL && (typeof require !== 'undefined' && require.main === module)) {
+  app.listen(PORT, '0.0.0.0', () => {
+    logger.info(`IPTV REST API Server is boot-running successfully on port ${PORT}`);
+  });
+}
+
+export default app;
+export { app };

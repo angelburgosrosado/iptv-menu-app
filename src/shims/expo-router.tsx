@@ -18,7 +18,9 @@ class SimRouter {
 
   public subscribe(listener: NavListener) {
     this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
   }
 
   public push(path: string, params: Record<string, any> = {}) {

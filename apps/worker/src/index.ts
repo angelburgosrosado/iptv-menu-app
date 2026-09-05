@@ -170,7 +170,7 @@ async function runWorker() {
           const artifactPath = buildResult.downloadUrl || `users/${buildJob.uid}/builds/${buildJob.buildId}_android_release.apk`;
 
           await buildRepo.updateBuild(buildJob.buildId, {
-            status: buildResult.status === 'FINISHED' ? 'succeeded' : 'processing',
+            status: buildResult.status === 'FINISHED' ? 'succeeded' : 'building',
             artifactPath,
             buildLogPath: `users/${buildJob.uid}/builds/logs/${buildJob.buildId}.log`
           });

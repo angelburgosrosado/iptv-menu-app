@@ -9,6 +9,7 @@ export default defineConfig(() => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
+        '@iptv-menu/types': path.resolve(__dirname, './packages/types/src/index.ts'),
         'react-native': path.resolve(__dirname, './src/shims/react-native.tsx'),
         '@shopify/flash-list': path.resolve(__dirname, './src/shims/flash-list.tsx'),
         'expo-router': path.resolve(__dirname, './src/shims/expo-router.tsx'),

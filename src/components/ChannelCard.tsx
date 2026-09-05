@@ -172,9 +172,9 @@ export const ChannelCard = React.memo(({
   };
 
   return (
-    <div style={styles.cardWrapper}>
+    <div style={styles.cardWrapper as any}>
       {/* 1. Behind-the-card Action Buttons (revealed on swipe left) */}
-      <div style={styles.actionsContainer}>
+      <div style={styles.actionsContainer as any}>
         {/* Favorite Swipe Action */}
         <TouchableOpacity
           onPress={(e) => {
