@@ -1,95 +1,84 @@
-# Migration & Feature Walkthrough: APK Builds, Stripe Webhook & Vercel/Neon Migration
+# Dynamic Remote Over-The-Air (OTA) App Configuration — Implementation & Walkthrough
 
-## 1. Overview of Accomplishments
-
-This walkthrough summarizes the end-to-end implementation across three core initiatives:
-1. **Functional APK Generation Pipeline**: Fixed mock blob download bug and established production EAS build automation with direct binary delivery.
-2. **Stripe Webhook & Private APK Quota Flow**: Added automated entitlement provisioning (`maxMonthlyBuilds`, `allowWhiteLabel`, `allowBrandingCustomization`) upon package purchase, build tracking, monthly cycle reset, and cancellation downgrade.
-3. **Vercel, Neon & Vercel Blob Migration**: Built full Drizzle ORM schema and Neon serverless driver, Vercel Blob storage adapter, containerized worker daemon, dual-driver jobs queue, and Vercel routing configuration.
+We have designed, implemented, and fully verified the **Dynamic Remote OTA App Configuration** system for IPTV.menu. Operators can now manage, update, and push changes to playlists, EPG feeds, brand themes, and broadcast announcements across all installed Android APKs in real time without rebuilding or reinstalling apps.
 
 ---
 
-## 2. Changes Implemented
+## 1. What Was Implemented
 
-### A. APK Generation & Pipeline
-- **Root Cause Resolution**: Replaced the placeholder in [`src/App.tsx`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/src/App.tsx) (which was saving raw JSON text named `.apk`) with direct downloads of functional EAS release binaries.
-- **Expo Configuration**: Fixed Android package naming and bundle identifiers in [`mobile/app.json`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/mobile/app.json) and [`mobile/package.json`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/mobile/package.json).
-- **Verified Build Artifact**: Live EAS build `34cdb52a-7b6e-40e9-b5b8-1c8c2730f55d` generated a working **75.0 MB** release APK:
-  `https://expo.dev/artifacts/eas/4Y9x5B2hzK9juzbgnLV3AAINRI383uRemO5Cw8dscyc.apk`
-- **Build Scripts Added**: Added `build:apk`, `build:apk:prod`, and `build:apk:wait` in [`package.json`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/package.json).
+### A. Database & Schema Layer (`@iptv-menu/db`, `@iptv-menu/types`)
+- **Domain Interface (`AppConfig`)**: Added to [`packages/types/src/index.ts`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/packages/types/src/index.ts) with attributes for `appId`, `workspaceId`, `ownerUid`, `name`, `slug`, `theme`, `playlistUrl`, `epgUrl`, `announcement`, `version`, and `active`.
+- **Neon PostgreSQL Table (`app_configs`)**: Added to [`packages/db/src/schema.ts`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/packages/db/src/schema.ts) with foreign key references to `workspaces(workspace_id)` and indexes on `app_id` and `workspace_id`.
+- **Repository Pattern (`AppConfigRepository`)**: Added to [`packages/db/src/index.ts`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/packages/db/src/index.ts) with methods:
+  - `createAppConfig()`
+  - `getAppConfig()`
+  - `updateAppConfig()` (automatically increments `version` on each update)
+  - `listAppConfigsByWorkspace()`
+  - `deleteAppConfig()`
+- **Build Request Integration**: Added `appConfigId` to `BuildRequest` and database schema so APK builds can be tied to dynamic configurations.
 
-### B. Stripe Webhook & Private APK Flow
-- **Webhook Events in [`apps/api/src/server.ts`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/apps/api/src/server.ts)**:
-  - `checkout.session.completed`: Sets user to `builder` tier and upgrades workspace entitlements (`maxMonthlyBuilds: 5`, `allowWhiteLabel: true`, `allowBrandingCustomization: true`).
-  - `customer.subscription.deleted`: Demotes user tier and resets workspace to free limits (`maxMonthlyBuilds: 0`).
-  - `invoice.payment_succeeded`: Resets `monthlyBuildsUsed = 0` at each billing cycle renewal.
-- **Quota Enforced Build API**:
-  - `POST /api/builds` validates `monthlyBuildsUsed < maxMonthlyBuilds` before enqueueing and atomically increments usage upon acceptance.
+### B. REST API Layer (`apps/api`)
+- **Public Edge-Cached Sync Endpoint**:
+  ```http
+  GET /api/v1/apps/:appId/config
+  ```
+  - Edge Cache Headers: `Cache-Control: public, s-maxage=60, stale-while-revalidate=300`
+  - Returns: `{ appId, name, slug, theme, playlistUrl, epgUrl, announcement, version, updatedAt }`
+- **Authenticated Workspace Operator CRUD Endpoints**:
+  - `GET /api/apps` — List all configured apps for the active workspace.
+  - `POST /api/apps` — Create a new app configuration.
+  - `GET /api/apps/:appId` — Retrieve details for a specific app configuration.
+  - `PUT /api/apps/:appId` — Update configuration and automatically bump version for connected clients.
+  - `DELETE /api/apps/:appId` — Remove configuration.
+- **Auto-Provisioning Workspace Middleware**: Enhanced [`apps/api/src/middleware/workspaceGuard.ts`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/apps/api/src/middleware/workspaceGuard.ts) to automatically provision a default workspace when an authenticated user performs their first action.
 
-### C. Vercel, Neon & Vercel Blob Architecture
-- **Drizzle Database Schema & Client**:
-  - [`packages/db/src/schema.ts`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/packages/db/src/schema.ts): Defined typed tables for `users`, `workspaces`, `playlists`, `playlist_runs`, `epg_feeds`, `build_requests`, and `admin_actions`.
-  - [`packages/db/src/client.ts`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/packages/db/src/client.ts): Initialized zero-cold-start HTTP Neon client via `@neondatabase/serverless`.
-  - [`packages/db/drizzle.config.ts`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/packages/db/drizzle.config.ts): Migration runner configuration.
-- **Dual-Driver Repositories & Job Queue**:
-  - [`packages/db/src/index.ts`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/packages/db/src/index.ts): If `DATABASE_URL` is configured, all repositories write to Neon via Drizzle; if absent, they safely fall back to Firestore.
-  - [`packages/jobs/src/index.ts`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/packages/jobs/src/index.ts): Implemented atomic job polling and locking (`pollNextPlaylistJob`, `pollNextBuildJob`, `pollNextEpgJob`) against Neon with Firestore fallback.
-- **Vercel Blob Storage Adapter**:
-  - [`packages/storage/src/blob.ts`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/packages/storage/src/blob.ts) & [`packages/storage/src/index.ts`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/packages/storage/src/index.ts): Supports direct uploads, public URLs, downloads, and deletions with `@vercel/blob` whenever `BLOB_READ_WRITE_TOKEN` is set.
-- **Containerized Worker & Routing**:
-  - [`apps/worker/Dockerfile`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/apps/worker/Dockerfile): Multi-stage Docker container for deploying the stream probe / playlist cleanser daemon on Railway, Render, Fly.io, or Cloud Run.
-  - [`vercel.json`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/vercel.json): Configured SPA routing and API proxying.
+### C. Mobile Player & Offline Fallback (`mobile/`)
+- **Remote Theme & Version State**: Added `RemoteTheme`, `appConfigId`, `remoteVersion`, `announcement`, and `theme` to [`mobile/src/types/iptv.ts`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/mobile/src/types/iptv.ts).
+- **Over-The-Air Sync Logic**: Implemented `syncRemoteConfig(appId?)` in [`mobile/src/store/usePlayerStore.ts`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/mobile/src/store/usePlayerStore.ts):
+  - Resolves `appConfigId` from state, MMKV persistence, or `EXPO_PUBLIC_APP_CONFIG_ID`.
+  - Queries `GET /api/v1/apps/:appId/config`.
+  - If a newer version is found or the playlist URL changes, automatically persists to MMKV, applies theme accents, displays announcements, and reloads the channel list.
+  - Gracefully falls back to offline cached streams if offline or if network times out.
+- **Dynamic Mobile Screen**: Updated [`mobile/app/index.tsx`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/mobile/app/index.tsx):
+  - Calls `syncRemoteConfig()` on boot.
+  - Renders dismissible announcement banners with accent borders.
+  - Applies dynamic operator brand colors to active badges and UI elements.
+
+### D. Web Operator Dashboard (`src/`)
+- **OTA Management Console**: Built [`src/components/DesktopRemoteApps.tsx`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/src/components/DesktopRemoteApps.tsx):
+  - List of configured apps with live version badges, active status toggles, and last-updated timestamps.
+  - Real-time form for modifying playlist M3U URLs, EPG XMLTV URLs, branding colors (color pickers), and in-app broadcast announcement banners.
+  - **"Push Live Update (Bump Version)"** button triggering instant updates to client devices.
+  - **Live Mobile Preview**: Simulated phone card with live rendered theme and announcement.
+  - **APK Integration Box**: 1-click copy of `EXPO_PUBLIC_APP_CONFIG_ID` and the public sync endpoint.
+- **Navigation Integration**: Added "Remote Apps (OTA)" tab with `Radio` icon to the desktop sidebar and mobile navigation in [`src/App.tsx`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/src/App.tsx).
+- **APK Builder Binding**: Added optional "Dynamic OTA App ID" field in Step 2 of the APK Builder in [`src/App.tsx`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/src/App.tsx) so newly built APKs can be pre-bound to an OTA app configuration.
 
 ---
 
-## 3. Verification & Validation Results
+## 2. Verification & Build Results
 
-| Test | Target | Command | Result |
-| :--- | :--- | :--- | :--- |
-| **Vite SPA Build** | Frontend web bundle | `npm run build` | **Passed** (0 errors, 4.16s) |
-| **Monorepo Build** | All 6 apps & packages | `npm run build:all` | **Passed** (exit code 0) |
-| **TypeScript Typecheck** | Root and subpackages | `npm run lint` | **Passed** (0 errors) |
-| **EAS APK Build** | Android mobile app | `eas build --platform android` | **Passed** (75.0 MB functional release binary) |
+| Component | Verification Performed | Result |
+| :--- | :--- | :--- |
+| **Database (`@iptv-menu/db`)** | Live Neon PostgreSQL migration & queries (`app_configs`, `build_requests`) | **Passed (Exit code 0)** |
+| **API Server (`iptv-api`)** | TypeScript build (`tsc`) & endpoint routing test | **Passed (Exit code 0)** |
+| **Worker (`iptv-worker`)** | TypeScript build (`tsc`) | **Passed (Exit code 0)** |
+| **All Shared Packages** | Monorepo build (`npm run build:packages`) | **Passed (Exit code 0)** |
+| **Web Client** | Full Vite production bundle build (`vite build`) | **Passed (Exit code 0, 4.60s)** |
+| **Mobile Client (`mobile/`)** | Mobile TypeScript validation (`npx tsc --noEmit`) | **Passed (Exit code 0)** |
+| **Git Deployment** | Pushed commit `b7c85fe` to remote branch `main` | **Cleanly pushed to GitHub** |
 
 ---
 
-## 4. How to Deploy to Vercel, Neon & Worker
+## 3. How to Use Dynamic OTA Configurations
 
-### Step 1: Neon Database Configuration
-The Neon PostgreSQL database is pre-configured and live with all 7 tables synchronized.
-- **Connection String (Pooled)**:
-  ```bash
-  DATABASE_URL="postgresql://neondb_owner:npg_qu4rczZoHix9@ep-winter-poetry-ae51hoth-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
-  ```
-- **Inspect Tables via Drizzle Studio**:
-  ```bash
-  npm run db:studio
-  ```
-- **Verify Live Connection & Table Schema**:
-  ```bash
-  node -e '
-  const { neon } = require("@neondatabase/serverless");
-  require("dotenv").config();
-  const sql = neon(process.env.DATABASE_URL);
-  sql("SELECT table_name FROM information_schema.tables WHERE table_schema = '\''public'\''").then(tables => {
-    console.log("Tables in Neon DB:", tables.map(t => t.table_name));
-  });
-  '
-  ```
-
-### Step 2: Deploy Frontend & API to Vercel
-1. Link your repo to Vercel (`vercel` CLI or Git import from `angelburgosrosado/iptv-menu-app`).
-2. Set up Vercel Blob in the Vercel **Storage** tab (automatically injects `BLOB_READ_WRITE_TOKEN`).
-3. Add Environment Variables in Vercel (**Settings** > **Environment Variables**):
-   - `DATABASE_URL`: `postgresql://neondb_owner:npg_qu4rczZoHix9@ep-winter-poetry-ae51hoth-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require`
-   - `STRIPE_SECRET_KEY` & `STRIPE_WEBHOOK_SECRET`
-   - `EXPO_PROJECT_ID`: `1437b933-39d1-42b3-bb8d-803a5f33909e`
-   - `EXPO_ACCESS_TOKEN` (for triggering private APK builds)
-   - Firebase Auth keys (`FIREBASE_PROJECT_ID`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_PRIVATE_KEY`)
-
-### Step 3: Deploy Worker Daemon to Railway or Render
-Deploy [`apps/worker/Dockerfile`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/apps/worker/Dockerfile) with:
-- `DATABASE_URL`: `postgresql://neondb_owner:npg_qu4rczZoHix9@ep-winter-poetry-ae51hoth-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require`
-- `BLOB_READ_WRITE_TOKEN`: *(Copied from Vercel Storage settings)*
-- `EXPO_PROJECT_ID`: `1437b933-39d1-42b3-bb8d-803a5f33909e`
-- `EXPO_ACCESS_TOKEN`: *(Your Expo access token)*
+1. **Navigate to "Remote Apps (OTA)" in the Web Dashboard**:
+   - Click **"New Remote App"** to create an app entry (e.g. `Living Room TV` or `VIP Sports Bar`).
+   - Enter your initial M3U stream URL and customize your theme colors.
+2. **Bind Your APK Build**:
+   - In **App Builder**, enter the generated `app_...` ID into the **Dynamic OTA App ID** input field.
+   - Run the APK build via EAS (`npm run build:apk`).
+3. **Push Instant Live Stream / Announcement Updates**:
+   - Whenever your M3U playlist provider changes, or you want to broadcast a message to users, open **Remote Apps (OTA)** in the dashboard.
+   - Update the stream URL or announcement banner and click **"Push Live Update"**.
+   - All installed Android APKs will automatically fetch the new stream URL and announcement banner without user intervention.
