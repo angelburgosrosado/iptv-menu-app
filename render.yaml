@@ -1,0 +1,26 @@
+# ==============================================================================
+# Render Blueprint Specification for IPTV.menu
+# Docs: https://render.com/docs/blueprint-spec
+# ==============================================================================
+services:
+  - type: worker
+    name: iptv-worker
+    runtime: docker
+    dockerfilePath: apps/worker/Dockerfile
+    dockerContext: .
+    region: ohio # Close to Neon us-east-2
+    plan: starter
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: BLOB_READ_WRITE_TOKEN
+        sync: false
+      - key: EXPO_PROJECT_ID
+        value: 1437b933-39d1-42b3-bb8d-803a5f33909e
+      - key: EXPO_ACCESS_TOKEN
+        sync: false
