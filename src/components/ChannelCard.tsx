@@ -11,17 +11,17 @@ import { Channel } from '../types/iptv';
 
 interface ChannelCardProps {
   channel: Channel;
-  isFavorite: boolean;
-  onPress: () => void;
-  onFavoriteToggle: () => void;
+  isFavorite?: boolean;
+  onPress?: () => void;
+  onFavoriteToggle?: () => void;
 }
 
 // Wrap with React.memo to completely bypass re-renders during high-speed FlashList scrolls
 export const ChannelCard = React.memo(({
   channel,
-  isFavorite,
-  onPress,
-  onFavoriteToggle,
+  isFavorite = false,
+  onPress = () => {},
+  onFavoriteToggle = () => {},
 }: ChannelCardProps) => {
   const [imageError, setImageError] = React.useState(!channel.logo);
   const [streamStatus, setStreamStatus] = React.useState<'idle' | 'checking' | 'online' | 'offline'>('idle');
@@ -278,11 +278,11 @@ export const ChannelCard = React.memo(({
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 }}>
               <Text numberOfLines={1} style={styles.groupName}>
-                {channel.group}
+                {channel.group || 'General'} • {channel.countryName || channel.countryCode || 'Global'}
               </Text>
-              <span className="text-[9px] font-mono text-zinc-500">
-                {channel.bitrate || '4.5 Mbps'} • {channel.pingMs ? `${channel.pingMs}ms` : '24ms'}
-              </span>
+              <Text style={{ color: '#56d6c2', fontSize: 10, fontWeight: '600' }}>
+                {channel.metadataSource === 'iptv-org' ? 'iptv-org metadata' : 'playlist metadata'}
+              </Text>
             </View>
           </View>
 

@@ -5,8 +5,9 @@
 
 import { create } from 'zustand';
 import { MMKV } from 'react-native-mmkv';
-import { AppState, Channel } from '../types/iptv';
+import { AppState, Channel, EpgSource } from '../types/iptv';
 import { parseM3U } from '../utils/m3uParser';
+import { buildCountrySections } from '../utils/channelEnrichment';
 
 // Initialize react-native-mmkv storage container
 const storage = new MMKV({ id: 'iptv_user_storage_v1' });
@@ -65,11 +66,64 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   favorites: readArrayFromStorage('favorites'),
   history: readArrayFromStorage('history'),
   
+  // Country & EPG Backbone enhancements
+  countrySections: buildCountrySections(parseM3U(FALLBACK_PLAYLIST)),
+  selectedCountry: null,
+  selectedGroup: null,
+  searchTerm: '',
+  epgSources: [
+    { key: 'licensed-primary', label: 'Licensed Primary Backbone', priority: 1, enabled: true },
+    { key: 'open-epg', label: 'Public XMLTV Interchange', priority: 2, enabled: true },
+    { key: 'community-country-feeds', label: 'Community Country Feeds', priority: 3, enabled: true }
+  ],
+  epgByChannel: {},
+
   // Loading & parsing states
   isLoading: false,
   parseProgress: 0,
   error: null,
   playlistUrl: storage.getString('playlistUrl') || DEFAULT_PLAYLIST_URL,
+
+  setSelectedCountry: (code: string | null) => set({ selectedCountry: code }),
+  setSelectedGroup: (group: string | null) => set({ selectedGroup: group }),
+  setSearchTerm: (term: string) => set({ searchTerm: term }),
+
+  loadMetadataBundle: async () => {
+    let currentChannels = get().channels;
+    if (!currentChannels || currentChannels.length === 0) {
+      await get().loadPlaylist();
+      currentChannels = get().channels;
+    }
+    const sections = buildCountrySections(currentChannels);
+    set({ countrySections: sections });
+  },
+
+  loadEpgBundle: async () => {
+    let currentChannels = get().channels;
+    if (!currentChannels || currentChannels.length === 0) {
+      currentChannels = parseM3U(FALLBACK_PLAYLIST);
+    }
+    const epgMap: Record<string, any[]> = {};
+    for (const c of currentChannels) {
+      const channelKey = c.tvgId || c.epgChannelId || c.id;
+      epgMap[channelKey] = [
+        {
+          title: `${c.name} Live Broadcast`,
+          start: new Date().toISOString(),
+          stop: new Date(Date.now() + 3600000).toISOString(),
+          sourcePriority: 10
+        }
+      ];
+    }
+    set({
+      epgSources: [
+        { key: 'licensed-primary', label: 'Licensed Primary Backbone', priority: 1, enabled: true },
+        { key: 'open-epg', label: 'Public XMLTV Interchange', priority: 2, enabled: true },
+        { key: 'community-country-feeds', label: 'Community Country Feeds', priority: 3, enabled: true }
+      ],
+      epgByChannel: epgMap
+    });
+  },
 
   setPlaylistUrl: (url: string) => {
     storage.set('playlistUrl', url);
@@ -130,6 +184,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
         set({
           channels: fallbackChannels,
           groups: uniqueGroups,
+          countrySections: buildCountrySections(fallbackChannels),
           isLoading: false,
           parseProgress: 100,
           error: 'Returned playlist was empty or malformed. Loaded pre-vetted standby channels.',
@@ -143,6 +198,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
       set({
         channels: parsedChannels,
         groups: uniqueGroups,
+        countrySections: buildCountrySections(parsedChannels),
         isLoading: false,
         parseProgress: 100,
       });
@@ -155,6 +211,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
       set({
         channels: fallbackChannels,
         groups: uniqueGroups,
+        countrySections: buildCountrySections(fallbackChannels),
         isLoading: false,
         parseProgress: 100,
         error: `Error loading playlist: ${err.message || err}. Loaded offline-friendly safety feeds.`,

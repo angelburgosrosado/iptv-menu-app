@@ -8,7 +8,7 @@ export default defineConfig(() => {
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': path.resolve(__dirname, './src'),
         '@iptv-menu/types': path.resolve(__dirname, './packages/types/src/index.ts'),
         'react-native': path.resolve(__dirname, './src/shims/react-native.tsx'),
         '@shopify/flash-list': path.resolve(__dirname, './src/shims/flash-list.tsx'),

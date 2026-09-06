@@ -5,6 +5,28 @@ export interface Channel {
   url: string;        // HLS H3U8 stream URL
   group: string;      // Group category name (e.g., News, Entertainment)
   tvgId: string;      // Raw epg identifier
+  tvgName?: string;
+  tvgCountry?: string;
+  language?: string;
+  countryCode?: string;
+  countryName?: string;
+  epgChannelId?: string;
+  metadataSource?: 'playlist' | 'iptv-org' | 'manual';
+}
+
+export interface CountrySection {
+  code: string;
+  name: string;
+  channelCount: number;
+  channels: Channel[];
+  featuredLogos: string[];
+}
+
+export interface EpgSource {
+  key: string;
+  label: string;
+  priority: number;
+  enabled: boolean;
 }
 
 export interface Group {
@@ -25,6 +47,14 @@ export interface AppState {
   favorites: string[]; // List of channel IDs
   history: string[];   // List of recently watched channel IDs
   
+  // Country & EPG Backbone enhancements
+  countrySections: CountrySection[];
+  selectedCountry: string | null;
+  selectedGroup: string | null;
+  searchTerm: string;
+  epgSources: EpgSource[];
+  epgByChannel: Record<string, any>;
+
   // Async Loading States
   isLoading: boolean;
   parseProgress: number; // 0 to 100
@@ -40,6 +70,11 @@ export interface AppState {
   // Actions
   setPlaylistUrl: (url: string) => void;
   loadPlaylist: (url?: string) => Promise<void>;
+  setSelectedCountry: (code: string | null) => void;
+  setSelectedGroup: (group: string | null) => void;
+  setSearchTerm: (term: string) => void;
+  loadMetadataBundle: () => Promise<void>;
+  loadEpgBundle: () => Promise<void>;
   syncRemoteConfig: (appId?: string) => Promise<void>;
   dismissAnnouncement: () => void;
   toggleFavorite: (channelId: string) => void;

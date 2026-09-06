@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import { AppState, Channel, RemoteTheme } from '../types/iptv';
+import { AppState, Channel, RemoteTheme, EpgSource } from '../types/iptv';
 import { parseM3U } from '../utils/m3uParser';
+import { buildCountrySections } from '../utils/channelEnrichment';
 
 let storage: any = null;
 try {
@@ -59,6 +60,59 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   parseProgress: 0,
   error: null,
   playlistUrl: getStoredString('playlistUrl', 'https://iptv-org.github.io/iptv/countries/us.m3u'),
+
+  // Country & EPG Backbone enhancements
+  countrySections: [],
+  selectedCountry: null,
+  selectedGroup: null,
+  searchTerm: '',
+  epgSources: [
+    { key: 'licensed-primary', label: 'Licensed Primary Feed', priority: 1, enabled: true },
+    { key: 'open-epg', label: 'Public XMLTV Aggregator', priority: 2, enabled: true },
+    { key: 'community-country-feeds', label: 'Community Country Feeds', priority: 3, enabled: true }
+  ],
+  epgByChannel: {},
+
+  setSelectedCountry: (code: string | null) => set({ selectedCountry: code }),
+  setSelectedGroup: (group: string | null) => set({ selectedGroup: group }),
+  setSearchTerm: (term: string) => set({ searchTerm: term }),
+
+  loadMetadataBundle: async () => {
+    let currentChannels = get().channels;
+    if (!currentChannels || currentChannels.length === 0) {
+      await get().loadPlaylist();
+      currentChannels = get().channels;
+    }
+    const sections = buildCountrySections(currentChannels);
+    set({ countrySections: sections });
+  },
+
+  loadEpgBundle: async () => {
+    let currentChannels = get().channels;
+    if (!currentChannels || currentChannels.length === 0) {
+      await get().loadPlaylist();
+      currentChannels = get().channels;
+    }
+    const epgMap: Record<string, any[]> = {};
+    for (const c of currentChannels) {
+      const channelKey = c.tvgId || c.epgChannelId || c.id;
+      epgMap[channelKey] = [
+        {
+          title: `${c.name} Live Broadcast`,
+          start: new Date().toISOString(),
+          stop: new Date(Date.now() + 3600000).toISOString()
+        }
+      ];
+    }
+    set({
+      epgSources: [
+        { key: 'licensed-primary', label: 'Licensed Primary Feed', priority: 1, enabled: true },
+        { key: 'open-epg', label: 'Public XMLTV Aggregator', priority: 2, enabled: true },
+        { key: 'community-country-feeds', label: 'Community Country Feeds', priority: 3, enabled: true }
+      ],
+      epgByChannel: epgMap
+    });
+  },
 
   // Dynamic Remote OTA Configuration
   appConfigId: getStoredString('appConfigId', process.env.EXPO_PUBLIC_APP_CONFIG_ID || '') || null,

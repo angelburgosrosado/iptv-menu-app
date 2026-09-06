@@ -8,13 +8,15 @@ import { usePlayerStore } from '../store/usePlayerStore';
 import { Channel } from '../types/iptv';
 import { COUNTRY_NAMES } from '../utils/channelEnrichment';
 import { Play, Heart, Smartphone, Globe, Search, Tv } from 'lucide-react';
+import { ScrollView as RNScrollView, Text as RNText, View as RNView, Image as RNImage } from 'react-native';
+import { ChannelCard } from './ChannelCard';
 
 interface CountryChannelSectionsProps {
   onOpenCinema?: (channel: Channel) => void;
   onPlayInSimulator?: (channel: Channel) => void;
 }
 
-export function CountryChannelSections({
+export function DesktopCountryChannelSections({
   onOpenCinema,
   onPlayInSimulator
 }: CountryChannelSectionsProps) {
@@ -215,4 +217,53 @@ export function CountryChannelSections({
   );
 }
 
-export default CountryChannelSections;
+export function CountryChannelSections() {
+  const { countrySections, searchTerm, selectedCountry, selectedGroup, toggleFavorite } = usePlayerStore();
+
+  const filteredSections = useMemo(() => {
+    const term = (searchTerm || '').trim().toLowerCase();
+    return (countrySections || [])
+      .filter((section) => !selectedCountry || section.code === selectedCountry)
+      .map((section) => ({
+        ...section,
+        channels: (section.channels || []).filter((channel) => {
+          const matchesTerm = !term || [channel.name, channel.group, channel.countryName, channel.language]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase()
+            .includes(term);
+          const matchesGroup = !selectedGroup || channel.group === selectedGroup;
+          return matchesTerm && matchesGroup;
+        })
+      }))
+      .filter((section) => section.channels.length > 0);
+  }, [countrySections, searchTerm, selectedCountry, selectedGroup]);
+
+  return (
+    <RNScrollView contentContainerStyle={{ paddingBottom: 140 }}>
+      {filteredSections.map((section) => (
+        <RNView key={section.code} style={{ marginBottom: 28 }}>
+          <RNView style={{ marginBottom: 14, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <RNView>
+              <RNText style={{ color: 'white', fontSize: 22, fontWeight: '800' }}>{section.name}</RNText>
+              <RNText style={{ color: 'rgba(255,255,255,0.64)', fontSize: 13 }}>{section.channelCount} available channels</RNText>
+            </RNView>
+            <RNView style={{ flexDirection: 'row', gap: 6 }}>
+              {(section.featuredLogos || []).map((logo) => (
+                <RNImage key={logo} source={{ uri: logo }} style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#11161d' }} />
+              ))}
+            </RNView>
+          </RNView>
+          <RNView style={{ gap: 10 }}>
+            {section.channels.map((channel) => (
+              <ChannelCard key={channel.id} channel={channel} onPress={() => toggleFavorite(channel.id)} />
+            ))}
+          </RNView>
+        </RNView>
+      ))}
+    </RNScrollView>
+  );
+}
+
+export default DesktopCountryChannelSections;
+

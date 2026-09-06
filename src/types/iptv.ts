@@ -14,6 +14,7 @@ export interface Channel {
   tvgCountry?: string;
   language?: string;
   countryCode?: string;
+  countryName?: string;
   epgChannelId?: string;
   metadataSource?: 'playlist' | 'iptv-org' | 'manual';
   resolution?: string; // 4K, 1080p, 720p, SD
@@ -32,6 +33,14 @@ export interface CountrySection {
   name: string;
   channelCount: number;
   channels: Channel[];
+  featuredLogos: string[];
+}
+
+export interface EpgSource {
+  key: string;
+  label: string;
+  priority: number;
+  enabled: boolean;
 }
 
 export interface XmltvChannel {
@@ -79,6 +88,8 @@ export interface UpgradeAppConfig {
   };
 }
 
+export type Json = Record<string, any>;
+
 export interface XtreamAccount {
   serverUrl: string;
   username: string;
@@ -101,6 +112,14 @@ export interface AppState {
   favorites: string[]; // List of channel IDs
   history: string[];   // List of recently watched channel IDs
   
+  // Country & EPG Backbone enhancements
+  countrySections: CountrySection[];
+  selectedCountry: string | null;
+  selectedGroup: string | null;
+  searchTerm: string;
+  epgSources: EpgSource[];
+  epgByChannel: Record<string, any>;
+
   // Async Loading States
   isLoading: boolean;
   parseProgress: number; // 0 to 100
@@ -110,6 +129,11 @@ export interface AppState {
   // Actions
   setPlaylistUrl: (url: string) => void;
   loadPlaylist: (url?: string) => Promise<void>;
+  setSelectedCountry: (code: string | null) => void;
+  setSelectedGroup: (group: string | null) => void;
+  setSearchTerm: (term: string) => void;
+  loadMetadataBundle: () => Promise<void>;
+  loadEpgBundle: () => Promise<void>;
   toggleFavorite: (channelId: string) => void;
   addToHistory: (channelId: string) => void;
   clearHistory: () => void;

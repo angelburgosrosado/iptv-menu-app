@@ -126,17 +126,28 @@ export function buildCountrySections(
 
   for (const channel of channels) {
     const code = (channel.countryCode || 'UN').toUpperCase();
+    const resolvedCountryName = names.get(code) || COUNTRY_NAMES[code] || code;
+    channel.countryName = channel.countryName || resolvedCountryName;
     if (!grouped.has(code)) grouped.set(code, []);
     grouped.get(code)!.push(channel);
   }
 
   return [...grouped.entries()]
-    .map(([code, list]) => ({
-      code,
-      name: names.get(code) || COUNTRY_NAMES[code] || code,
-      channelCount: list.length,
-      channels: list.sort((a, b) => a.name.localeCompare(b.name))
-    }))
+    .map(([code, list]) => {
+      const name = names.get(code) || COUNTRY_NAMES[code] || code;
+      const featuredLogos = list
+        .map((c) => c.logo)
+        .filter((logo): logo is string => Boolean(logo && logo.trim()))
+        .slice(0, 4);
+
+      return {
+        code,
+        name,
+        channelCount: list.length,
+        channels: list.sort((a, b) => a.name.localeCompare(b.name)),
+        featuredLogos
+      };
+    })
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 

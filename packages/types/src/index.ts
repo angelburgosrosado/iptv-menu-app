@@ -185,6 +185,7 @@ export interface PlaylistChannel {
   tvgCountry?: string;
   language?: string;
   countryCode?: string;
+  countryName?: string;
   epgChannelId?: string;
   metadataSource?: 'playlist' | 'iptv-org' | 'manual';
 }
@@ -194,6 +195,14 @@ export interface CountrySection {
   name: string;
   channelCount: number;
   channels: PlaylistChannel[];
+  featuredLogos: string[];
+}
+
+export interface EpgSource {
+  key: string;
+  label: string;
+  priority: number;
+  enabled: boolean;
 }
 
 export interface XmltvChannel {

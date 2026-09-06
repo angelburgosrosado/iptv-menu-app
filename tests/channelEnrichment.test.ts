@@ -132,6 +132,32 @@ describe('IPTV Channel Enrichment Engine', () => {
     expect(prSection?.name).toBe('Puerto Rico');
     expect(prSection?.channelCount).toBe(1);
     expect(prSection?.channels[0].name).toBe('WIPR 6');
+    expect(prSection?.channels[0].countryName).toBe('Puerto Rico');
+    expect(Array.isArray(prSection?.featuredLogos)).toBe(true);
+  });
+
+  it('should initialize and support country filters, EPG sources, and bundles in usePlayerStore', async () => {
+    const { usePlayerStore } = await import('../src/store/usePlayerStore');
+    const store = usePlayerStore.getState();
+    expect(store.countrySections).toBeDefined();
+    expect(Array.isArray(store.countrySections)).toBe(true);
+    expect(store.epgSources).toBeDefined();
+    expect(store.epgSources.length).toBeGreaterThanOrEqual(3);
+
+    store.setSearchTerm('news');
+    expect(usePlayerStore.getState().searchTerm).toBe('news');
+
+    store.setSelectedCountry('US');
+    expect(usePlayerStore.getState().selectedCountry).toBe('US');
+
+    store.setSelectedGroup('Sports');
+    expect(usePlayerStore.getState().selectedGroup).toBe('Sports');
+
+    await store.loadMetadataBundle();
+    expect(usePlayerStore.getState().countrySections.length).toBeGreaterThan(0);
+
+    await store.loadEpgBundle();
+    expect(usePlayerStore.getState().epgSources.length).toBe(3);
   });
 
   it('should merge programmes prioritizing primary source and filtering expired fallback window', () => {
