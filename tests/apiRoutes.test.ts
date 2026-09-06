@@ -2,6 +2,23 @@ import { describe, it, expect } from 'vitest';
 import request from 'supertest';
 import app from '../apps/api/src/server';
 
+const createBearerToken = (payload: object) => {
+  const base64 = Buffer.from(JSON.stringify(payload)).toString('base64');
+  return `Bearer fakeHdr.${base64}.fakeSig`;
+};
+
+const adminToken = createBearerToken({
+  uid: 'admin_master',
+  email: 'admin@iptv.menu',
+  role: 'admin'
+});
+
+const regularUserToken = createBearerToken({
+  uid: 'user_regular',
+  email: 'viewer@gmail.com',
+  role: 'user'
+});
+
 describe('apps/api - REST API Endpoints & Public Services', () => {
   describe('GET /api/health', () => {
     it('should return 200 OK with health status and service metadata', async () => {
@@ -92,6 +109,78 @@ describe('apps/api - REST API Endpoints & Public Services', () => {
       const response = await request(app).get('/api/apps');
       expect(response.status).toBe(401);
       expect(response.body.error).toContain('Unauthorized');
+    });
+  });
+
+  describe('Production Administrative Backend (adminGuard)', () => {
+    it('should deny unauthenticated requests to /api/admin/metrics with 401', async () => {
+      const response = await request(app).get('/api/admin/metrics');
+      expect(response.status).toBe(401);
+    });
+
+    it('should deny non-admin users access to /api/admin/metrics with 403 Forbidden', async () => {
+      const response = await request(app)
+        .get('/api/admin/metrics')
+        .set('Authorization', regularUserToken);
+
+      expect(response.status).toBe(403);
+      expect(response.body.error).toContain('Forbidden');
+    });
+
+    it('should grant admin access to /api/admin/metrics and return system telemetry', async () => {
+      const response = await request(app)
+        .get('/api/admin/metrics')
+        .set('Authorization', adminToken);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('system');
+      expect(response.body.system).toMatchObject({
+        status: 'operational',
+        service: 'iptv-api',
+        stack: expect.stringContaining('Neon')
+      });
+      expect(response.body).toHaveProperty('counts');
+      expect(response.body.counts).toHaveProperty('totalUsers');
+      expect(response.body.counts).toHaveProperty('totalWorkspaces');
+      expect(response.body).toHaveProperty('buildsByStatus');
+      expect(response.body).toHaveProperty('usersByRole');
+    });
+
+    it('should allow admin to list users via GET /api/admin/users', async () => {
+      const response = await request(app)
+        .get('/api/admin/users')
+        .set('Authorization', adminToken);
+
+      expect(response.status).toBe(200);
+      expect(Array.isArray(response.body)).toBe(true);
+    });
+
+    it('should allow admin to list workspaces via GET /api/admin/workspaces', async () => {
+      const response = await request(app)
+        .get('/api/admin/workspaces')
+        .set('Authorization', adminToken);
+
+      expect(response.status).toBe(200);
+      expect(Array.isArray(response.body)).toBe(true);
+    });
+
+    it('should allow admin to inspect jobs queue via GET /api/admin/jobs', async () => {
+      const response = await request(app)
+        .get('/api/admin/jobs')
+        .set('Authorization', adminToken);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('buildJobs');
+      expect(Array.isArray(response.body.buildJobs)).toBe(true);
+    });
+
+    it('should allow admin to view audit trail via GET /api/admin/audit-logs', async () => {
+      const response = await request(app)
+        .get('/api/admin/audit-logs')
+        .set('Authorization', adminToken);
+
+      expect(response.status).toBe(200);
+      expect(Array.isArray(response.body)).toBe(true);
     });
   });
 });

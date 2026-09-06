@@ -1000,6 +1000,43 @@ export class WorkspaceRepository {
       handleFirestoreError(err, DbOperation.LIST, this.collection);
     }
   }
+
+  async listAllWorkspaces(limit = 100): Promise<Workspace[]> {
+    if (process.env.DATABASE_URL) {
+      try {
+        const db = getDb();
+        const rows = await db.select().from(schema.workspaces)
+          .orderBy(desc(schema.workspaces.createdAt))
+          .limit(limit);
+        return rows.map((row) => ({
+          workspaceId: row.workspaceId,
+          name: row.name,
+          ownerUid: row.ownerUid,
+          plan: row.plan as any,
+          subscriptionStatus: row.subscriptionStatus as any,
+          stripeCustomerId: row.stripeCustomerId || null,
+          stripeSubscriptionId: row.stripeSubscriptionId || null,
+          entitlements: row.entitlements,
+          usage: row.usage,
+          createdAt: row.createdAt.toISOString(),
+          updatedAt: row.updatedAt.toISOString(),
+        }));
+      } catch (err) {
+        logger.error('Neon Drizzle error in listAllWorkspaces', err);
+        throw err;
+      }
+    }
+
+    try {
+      const snapshot = await this.db.collection(this.collection)
+        .orderBy('createdAt', 'desc')
+        .limit(limit)
+        .get();
+      return snapshot.docs.map((d: any) => d.data() as Workspace);
+    } catch (err) {
+      handleFirestoreError(err, DbOperation.LIST, this.collection);
+    }
+  }
 }
 
 // ==========================================

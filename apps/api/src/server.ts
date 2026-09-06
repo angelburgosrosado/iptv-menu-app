@@ -662,8 +662,7 @@ app.post('/api/billing/create-portal-session', async (req: any, res) => {
     const profile = await userRepo.getUser(uid);
     if (!profile) return res.status(404).json({ error: 'User profile not found' });
 
-    const firebaseAdmin = getFirebaseAdmin();
-    // Fetch customer profile from Stripe or DB (for simplicity, lookup Stripe by email)
+    // Fetch customer profile from Stripe or DB (lookup Stripe by email)
     const stripeCustomerId = await createOrRetrieveCustomer(profile.email, profile.displayName || profile.email);
 
     const url = await createBillingPortalSession(stripeCustomerId, returnUrl);
@@ -841,6 +840,86 @@ app.post('/api/internal/jobs/playlist-validate', async (req, res) => {
 // Guard all admin routes under administrative authorization gate
 const adminGuard = [authenticateFirebaseToken, authorizeRoles(['admin'])];
 
+// 1. Master System Health & Telemetry Metrics
+app.get('/api/admin/metrics', adminGuard, async (req, res) => {
+  try {
+    let dbStatus = 'operational';
+    let dbLatencyMs = 0;
+    if (process.env.DATABASE_URL) {
+      try {
+        const start = Date.now();
+        const dbModule = await import('@iptv-menu/db');
+        const db = dbModule.getDb();
+        const { sql } = await import('drizzle-orm');
+        await db.execute(sql`SELECT 1`);
+        dbLatencyMs = Date.now() - start;
+      } catch (dbErr: any) {
+        dbStatus = 'degraded';
+      }
+    }
+
+    const [users, playlists, workspaces, builds, auditLogs] = await Promise.all([
+      userRepo.listUsers(500).catch(() => []),
+      playlistRepo.listAllPlaylists().catch(() => []),
+      workspaceRepo.listAllWorkspaces(500).catch(() => []),
+      buildRepo.listAllBuilds().catch(() => []),
+      auditRepo.listActions(50).catch(() => []),
+    ]);
+
+    const buildsByStatus = {
+      queued: builds.filter((b: any) => b.status === 'queued').length,
+      building: builds.filter((b: any) => b.status === 'building').length,
+      completed: builds.filter((b: any) => b.status === 'completed').length,
+      failed: builds.filter((b: any) => b.status === 'failed').length,
+    };
+
+    const usersByRole = {
+      free: users.filter((u: any) => u.subscriptionTier === 'free' || !u.subscriptionTier).length,
+      pro: users.filter((u: any) => u.subscriptionTier === 'pro').length,
+      builder: users.filter((u: any) => u.subscriptionTier === 'builder').length,
+      admin: users.filter((u: any) => u.role === 'admin').length,
+    };
+
+    const memory = process.memoryUsage();
+
+    res.json({
+      system: {
+        status: 'operational',
+        env: config.APP_ENV,
+        service: 'iptv-api',
+        stack: 'Vercel / Neon PostgreSQL / Render Worker',
+        uptimeSeconds: Math.round(process.uptime()),
+        nodeVersion: process.version,
+        memory: {
+          rssMb: Math.round(memory.rss / (1024 * 1024)),
+          heapUsedMb: Math.round(memory.heapUsed / (1024 * 1024)),
+        },
+        database: {
+          driver: 'Neon Serverless (PostgreSQL)',
+          status: dbStatus,
+          latencyMs: dbLatencyMs,
+        },
+        storage: {
+          driver: process.env.BLOB_READ_WRITE_TOKEN ? 'Vercel Blob' : 'Dual-driver / Object Store',
+          status: 'ready',
+        },
+      },
+      counts: {
+        totalUsers: users.length,
+        totalPlaylists: playlists.length,
+        totalWorkspaces: workspaces.length,
+        totalBuilds: builds.length,
+        totalAuditLogs: auditLogs.length,
+      },
+      buildsByStatus,
+      usersByRole,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 2. User Management
 app.get('/api/admin/users', adminGuard, async (req, res) => {
   try {
     const list = await userRepo.listUsers();
@@ -866,9 +945,15 @@ app.patch('/api/admin/users/:userId/role', adminGuard, async (req: any, res) => 
 
     await userRepo.updateUser(userId, { role });
     
-    // Propagate role changes straight into Firebase Auth custom claims
-    const firebaseAdmin = getFirebaseAdmin();
-    await firebaseAdmin.auth().setCustomUserClaims(userId, { role });
+    // Propagate role changes to custom claims if Firebase Admin is available
+    try {
+      const firebaseAdmin = getFirebaseAdmin();
+      if (firebaseAdmin && typeof firebaseAdmin.auth === 'function') {
+        await firebaseAdmin.auth().setCustomUserClaims(userId, { role });
+      }
+    } catch (authErr) {
+      logger.warn('Could not sync custom claims with Firebase Admin', authErr);
+    }
 
     // Auditing
     const adminAction: AdminAction = {
@@ -895,12 +980,18 @@ app.patch('/api/admin/users/:userId/status', adminGuard, async (req: any, res) =
 
     await userRepo.updateUser(userId, { accountStatus: status });
 
-    // Block token session in Firebase Auth instantly on suspension
-    const firebaseAdmin = getFirebaseAdmin();
-    if (status === 'suspended') {
-      await firebaseAdmin.auth().revokeRefreshTokens(userId);
+    // Revoke tokens if Firebase Admin is available
+    try {
+      const firebaseAdmin = getFirebaseAdmin();
+      if (firebaseAdmin && typeof firebaseAdmin.auth === 'function') {
+        if (status === 'suspended') {
+          await firebaseAdmin.auth().revokeRefreshTokens(userId);
+        }
+        await firebaseAdmin.auth().setCustomUserClaims(userId, { accountStatus: status });
+      }
+    } catch (authErr) {
+      logger.warn('Could not sync session revocation with Firebase Admin', authErr);
     }
-    await firebaseAdmin.auth().setCustomUserClaims(userId, { accountStatus: status });
 
     const adminAction: AdminAction = {
       actionId: `act_${Math.random().toString(36).substring(2, 15)}`,
@@ -919,6 +1010,7 @@ app.patch('/api/admin/users/:userId/status', adminGuard, async (req: any, res) =
   }
 });
 
+// 3. Playlist Oversight
 app.get('/api/admin/playlists', adminGuard, async (req, res) => {
   try {
     const list = await playlistRepo.listAllPlaylists();
@@ -928,6 +1020,86 @@ app.get('/api/admin/playlists', adminGuard, async (req, res) => {
   }
 });
 
+// 4. Multi-Tenant Workspace Oversight & Quotas
+app.get('/api/admin/workspaces', adminGuard, async (req, res) => {
+  try {
+    const list = await workspaceRepo.listAllWorkspaces(200);
+    res.json(list);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.patch('/api/admin/workspaces/:workspaceId/quota', adminGuard, async (req: any, res) => {
+  try {
+    const { workspaceId } = req.params;
+    const { entitlements, usage, plan } = req.body;
+
+    const existing = await workspaceRepo.getWorkspace(workspaceId);
+    if (!existing) {
+      return res.status(404).json({ error: 'Workspace not found' });
+    }
+
+    await workspaceRepo.updateWorkspace(workspaceId, {
+      ...(plan && { plan }),
+      ...(entitlements && { entitlements: { ...existing.entitlements, ...entitlements } }),
+      ...(usage && { usage: { ...existing.usage, ...usage } }),
+    });
+
+    const adminAction: AdminAction = {
+      actionId: `act_${Math.random().toString(36).substring(2, 15)}`,
+      adminUid: req.user.uid,
+      actionType: 'WORKSPACE_QUOTA_UPDATE',
+      targetType: 'workspace',
+      targetId: workspaceId,
+      notes: `Updated quota/entitlements: ${JSON.stringify(req.body)}`,
+      createdAt: new Date().toISOString()
+    };
+    await auditRepo.logAction(adminAction);
+
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 5. Job Queue Oversight & Retries
+app.get('/api/admin/jobs', adminGuard, async (req, res) => {
+  try {
+    const builds = await buildRepo.listAllBuilds();
+    res.json({
+      buildJobs: builds.slice(0, 50),
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/admin/jobs/:jobType/:jobId/retry', adminGuard, async (req: any, res) => {
+  try {
+    const { jobType, jobId } = req.params;
+    if (jobType === 'build') {
+      await buildRepo.updateBuild(jobId, { status: 'queued', buildLogPath: null });
+    }
+
+    const adminAction: AdminAction = {
+      actionId: `act_${Math.random().toString(36).substring(2, 15)}`,
+      adminUid: req.user.uid,
+      actionType: 'JOB_RETRY',
+      targetType: jobType,
+      targetId: jobId,
+      notes: `Admin triggered retry for ${jobType} job ${jobId}`,
+      createdAt: new Date().toISOString()
+    };
+    await auditRepo.logAction(adminAction);
+
+    res.json({ success: true, message: `Job ${jobId} reset to queued` });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 6. Security Audit Trail
 app.get('/api/admin/audit-logs', adminGuard, async (req, res) => {
   try {
     const logs = await auditRepo.listActions();

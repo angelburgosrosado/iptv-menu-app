@@ -146,8 +146,19 @@ export function authorizeRoles(allowedRoles: UserRole[]) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    // Role is stored in Custom Claims (populated by our admin console or db triggers)
-    // Fall back to 'user' if no role claim is set
+    // Automatically elevate configured platform administrator emails
+    const adminEmails: string[] = Array.isArray(config.ADMIN_ALLOWED_EMAILS)
+      ? config.ADMIN_ALLOWED_EMAILS
+      : (process.env.ADMIN_ALLOWED_EMAILS || '')
+          .split(',')
+          .map((e: string) => e.trim().toLowerCase())
+          .filter(Boolean);
+
+    if (req.user.email && adminEmails.includes(req.user.email.toLowerCase())) {
+      req.user.role = 'admin';
+    }
+
+    // Role is stored in claims, database, or elevated by ADMIN_ALLOWED_EMAILS
     const userRole: UserRole = req.user.role || 'user';
 
     if (!allowedRoles.includes(userRole)) {
