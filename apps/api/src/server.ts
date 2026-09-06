@@ -36,6 +36,7 @@ import {
 } from '@iptv-menu/jobs';
 import { UserProfile, Playlist, EpgFeed, BuildRequest, AdminAction, UserRole, Workspace, AppConfig } from '@iptv-menu/types';
 import { attachWorkspaceContext, checkWorkspaceQuota } from './middleware/workspaceGuard';
+import { handleStreamProxy } from './services/streamProxyService';
 
 const logger = new Logger('api-server');
 
@@ -178,6 +179,14 @@ app.get('/api/v1/apps/:appId/config', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// ==========================================
+// UNIVERSAL STREAM RELAY & M3U8 PROXY GATEWAY
+// ==========================================
+app.use('/api/stream', cors({ origin: '*' }));
+app.get('/api/stream/proxy', handleStreamProxy);
+app.head('/api/stream/proxy', handleStreamProxy);
+app.options('/api/stream/proxy', handleStreamProxy);
 
 // ==========================================
 // AUTHENTICATED USER ROUTES
