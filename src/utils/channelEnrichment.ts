@@ -3,8 +3,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import { 
   PlaylistChannel, 
   CountrySection, 
@@ -54,7 +52,9 @@ export const normalize = (value?: string): string =>
     .trim();
 
 export async function readJson<T>(filePath: string, fallback: T): Promise<T> {
+  if (typeof window !== 'undefined') return fallback;
   try {
+    const fs = await import('node:fs/promises');
     const raw = await fs.readFile(filePath, 'utf8');
     return JSON.parse(raw) as T;
   } catch {
@@ -63,8 +63,15 @@ export async function readJson<T>(filePath: string, fallback: T): Promise<T> {
 }
 
 export async function writeJson(filePath: string, data: unknown): Promise<void> {
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+  if (typeof window !== 'undefined') return;
+  try {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+  } catch {
+    // browser or filesystem error
+  }
 }
 
 export function buildIptvOrgIndex(records: Json[]) {
@@ -152,7 +159,10 @@ export function buildCountrySections(
 }
 
 export async function readPublicXmltvDirectory(dir: string): Promise<XmltvProgramme[]> {
+  if (typeof window !== 'undefined') return [];
   try {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
     const files = await fs.readdir(dir);
     const programmeBag: XmltvProgramme[] = [];
 

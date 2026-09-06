@@ -3,12 +3,14 @@ import { motion } from 'motion/react';
 import { Play, UploadCloud, Crown, Sparkles, Activity, Tv, Smartphone } from 'lucide-react';
 
 interface MarketingHeroProps {
+  onBrowseChannels: () => void;
   onLaunchSimulator: () => void;
   onUploadM3u: () => void;
   onViewPricing: () => void;
 }
 
 export default function MarketingHero({
+  onBrowseChannels,
   onLaunchSimulator,
   onUploadM3u,
   onViewPricing
@@ -141,6 +143,15 @@ export default function MarketingHero({
         transition={{ duration: 0.6, delay: 0.4 }}
         className="relative z-10 w-full max-w-xl flex flex-col xs:flex-row sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-center justify-center mt-2 px-2"
       >
+        {/* Browse Channels CTA */}
+        <button
+          onClick={onBrowseChannels}
+          className="group relative px-5 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs sm:text-sm font-bold shadow-lg shadow-emerald-500/25 transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer active:scale-95 border border-white/10"
+        >
+          <Tv className="w-4 h-4 text-white group-hover:scale-110 transition-transform" />
+          <span>Browse All Channels</span>
+        </button>
+
         {/* Launch Simulator CTA */}
         <button
           onClick={onLaunchSimulator}

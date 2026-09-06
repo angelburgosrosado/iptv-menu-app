@@ -59,10 +59,13 @@ const writeArrayToStorage = (key: string, data: string[]): void => {
   storage.set(key, JSON.stringify(data));
 };
 
+const INITIAL_FALLBACK_CHANNELS = parseM3U(FALLBACK_PLAYLIST);
+const INITIAL_GROUPS = Array.from(new Set(INITIAL_FALLBACK_CHANNELS.map((c) => c.group))).sort();
+
 export const usePlayerStore = create<AppState>((set, get) => ({
-  // Active state holders
-  channels: [],
-  groups: [],
+  // Active state holders (pre-seeded with verified streams so the app is immediately populated)
+  channels: INITIAL_FALLBACK_CHANNELS,
+  groups: INITIAL_GROUPS,
   favorites: readArrayFromStorage('favorites'),
   history: readArrayFromStorage('history'),
   

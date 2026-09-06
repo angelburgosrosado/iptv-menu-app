@@ -68,8 +68,8 @@ export default function HomeScreen() {
   const [inputUrl, setInputUrl] = React.useState(playlistUrl);
 
   // --- PLAYLIST MANAGER & DEV SUITE INTEGRATION ---
-  // Tab selector inside simulated mobile view: 'suite' (default), 'live', or 'playlist'
-  const [activeTab, setActiveTab] = React.useState<'suite' | 'live' | 'playlist'>('suite');
+  // Tab selector inside simulated mobile view: 'live' (default), 'suite', or 'playlist'
+  const [activeTab, setActiveTab] = React.useState<'suite' | 'live' | 'playlist'>('live');
 
   // Local drag-and-drop & parsing states
   const [dragActive, setDragActive] = React.useState(false);
@@ -1060,17 +1060,6 @@ export default function HomeScreen() {
       {/* Bottom Simulated Mobile Navigation Bar */}
       <View style={styles.bottomTabBar}>
         <TouchableOpacity
-          onPress={() => setActiveTab('suite')}
-          style={[styles.bottomTabButton, activeTab === 'suite' && styles.bottomTabButtonActive]}
-          activeOpacity={0.7}
-        >
-          <Sparkles size={18} color={activeTab === 'suite' ? '#56d6c2' : '#64748b'} />
-          <Text style={[styles.bottomTabText, activeTab === 'suite' && { color: '#56d6c2', fontWeight: 'bold' }]}>
-            Dev Suite
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
           onPress={() => setActiveTab('live')}
           style={[styles.bottomTabButton, activeTab === 'live' && styles.bottomTabButtonActive]}
           activeOpacity={0.7}
@@ -1078,6 +1067,17 @@ export default function HomeScreen() {
           <Tv size={18} color={activeTab === 'live' ? '#3b82f6' : '#64748b'} />
           <Text style={[styles.bottomTabText, activeTab === 'live' && styles.bottomTabTextActive]}>
             Live TV
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          onPress={() => setActiveTab('suite')}
+          style={[styles.bottomTabButton, activeTab === 'suite' && styles.bottomTabButtonActive]}
+          activeOpacity={0.7}
+        >
+          <Sparkles size={18} color={activeTab === 'suite' ? '#56d6c2' : '#64748b'} />
+          <Text style={[styles.bottomTabText, activeTab === 'suite' && { color: '#56d6c2', fontWeight: 'bold' }]}>
+            Dev Suite
           </Text>
         </TouchableOpacity>
 

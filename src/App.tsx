@@ -96,7 +96,7 @@ export default function App() {
     }, 4000);
   };
 
-  const [activeMenu, setActiveMenu] = React.useState<string>('home');
+  const [activeMenu, setActiveMenu] = React.useState<string>('channels');
   const [selectedFileIdx, setSelectedFileIdx] = React.useState(1); // Default to src/types/iptv.ts
   const [copied, setCopied] = React.useState(false);
 
@@ -1203,7 +1203,14 @@ export default function App() {
         
         {/* Marketing Landing Hero Section */}
         <MarketingHero 
+          onBrowseChannels={() => {
+            setActiveMenu('channels');
+            setTimeout(() => {
+              document.getElementById('workspace-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 50);
+          }}
           onLaunchSimulator={() => {
+            setActiveMenu('channels');
             document.getElementById('simulator-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
           }}
           onUploadM3u={() => {
@@ -1220,7 +1227,7 @@ export default function App() {
         {/* Brand New Pricing Tier Grid Section */}
         <PricingSection 
           onSelectFree={() => {
-            setActiveMenu('browse');
+            setActiveMenu('channels');
             setTimeout(() => {
               document.getElementById('workspace-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
             }, 100);
@@ -1353,8 +1360,32 @@ export default function App() {
           </div>
         </aside>
 
-        {/* WORKSPACE CONTENT GRID */}
-        <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-stretch">
+        {/* RIGHT AREA: HORIZONTAL NAVIGATION BAR & WORKSPACE CONTENT GRID */}
+        <div className="flex-1 flex flex-col gap-6 min-w-0">
+          {/* Quick Screen Navigation Tabs with Clear Labels */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none border-b border-white/10">
+            {SIDEBAR_ITEMS.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeMenu === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveMenu(item.id)}
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                    isActive
+                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 border border-blue-400/30'
+                      : 'bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/5'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* WORKSPACE CONTENT GRID */}
+          <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-stretch">
           
           {/* LEFT COLUMN: INTERACTIVE DEVICE SIMULATOR FRAME */}
           <section id="simulator-section" className="col-span-1 lg:col-span-5 flex flex-col items-center justify-start lg:sticky lg:top-[100px] h-fit w-full">
@@ -1425,6 +1456,7 @@ export default function App() {
             <AdSenseSlot slot="9938102948" format="horizontal" />
           </div>
 
+          </div>
         </div>
       </div>
     </div>
