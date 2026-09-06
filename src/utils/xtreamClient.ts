@@ -1,4 +1,5 @@
 import { Channel, XtreamAccount } from '../types/iptv';
+import { parseM3U } from './m3uParser';
 
 export interface XtreamCategory {
   category_id: string;
@@ -125,9 +126,9 @@ export async function fetchXtreamStreams(account: XtreamAccount): Promise<Xtream
   try {
     let res: Response;
     try {
-      res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+      res = await fetch(url, { signal: AbortSignal.timeout(20000) });
     } catch {
-      res = await fetch(`/api/stream/proxy?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(10000) });
+      res = await fetch(`/api/stream/proxy?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(25000) });
     }
     if (res.ok) {
       const data = await res.json().catch(() => null);
@@ -137,6 +138,35 @@ export async function fetchXtreamStreams(account: XtreamAccount): Promise<Xtream
     }
   } catch (e) {
     console.warn('Could not fetch Xtream live streams', e);
+  }
+  return [];
+}
+
+export async function fetchXtreamM3uChannels(account: XtreamAccount): Promise<Channel[]> {
+  let baseUrl = account.serverUrl.trim().replace(/\/+$/, '');
+  if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+    baseUrl = `http://${baseUrl}`;
+  }
+  const url = `${baseUrl}/get.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password)}&type=m3u_plus&output=m3u8`;
+  try {
+    let res: Response;
+    try {
+      res = await fetch(url, { signal: AbortSignal.timeout(20000) });
+    } catch {
+      res = await fetch(`/api/stream/proxy?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(25000) });
+    }
+    if (res.ok) {
+      const text = await res.text();
+      if (text.includes('#EXTM3U')) {
+        const parsed = parseM3U(text);
+        return parsed.map((c) => ({
+          ...c,
+          directSource: 'xtream'
+        }));
+      }
+    }
+  } catch (e) {
+    console.warn('Could not fetch Xtream M3U fallback playlist', e);
   }
   return [];
 }

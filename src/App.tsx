@@ -1345,18 +1345,40 @@ export default function App() {
 
           {/* Bottom profile marker */}
           <div className="mt-auto relative group flex items-center justify-center w-full">
-            <button 
-              className="p-3 rounded-2xl text-zinc-500 hover:text-zinc-200 bg-transparent hover:bg-white/5 transition-all outline-none cursor-pointer"
-              aria-label="Profile Context"
-              tabIndex={0}
-            >
-              <div className="w-5 h-5 rounded-full bg-blue-500/20 text-blue-400 font-bold text-[10px] flex items-center justify-center border border-blue-500/30">
-                AB
-              </div>
-            </button>
-            <div className="absolute left-full ml-4 px-3 py-1.5 bg-black/65 backdrop-blur-md text-[11px] font-bold text-white rounded-xl border border-white/10 opacity-0 translate-x-[-10px] pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 z-50 shadow-2xl whitespace-nowrap">
-              angelburgosrosado@gmail.com
-            </div>
+            {auth.isLoggedIn ? (
+              <>
+                <button 
+                  onClick={() => triggerToast(`Active Account: ${auth.email} (${auth.role})`)}
+                  className="p-2 rounded-2xl text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 transition-all outline-none cursor-pointer border border-white/10"
+                  aria-label="User Profile"
+                  tabIndex={0}
+                >
+                  <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-black text-[10px] flex items-center justify-center border border-white/20 shadow-md">
+                    {auth.email ? auth.email.substring(0, 2).toUpperCase() : 'AB'}
+                  </div>
+                </button>
+                <div className="absolute left-full ml-4 px-3 py-1.5 bg-black/85 backdrop-blur-md text-[11px] font-bold text-white rounded-xl border border-white/10 opacity-0 translate-x-[-10px] pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 z-50 shadow-2xl whitespace-nowrap">
+                  <span className="text-white font-semibold">{auth.email}</span>
+                  <span className="block text-[9px] text-amber-400 font-extrabold uppercase mt-0.5">{auth.role === 'admin' ? '★ Root Administrator' : 'Standard Member'}</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <button 
+                  onClick={() => setIsAuthModalOpen(true)}
+                  className="p-2 rounded-2xl text-zinc-400 hover:text-white bg-white/5 hover:bg-blue-600/20 transition-all outline-none cursor-pointer border border-white/10"
+                  aria-label="Sign In"
+                  tabIndex={0}
+                  title="Sign In / Admin Access"
+                >
+                  <User className="w-4 h-4 text-zinc-400 hover:text-blue-400" />
+                </button>
+                <div className="absolute left-full ml-4 px-3 py-1.5 bg-black/85 backdrop-blur-md text-[11px] font-bold text-white rounded-xl border border-white/10 opacity-0 translate-x-[-10px] pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 z-50 shadow-2xl whitespace-nowrap">
+                  <span className="text-zinc-300">Guest User</span>
+                  <span className="block text-[9px] text-blue-400 font-bold mt-0.5">Click to Sign In</span>
+                </div>
+              </>
+            )}
           </div>
         </aside>
 
