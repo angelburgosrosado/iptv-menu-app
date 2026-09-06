@@ -1,4 +1,5 @@
 import { auth } from './firebase';
+import { authStore } from '../authStore';
 
 const getBaseUrl = () => {
   const url = import.meta.env.VITE_API_URL || "__VITE_API_URL__";
@@ -9,7 +10,8 @@ const getBaseUrl = () => {
 };
 
 export const fetchWithAuth = async (endpoint: string, options: RequestInit = {}) => {
-  const token = auth.currentUser ? await auth.currentUser.getIdToken().catch(() => null) : null;
+  const storedToken = authStore.getState().token;
+  const token = storedToken || (auth.currentUser ? await auth.currentUser.getIdToken().catch(() => null) : null);
   const headers = new Headers(options.headers || {});
   
   if (token) {

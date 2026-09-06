@@ -29,7 +29,10 @@ import {
   LayoutGrid,
   Server,
   ShieldAlert,
-  Radio
+  Radio,
+  User,
+  LogIn,
+  LogOut
 } from 'lucide-react';
 import { Stack } from 'expo-router';
 import { motion, AnimatePresence } from 'motion/react';
@@ -1128,19 +1131,70 @@ export default function App() {
           )}
         </div>
 
-        {/* Global Stats indicators & Status Pills */}
-        <div className="flex items-center gap-3 text-xs">
-          <div className="glass-pill px-4 py-2 rounded-full flex items-center gap-2 text-zinc-300">
+        {/* Global Indicators & User Auth Status */}
+        <div className="flex items-center gap-3 text-xs flex-wrap">
+          <div className="glass-pill px-4 py-2 rounded-full hidden xl:flex items-center gap-2 text-zinc-300">
             <Cpu className="w-3.5 h-3.5 text-blue-400 animate-pulse" />
             <span>Simulator FPS: <strong className="text-white">60</strong></span>
           </div>
-          <div className="glass-pill px-4 py-2 rounded-full flex items-center gap-2 text-zinc-300">
+          <div className="glass-pill px-4 py-2 rounded-full hidden lg:flex items-center gap-2 text-zinc-300">
             <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-ping"></span>
             <span>HLS Stream: <strong className="text-white">STABLE</strong></span>
           </div>
-          <div className="glass-pill px-4 py-2 rounded-full text-xs font-semibold text-blue-400 border border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.2)]">
-            Premium Active
-          </div>
+
+          {auth.isLoggedIn ? (
+            <div className="flex items-center gap-2.5 bg-zinc-900/90 border border-white/10 rounded-full pl-2 pr-3 py-1.5 shadow-lg shadow-black/40 backdrop-blur-md">
+              <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-bold text-white text-xs ring-1 ring-white/20 shadow-md">
+                {auth.email ? auth.email.charAt(0).toUpperCase() : 'A'}
+              </div>
+              <div className="flex flex-col text-left">
+                <span className="font-semibold text-white text-xs max-w-[170px] truncate" title={auth.email || ''}>
+                  {auth.email}
+                </span>
+                <span className="text-[10px] text-amber-400 font-bold flex items-center gap-1">
+                  {auth.role === 'admin' ? (
+                    <>
+                      <Crown className="w-3 h-3 inline text-amber-400 fill-amber-400" />
+                      Root Admin
+                    </>
+                  ) : (
+                    'Member'
+                  )}
+                </span>
+              </div>
+              {auth.role === 'admin' && (
+                <button
+                  onClick={() => {
+                    setActiveMenu('admin');
+                    setTimeout(() => {
+                      document.getElementById('workspace-section')?.scrollIntoView({ behavior: 'smooth' });
+                    }, 50);
+                  }}
+                  className="ml-1 px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 rounded-full text-[10px] font-extrabold uppercase tracking-wider transition-all"
+                >
+                  Admin Console
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  authStore.getState().logout();
+                  triggerToast('Logged out successfully');
+                }}
+                className="ml-1 p-1.5 text-zinc-400 hover:text-red-400 hover:bg-red-500/10 rounded-full transition-colors"
+                title="Sign out"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setIsAuthModalOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-full shadow-lg shadow-blue-500/20 border border-blue-400/30 text-xs transition-all hover:scale-105 active:scale-95 cursor-pointer"
+            >
+              <LogIn className="w-3.5 h-3.5" />
+              <span>Sign In / Admin</span>
+            </button>
+          )}
         </div>
       </header>
 

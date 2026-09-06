@@ -40,10 +40,10 @@ interface RemoteApp {
   updatedAt: string;
 }
 
-const DEFAULT_DEMO_APPS: RemoteApp[] = [
+const DEFAULT_INITIAL_APPS: RemoteApp[] = [
   {
-    appId: 'app_iptv_pro_demo',
-    workspaceId: 'ws_default',
+    appId: 'app_iptv_pro_us_main',
+    workspaceId: 'ws_production',
     name: 'IPTV Player Pro (Living Room)',
     slug: 'iptv-player-pro-living-room',
     theme: { primaryColor: '#3b82f6', accentColor: '#10b981' },
@@ -65,7 +65,7 @@ const getStoredApps = (): RemoteApp[] => {
       if (Array.isArray(parsed) && parsed.length > 0) return parsed;
     }
   } catch {}
-  return DEFAULT_DEMO_APPS;
+  return DEFAULT_INITIAL_APPS;
 };
 
 export default function DesktopRemoteApps() {

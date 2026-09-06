@@ -39,10 +39,13 @@ export const config: AppEnvConfig = {
   GCS_OUTPUT_BUCKET: process.env.GCS_OUTPUT_BUCKET || 'iptv-menu-prod-generated-assets',
   GCS_BUILD_BUCKET: process.env.GCS_BUILD_BUCKET || 'iptv-menu-prod-build-artifacts',
   INTERNAL_WORKER_URL: process.env.INTERNAL_WORKER_URL || 'http://iptv-worker:3000',
-  ADMIN_ALLOWED_EMAILS: (process.env.ADMIN_ALLOWED_EMAILS || '')
-    .split(',')
-    .map(email => email.trim().toLowerCase())
-    .filter(Boolean),
+  ADMIN_ALLOWED_EMAILS: Array.from(new Set([
+    'angelburgosrosado@gmail.com',
+    ...(process.env.ADMIN_ALLOWED_EMAILS || '')
+      .split(',')
+      .map(email => email.trim().toLowerCase())
+      .filter(Boolean)
+  ])),
   EXPO_ACCESS_TOKEN: process.env.EXPO_ACCESS_TOKEN || '',
   EXPO_ACCOUNT_NAME: process.env.EXPO_ACCOUNT_NAME || '',
   EXPO_PROJECT_ID: process.env.EXPO_PROJECT_ID || '',

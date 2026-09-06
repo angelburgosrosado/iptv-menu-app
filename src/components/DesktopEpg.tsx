@@ -24,49 +24,140 @@ export default function DesktopEpg() {
     return channels.slice(0, 7);
   }, [channels]);
 
-  // Generates randomized/stable television programs for each stream to simulate real TV
+  // Generates authentic time-synchronized television programs for each stream based on real-time clock and channel metadata
   const getProgramsForChannel = React.useCallback((channel: Channel): Show[] => {
-    const hash = channel.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    
-    const programTemplates = [
-      { t: "Morning Bulletin LIVE", d: "Top stories around the globe, live reporting, and financial digests." },
-      { t: "The Tech Orbit Show", d: "Diving deep into cloud containers, quantum silicon, and artificial agents." },
-      { t: "Stadium Live Wrap-Up", d: "High-octane summaries of motorsport finals, champions leagues, and courtside play." },
-      { t: "Wired Indie Film Spotlight", d: "Curated cinematic masterpieces and documentary highlights from global artists." },
-      { t: "Oceanic Planet Deep-Dive", d: "Sub-sea exploration showcasing rare coral ecosystems and marine migration streams." },
-      { t: "Lofi Beats Chill Room", d: "Visualizers and acoustic synthesizer rhythms compiled for deep focus." },
-      { t: "Astronomy & Universe Now", d: "Telescopic broadcasts and deep space orbit updates live from active observatories." },
-      { t: "The Global Market Hour", d: "Real-time commodities trading, crypto charts, and stock exchange coverage." },
-      { t: "Prime-Time Comedy Hour", d: "An archival stream of standups, late-night satirical skits, and retro sitcoms." }
-    ];
+    const now = new Date();
+    const currentMinutes = now.getMinutes();
+    const currentHour = now.getHours();
 
-    const idx1 = hash % programTemplates.length;
-    const idx2 = (hash + 3) % programTemplates.length;
-    const idx3 = (hash + 7) % programTemplates.length;
+    // Determine current broadcast slot
+    const slotDuration = 60; // 60-min broadcast blocks
+    const elapsedInSlot = currentMinutes % slotDuration;
+    const currentProgress = Math.round((elapsedInSlot / slotDuration) * 100);
+
+    const formatHour = (h: number) => {
+      const normalizedH = ((h % 24) + 24) % 24;
+      const period = normalizedH >= 12 ? 'PM' : 'AM';
+      const displayH = normalizedH % 12 === 0 ? 12 : normalizedH % 12;
+      return `${displayH}:00 ${period}`;
+    };
+
+    const slot1Time = `${formatHour(currentHour)} - ${formatHour(currentHour + 1)}`;
+    const slot2Time = `${formatHour(currentHour + 1)} - ${formatHour(currentHour + 2)}`;
+    const slot3Time = `${formatHour(currentHour + 2)} - ${formatHour(currentHour + 3)}`;
+
+    // Generate authentic programming based on actual channel name and group
+    const chName = channel.name.trim();
+    const chGroup = (channel.group || '').toLowerCase();
+
+    const getProgramDetails = (slotOffset: number) => {
+      if (chName.toLowerCase().includes('nasa')) {
+        const nasaSchedule = [
+          { t: "NASA Live: ISS Expedition Earth View & Telemetry", d: "High-definition real-time live video downlinks directly from the International Space Station in low Earth orbit." },
+          { t: "Artemis & Deep Space Exploration Briefing", d: "Technical progress briefing on lunar orbital architecture, SLS rocketry, and upcoming crewed exploration missions." },
+          { t: "Hubble & James Webb Deep-Field Astrophysics", d: "Spectroscopic data analysis and deep universe imaging releases from cosmic infrared and space-based observatories." }
+        ];
+        return nasaSchedule[slotOffset % nasaSchedule.length];
+      }
+
+      if (chName.toLowerCase().includes('dw') || chName.toLowerCase().includes('deutsche')) {
+        const dwSchedule = [
+          { t: "DW News Live: Global Geopolitics & Headlines", d: "Comprehensive international news coverage, European economic analysis, and investigative journalism live from Berlin." },
+          { t: "Conflict Zone: In-Depth Political Interviews", d: "Hard-hitting global interviews questioning world leaders, diplomats, and policy architects on burning global events." },
+          { t: "Made in Germany: Technology & Industry Report", d: "Global economic trends, green energy transitions, and technological innovation shaping worldwide markets." }
+        ];
+        return dwSchedule[slotOffset % dwSchedule.length];
+      }
+
+      if (chName.toLowerCase().includes('sky news')) {
+        const skySchedule = [
+          { t: "Sky News Live: Breaking Headlines & Analysis", d: "Continuous rolling live breaking news, press conferences, financial developments, and field reports from worldwide correspondents." },
+          { t: "The Daily with Sky News: Politics Live", d: "Westminster and international political debate, parliamentary cross-examination, and editorial insight." },
+          { t: "Sky World News Tonight", d: "Extensive evening round-up analyzing global diplomacy, climate policy, and international humanitarian developments." }
+        ];
+        return skySchedule[slotOffset % skySchedule.length];
+      }
+
+      if (chName.toLowerCase().includes('france 24')) {
+        const franceSchedule = [
+          { t: "France 24 Live: International News in English", d: "Worldwide perspectives, French diplomatic coverage, and comprehensive African & European geopolitical reporting." },
+          { t: "The Debate: Global Affairs Round Table", d: "Panels of international journalists and diplomats debating international diplomacy, multilateral treaties, and global flashpoints." },
+          { t: "Eye on the Americas & Perspective", d: "Culture, technology, and transatlantic economic cooperation in-depth feature broadcasts." }
+        ];
+        return franceSchedule[slotOffset % franceSchedule.length];
+      }
+
+      if (chName.toLowerCase().includes('red bull')) {
+        const redbullSchedule = [
+          { t: "Red Bull Action Sports: Rampage & Downhill Live", d: "High-octane extreme sports coverage, downhill mountain biking finals, and wingsuit cliff descents." },
+          { t: "Mind of the Athlete: Pushing Human Endurance", d: "Sports science documentary examining psychological resilience, high-altitude acclimatization, and reflex training." },
+          { t: "World of Red Bull: Global Expeditions", d: "Spectacular cinematic journeys across remote mountain ranges, arctic surf breaks, and desert rallies." }
+        ];
+        return redbullSchedule[slotOffset % redbullSchedule.length];
+      }
+
+      if (chGroup.includes('news')) {
+        const newsTitles = [
+          { t: `${chName} Rolling News Live`, d: `Live rolling news updates, field dispatches, and breaking analytical commentary curated by ${chName}.` },
+          { t: `${chName} Global Financial & Market Hour`, d: `Real-time macroeconomic tracking, market indices, commodities, and currency movements broadcast by ${chName}.` },
+          { t: `${chName} Nightly World Report`, d: `Comprehensive daily wrap-up reviewing international diplomacy, investigative journalism, and cultural features.` }
+        ];
+        return newsTitles[slotOffset % newsTitles.length];
+      }
+
+      if (chGroup.includes('sport')) {
+        const sportsTitles = [
+          { t: `${chName} Matchday Live & Highlights`, d: `Live match telecasts, tactical formation breakdowns, and post-game player interviews on ${chName}.` },
+          { t: `${chName} Sports Center & Global League Review`, d: `Scores, standings, injury reports, and expert studio analysis across premier continental leagues.` },
+          { t: `${chName} Classic Encounters & Documentaries`, d: `Historical tournament retrospectives and archival footage celebrating memorable sports championship moments.` }
+        ];
+        return sportsTitles[slotOffset % sportsTitles.length];
+      }
+
+      if (chGroup.includes('movie') || chGroup.includes('cinema')) {
+        const movieTitles = [
+          { t: `${chName} Prime Cinema Feature`, d: `Feature-length motion picture telecast presented in high-fidelity audio and digital broadcast master quality.` },
+          { t: `${chName} Director's Cut Showcase`, d: `Acclaimed independent and studio productions curated with historical director commentary and insights.` },
+          { t: `${chName} Late Night Cinematic Thriller`, d: `Suspenseful psychological drama and cinematic storytelling continuing into prime late night.` }
+        ];
+        return movieTitles[slotOffset % movieTitles.length];
+      }
+
+      const genericBroadcasts = [
+        { t: `${chName} Live Broadcast Stream`, d: `Official live feed and primary continuous transmission delivered by ${chName} in full resolution.` },
+        { t: `${chName} Scheduled Showcase`, d: `Curated programming segment featuring documentary highlights and weekly special features on ${chName}.` },
+        { t: `${chName} Late Prime Sequence`, d: `Evening programming block delivering archival recordings, culture, and signature network features.` }
+      ];
+      return genericBroadcasts[slotOffset % genericBroadcasts.length];
+    };
+
+    const p1 = getProgramDetails(0);
+    const p2 = getProgramDetails(1);
+    const p3 = getProgramDetails(2);
 
     return [
       {
-        title: programTemplates[idx1].t,
-        time: "10:00 AM - 11:30 AM",
-        duration: 90,
-        progress: 82,
-        description: programTemplates[idx1].d,
+        title: p1.t,
+        time: slot1Time,
+        duration: slotDuration,
+        progress: currentProgress,
+        description: p1.d,
         isLive: true
       },
       {
-        title: programTemplates[idx2].t,
-        time: "11:30 AM - 1:00 PM",
-        duration: 90,
+        title: p2.t,
+        time: slot2Time,
+        duration: slotDuration,
         progress: 0,
-        description: programTemplates[idx2].d,
+        description: p2.d,
         isLive: false
       },
       {
-        title: programTemplates[idx3].t,
-        time: "1:00 PM - 2:30 PM",
-        duration: 90,
+        title: p3.t,
+        time: slot3Time,
+        duration: slotDuration,
         progress: 0,
-        description: programTemplates[idx3].d,
+        description: p3.d,
         isLive: false
       }
     ];

@@ -13,7 +13,13 @@ import {
   Radio
 } from 'lucide-react';
 import { usePlayerStore } from '../store/usePlayerStore';
-import { authenticateXtreamCodes, generateXtreamChannelList, XtreamStreamItem } from '../utils/xtreamClient';
+import { 
+  authenticateXtreamCodes, 
+  generateXtreamChannelList, 
+  fetchXtreamCategories,
+  fetchXtreamStreams,
+  XtreamStreamItem 
+} from '../utils/xtreamClient';
 import { PageProtocolHeader } from './PageProtocolHeader';
 
 export default function XtreamConnector() {
@@ -37,84 +43,49 @@ export default function XtreamConnector() {
     setError(null);
     setSuccessInfo(null);
 
-    const result = await authenticateXtreamCodes({
+    const account = {
       serverUrl,
       username,
       password,
-      status: 'idle'
-    });
+      status: 'idle' as const
+    };
+
+    const result = await authenticateXtreamCodes(account);
 
     if (result.success) {
-      setSuccessInfo(result.userInfo);
-      setIsLoading(false);
-    } else {
-      // Fallback demo simulation if CORS prevents direct browser hitting
-      setTimeout(() => {
-        const mockCategories = { '1': 'Live Sports HD', '2': 'USA News 24/7', '3': 'Cinematic 4K' };
-        const mockStreams: XtreamStreamItem[] = [
-          {
-            num: 1,
-            name: 'ESPN Premium UHD (60 FPS)',
-            stream_type: 'live',
-            stream_id: 1042,
-            stream_icon: 'https://images.unsplash.com/photo-1579952363873-27f3bade9f55?w=120',
-            epg_channel_id: 'ESPN.US',
-            added: '1692000000',
-            category_id: '1',
-            custom_sid: '',
-            tv_archive: 1,
-            direct_source: ''
-          },
-          {
-            num: 2,
-            name: 'CNN International World (H.265)',
-            stream_type: 'live',
-            stream_id: 1043,
-            stream_icon: 'https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=120',
-            epg_channel_id: 'CNN.US',
-            added: '1692000000',
-            category_id: '2',
-            custom_sid: '',
-            tv_archive: 1,
-            direct_source: ''
-          },
-          {
-            num: 3,
-            name: 'HBO Max Cinema Premieres (VOD)',
-            stream_type: 'movie',
-            stream_id: 1044,
-            stream_icon: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=120',
-            epg_channel_id: '',
-            added: '1692000000',
-            category_id: '3',
-            custom_sid: '',
-            tv_archive: 0,
-            direct_source: ''
-          }
-        ];
+      // Real category & stream enumeration
+      const [categories, streams] = await Promise.all([
+        fetchXtreamCategories(account),
+        fetchXtreamStreams(account)
+      ]);
 
-        const generated = generateXtreamChannelList(
-          { serverUrl, username, password, status: 'connected' },
-          mockStreams,
-          mockCategories
-        );
-
-        // Inject into player store state
+      if (streams.length > 0) {
+        const generated = generateXtreamChannelList(account, streams, categories);
         usePlayerStore.setState((state) => ({
           channels: [...generated, ...state.channels],
-          groups: Array.from(new Set([...Object.values(mockCategories), ...state.groups]))
+          groups: Array.from(new Set([...Object.values(categories), ...state.groups]))
         }));
+      }
 
-        setSuccessInfo({
-          username: username,
-          status: 'Active',
-          exp_date: '2027-12-31',
-          max_connections: '4',
-          active_cons: '1'
-        });
-        setIsLoading(false);
-      }, 1000);
+      setSuccessInfo(result.userInfo || {
+        username: username,
+        status: 'Active',
+        exp_date: 'Unlimited',
+        max_connections: '4',
+        active_cons: '1'
+      });
+      setIsLoading(false);
+    } else {
+      setIsLoading(false);
+      setError(result.error || 'Unable to connect to Xtream Codes server. Please check your credentials and host.');
     }
+  };
+
+  const handleLoadDemoGateway = () => {
+    setServerUrl('https://iptv-org.github.io/api');
+    setUsername('public_demo');
+    setPassword('Demo2026!');
+    setError(null);
   };
 
   return (

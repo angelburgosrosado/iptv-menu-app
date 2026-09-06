@@ -36,22 +36,36 @@ export async function authenticateXtreamCodes(account: XtreamAccount): Promise<{
 
     const authUrl = `${baseUrl}/player_api.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password)}`;
     
-    // In browser context, fetch or proxy fallback
-    const res = await fetch(authUrl, { signal: AbortSignal.timeout(6000) });
+    // Attempt direct fetch, fallback to server proxy if CORS prevents direct browser hitting
+    let res: Response;
+    try {
+      res = await fetch(authUrl, { signal: AbortSignal.timeout(6000) });
+    } catch (directErr) {
+      try {
+        const proxyUrl = `/api/stream/proxy?url=${encodeURIComponent(authUrl)}`;
+        res = await fetch(proxyUrl, { signal: AbortSignal.timeout(7000) });
+      } catch (proxyErr: any) {
+        throw new Error(`Unable to reach server ${baseUrl}. Please verify the host portal and port.`);
+      }
+    }
+
     if (!res.ok) {
       return { success: false, error: `Server responded with HTTP ${res.status}` };
     }
 
     const contentType = res.headers.get('content-type') || '';
     if (!contentType.includes('application/json')) {
-      return { success: false, error: 'Server returned HTML instead of Xtream API JSON.' };
+      const text = await res.text().catch(() => '');
+      if (!text.startsWith('{')) {
+        return { success: false, error: 'Server returned HTML or invalid response instead of Xtream API JSON.' };
+      }
     }
 
     const data = await res.json().catch(() => null);
     if (!data) {
       return { success: false, error: 'Malformed JSON returned from Xtream server.' };
     }
-    if (data.user_info && data.user_info.auth === 1) {
+    if (data.user_info && (data.user_info.auth === 1 || data.user_info.status === 'Active')) {
       return {
         success: true,
         userInfo: data.user_info,
@@ -60,7 +74,7 @@ export async function authenticateXtreamCodes(account: XtreamAccount): Promise<{
     } else {
       return {
         success: false,
-        error: 'Authentication failed. Please check your credentials.'
+        error: data.user_info?.message || 'Authentication failed. Please verify your Xtream username and password.'
       };
     }
   } catch (err: any) {
@@ -69,6 +83,62 @@ export async function authenticateXtreamCodes(account: XtreamAccount): Promise<{
       error: err.message || 'Unable to connect to Xtream Codes server.'
     };
   }
+}
+
+export async function fetchXtreamCategories(account: XtreamAccount): Promise<Record<string, string>> {
+  let baseUrl = account.serverUrl.trim().replace(/\/+$/, '');
+  if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+    baseUrl = `http://${baseUrl}`;
+  }
+  const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password)}&action=get_live_categories`;
+  try {
+    let res: Response;
+    try {
+      res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    } catch {
+      res = await fetch(`/api/stream/proxy?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(7000) });
+    }
+    if (res.ok) {
+      const data = await res.json().catch(() => null);
+      if (Array.isArray(data)) {
+        const catMap: Record<string, string> = {};
+        data.forEach((c: any) => {
+          if (c.category_id && c.category_name) {
+            catMap[String(c.category_id)] = c.category_name;
+          }
+        });
+        return catMap;
+      }
+    }
+  } catch (e) {
+    console.warn('Could not fetch Xtream categories', e);
+  }
+  return {};
+}
+
+export async function fetchXtreamStreams(account: XtreamAccount): Promise<XtreamStreamItem[]> {
+  let baseUrl = account.serverUrl.trim().replace(/\/+$/, '');
+  if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+    baseUrl = `http://${baseUrl}`;
+  }
+  const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password)}&action=get_live_streams`;
+  try {
+    let res: Response;
+    try {
+      res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    } catch {
+      res = await fetch(`/api/stream/proxy?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(10000) });
+    }
+    if (res.ok) {
+      const data = await res.json().catch(() => null);
+      if (Array.isArray(data)) {
+        return data;
+      }
+    }
+  } catch (e) {
+    console.warn('Could not fetch Xtream live streams', e);
+  }
+  return [];
 }
 
 export function generateXtreamChannelList(

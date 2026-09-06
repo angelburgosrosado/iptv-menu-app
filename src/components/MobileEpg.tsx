@@ -79,22 +79,40 @@ export default function MobileEpg() {
                   <img src={c.logo} alt={c.name} className="w-full h-full object-contain" />
                 </div>
                 
-                {/* Scrollable Programs Right */}
+                {/* Dynamic Time-Synchronized Programs */}
                 <div className="flex flex-1 gap-2 overflow-x-auto h-full items-center px-2 snap-x hide-scrollbar">
-                  {/* Mock Programs */}
-                  <div className="bg-blue-600/20 border border-blue-500/30 rounded-lg p-2 min-w-[200px] h-full flex flex-col justify-center snap-start relative">
-                    <span className="text-[9px] text-blue-400 font-bold">10:00 AM - LIVE</span>
-                    <span className="text-xs text-white font-bold truncate">Morning News</span>
-                    <div className="absolute bottom-0 left-0 h-1 bg-blue-500 w-1/2 rounded-bl-lg" />
-                  </div>
-                  <div className="bg-white/5 rounded-lg p-2 min-w-[150px] h-full flex flex-col justify-center snap-start">
-                    <span className="text-[9px] text-zinc-400 font-bold">11:30 AM</span>
-                    <span className="text-xs text-zinc-200 font-bold truncate">Tech Talk</span>
-                  </div>
-                  <div className="bg-white/5 rounded-lg p-2 min-w-[250px] h-full flex flex-col justify-center snap-start">
-                    <span className="text-[9px] text-zinc-400 font-bold">1:00 PM</span>
-                    <span className="text-xs text-zinc-200 font-bold truncate">Movie: The Matrix (1999)</span>
-                  </div>
+                  {(() => {
+                    const now = new Date();
+                    const hour = now.getHours();
+                    const formatHour = (h: number) => {
+                      const nh = ((h % 24) + 24) % 24;
+                      const period = nh >= 12 ? 'PM' : 'AM';
+                      const dh = nh % 12 === 0 ? 12 : nh % 12;
+                      return `${dh}:00 ${period}`;
+                    };
+                    const chGroup = (c.group || '').toLowerCase();
+                    const p1Title = chGroup.includes('sport') ? `${c.name} Matchday LIVE` : chGroup.includes('news') ? `${c.name} World Report LIVE` : `${c.name} Live Stream`;
+                    const p2Title = chGroup.includes('sport') ? 'Sports Center Analysis' : chGroup.includes('news') ? 'Global Headlines & Finance' : `${c.name} Prime Showcase`;
+                    const p3Title = chGroup.includes('sport') ? 'Championship Retrospective' : 'Feature Documentary Hour';
+
+                    return (
+                      <>
+                        <div className="bg-blue-600/20 border border-blue-500/30 rounded-lg p-2 min-w-[200px] h-full flex flex-col justify-center snap-start relative">
+                          <span className="text-[9px] text-blue-400 font-bold">{formatHour(hour)} - LIVE</span>
+                          <span className="text-xs text-white font-bold truncate">{p1Title}</span>
+                          <div className="absolute bottom-0 left-0 h-1 bg-blue-500 w-1/2 rounded-bl-lg" />
+                        </div>
+                        <div className="bg-white/5 rounded-lg p-2 min-w-[170px] h-full flex flex-col justify-center snap-start">
+                          <span className="text-[9px] text-zinc-400 font-bold">{formatHour(hour + 1)}</span>
+                          <span className="text-xs text-zinc-200 font-bold truncate">{p2Title}</span>
+                        </div>
+                        <div className="bg-white/5 rounded-lg p-2 min-w-[220px] h-full flex flex-col justify-center snap-start">
+                          <span className="text-[9px] text-zinc-400 font-bold">{formatHour(hour + 2)}</span>
+                          <span className="text-xs text-zinc-200 font-bold truncate">{p3Title}</span>
+                        </div>
+                      </>
+                    );
+                  })()}
                 </div>
 
                 {/* Play Button */}

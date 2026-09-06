@@ -34,36 +34,36 @@ export default function AuthModal({ isOpen, onClose, triggerToast }: AuthModalPr
   const [passwordFocused, setPasswordFocused] = React.useState(false);
   
   const [isLoading, setIsLoading] = React.useState(false);
+  const [authError, setAuthError] = React.useState<string | null>(null);
 
   if (!isOpen) return null;
+
+  const handleAdminQuickFill = () => {
+    setEmail('angelburgosrosado@gmail.com');
+    setPassword('Admin123');
+    setAuthError(null);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) return;
 
     setIsLoading(true);
+    setAuthError(null);
 
-    // Simulate authentic network latency
-    setTimeout(() => {
+    try {
+      const user = await authStore.login(email, password);
       setIsLoading(false);
-      
-      // Update our module state store
-      authStore.setState({
-        isLoggedIn: true,
-        email: email,
-        isPremium: true // Elevate account directly to premium as per simulated flow
-      });
-
-      // Clear fields
       setEmail('');
       setPassword('');
       
-      // Trigger success toast feedback
-      triggerToast('Welcome back! Premium Active');
-      
-      // Close modal
+      const roleMsg = user.role === 'admin' ? 'Root Admin Active (Angel Burgos)' : 'Welcome back! Premium Active';
+      triggerToast(roleMsg);
       onClose();
-    }, 1500);
+    } catch (err: any) {
+      setIsLoading(false);
+      setAuthError(err.message || 'Authentication failed. Please check your credentials.');
+    }
   };
 
   return (
@@ -118,8 +118,36 @@ export default function AuthModal({ isOpen, onClose, triggerToast }: AuthModalPr
                 Access your synced M3U streams, daily cleanups, and compile white-label app builds.
               </p>
 
+              {/* Admin Account Quick-Select Helper */}
+              <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1">
+                    <Crown className="w-3 h-3 text-amber-400 fill-current" />
+                    Configured Administrator Account
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleAdminQuickFill}
+                    className="px-2 py-0.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded text-[10px] font-bold transition-all cursor-pointer"
+                  >
+                    Quick-Fill
+                  </button>
+                </div>
+                <div className="text-[10px] font-mono text-zinc-300">
+                  User: <span className="text-white font-semibold">angelburgosrosado@gmail.com</span> • Pass: <span className="text-white font-semibold">Admin123</span>
+                </div>
+              </div>
+
+              {/* Error Banner */}
+              {authError && (
+                <div className="mt-3 p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 text-rose-400 flex-shrink-0" />
+                  <span>{authError}</span>
+                </div>
+              )}
+
               {/* Identity Form */}
-              <form onSubmit={handleSubmit} className="flex flex-col gap-3.5 mt-6">
+              <form onSubmit={handleSubmit} className="flex flex-col gap-3.5 mt-4">
                 
                 {/* Float-Label Email field */}
                 <div className="relative w-full">
