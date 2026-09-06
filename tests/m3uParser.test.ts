@@ -12,21 +12,47 @@ https://stream.example.com/espn/live.m3u8`;
     const channels = parseM3U(m3u);
 
     expect(channels).toHaveLength(2);
-    expect(channels[0]).toEqual({
+    expect(channels[0]).toMatchObject({
       id: 'cnn.us',
       name: 'CNN HD',
       logo: 'https://example.com/cnn.png',
       url: 'https://stream.example.com/cnn/live.m3u8',
       group: 'News',
       tvgId: 'cnn.us',
+      countryCode: 'UN',
+      epgChannelId: 'cnn.us',
+      metadataSource: 'playlist'
     });
-    expect(channels[1]).toEqual({
+    expect(channels[1]).toMatchObject({
       id: 'espn.us',
       name: 'ESPN 1',
       logo: 'https://example.com/espn.png',
       url: 'https://stream.example.com/espn/live.m3u8',
       group: 'Sports',
       tvgId: 'espn.us',
+      countryCode: 'UN',
+      epgChannelId: 'espn.us',
+      metadataSource: 'playlist'
+    });
+  });
+
+  it('should parse extended IPTV metadata including tvg-country, tvg-name, and language', () => {
+    const m3u = `#EXTM3U
+#EXTINF:-1 tvg-id="bbc1.uk" tvg-name="BBC One HD" tvg-country="GB" tvg-language="English" group-title="United Kingdom",BBC One HD
+https://stream.example.com/bbc1.m3u8`;
+
+    const channels = parseM3U(m3u);
+
+    expect(channels).toHaveLength(1);
+    expect(channels[0]).toMatchObject({
+      id: 'bbc1.uk',
+      name: 'BBC One HD',
+      tvgName: 'BBC One HD',
+      tvgCountry: 'GB',
+      countryCode: 'GB',
+      language: 'English',
+      epgChannelId: 'bbc1.uk',
+      metadataSource: 'playlist'
     });
   });
 

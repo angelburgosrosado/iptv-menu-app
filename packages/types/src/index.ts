@@ -173,3 +173,70 @@ export interface AppConfig {
   createdAt: Date | string;
   updatedAt: Date | string;
 }
+
+export interface PlaylistChannel {
+  id: string;
+  name: string;
+  logo?: string;
+  url: string;
+  group?: string;
+  tvgId?: string;
+  tvgName?: string;
+  tvgCountry?: string;
+  language?: string;
+  countryCode?: string;
+  epgChannelId?: string;
+  metadataSource?: 'playlist' | 'iptv-org' | 'manual';
+}
+
+export interface CountrySection {
+  code: string;
+  name: string;
+  channelCount: number;
+  channels: PlaylistChannel[];
+}
+
+export interface XmltvChannel {
+  id: string;
+  displayNames: string[];
+  icon?: string;
+  countryCode?: string;
+  language?: string;
+}
+
+export interface XmltvProgramme {
+  channel: string;
+  start: string;
+  stop?: string;
+  title: string;
+  desc?: string;
+  category?: string[];
+  icon?: string;
+  sourcePriority: number;
+}
+
+export interface EpgProvider {
+  key: string;
+  kind: 'licensed' | 'public-xmltv' | 'community';
+  priority: number;
+  enabled: boolean;
+  baseUrl?: string;
+  token?: string;
+  countries?: string[];
+}
+
+export interface UpgradeAppConfig {
+  paths: {
+    channelsFile: string;
+    iptvOrgChannelsFile: string;
+    iptvOrgCountriesFile: string;
+    publicXmltvDirectory: string;
+    outputDirectory: string;
+  };
+  epg: {
+    timezone: string;
+    providers: EpgProvider[];
+    fallbackWindowHours: number;
+    includeUnmatchedChannels: boolean;
+  };
+}

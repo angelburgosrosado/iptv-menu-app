@@ -25,6 +25,7 @@
     "db:studio": "npm --workspace=@iptv-menu/db run db:studio",
     "build:api": "npm --workspace=iptv-api run build",
     "build:worker": "npm --workspace=iptv-worker run build",
+    "iptv:upgrade": "tsx scripts/iptv-upgrade.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },

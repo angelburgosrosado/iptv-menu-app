@@ -63,6 +63,9 @@ export function parseM3U(m3uContent: string, options?: ParserOptions): Channel[]
       const tvgIdMatch = line.match(/tvg-id="([^"]*)"/) || line.match(/tvg-id=([^ ,]*)/);
       const logoMatch = line.match(/tvg-logo="([^"]*)"/) || line.match(/tvg-logo=([^ ,]*)/);
       const groupMatch = line.match(/group-title="([^"]*)"/) || line.match(/group-title=([^ \n,]*)/);
+      const tvgCountryMatch = line.match(/tvg-country="([^"]*)"/) || line.match(/tvg-country=([^ ,]*)/);
+      const tvgNameMatch = line.match(/tvg-name="([^"]*)"/) || line.match(/tvg-name=([^ ,]*)/);
+      const tvgLangMatch = line.match(/tvg-language="([^"]*)"/) || line.match(/tvg-lang="([^"]*)"/) || line.match(/group-lang="([^"]*)"/);
 
       // 2. Resilient Channel Name Parsing
       // Identify the name which resides after the final comma on the #EXTINF line
@@ -72,8 +75,26 @@ export function parseM3U(m3uContent: string, options?: ParserOptions): Channel[]
         name = line.substring(lastCommaIdx + 1).trim();
       }
 
+      // Infer country code if not explicitly in tvg-country
+      let countryCode = tvgCountryMatch ? tvgCountryMatch[1].trim().toUpperCase() : '';
+      if (!countryCode) {
+        const groupStr = groupMatch ? groupMatch[1] : '';
+        const combined = `${name} ${groupStr}`;
+        const codeInName = combined.match(/\b(US|CA|MX|GB|UK|FR|DE|ES|IT|BR|IN|PH|DO|PR)\b/i);
+        if (codeInName) {
+          const raw = codeInName[1].toUpperCase();
+          countryCode = raw === 'UK' ? 'GB' : raw;
+        } else {
+          countryCode = 'UN';
+        }
+      }
+
       currentExtinf = {
         tvgId: tvgIdMatch ? tvgIdMatch[1].trim() : '',
+        tvgName: tvgNameMatch ? tvgNameMatch[1].trim() : '',
+        tvgCountry: tvgCountryMatch ? tvgCountryMatch[1].trim().toUpperCase() : '',
+        language: tvgLangMatch ? tvgLangMatch[1].trim() : '',
+        countryCode,
         logo: logoMatch ? logoMatch[1].trim() : '',
         group: groupMatch ? groupMatch[1].trim() : 'Uncategorized',
         name: name || 'Unknown Channel',
@@ -102,6 +123,12 @@ export function parseM3U(m3uContent: string, options?: ParserOptions): Channel[]
             url: streamUrl,
             group: currentExtinf.group || 'Uncategorized',
             tvgId: currentExtinf.tvgId,
+            tvgName: currentExtinf.tvgName || currentExtinf.name,
+            tvgCountry: currentExtinf.tvgCountry,
+            countryCode: currentExtinf.countryCode || 'UN',
+            language: currentExtinf.language,
+            epgChannelId: currentExtinf.tvgId,
+            metadataSource: 'playlist',
           });
         }
       }

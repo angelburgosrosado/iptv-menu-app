@@ -10,6 +10,12 @@ export interface Channel {
   url: string;        // HLS H3U8 stream URL
   group: string;      // Group category name (e.g., News, Entertainment)
   tvgId: string;      // Raw epg identifier
+  tvgName?: string;
+  tvgCountry?: string;
+  language?: string;
+  countryCode?: string;
+  epgChannelId?: string;
+  metadataSource?: 'playlist' | 'iptv-org' | 'manual';
   resolution?: string; // 4K, 1080p, 720p, SD
   bitrate?: string;    // e.g., 4.5 Mbps
   fps?: number;        // e.g., 60, 30
@@ -17,6 +23,60 @@ export interface Channel {
   codec?: string;      // H.264 / AAC / HEVC
   streamType?: 'live' | 'vod' | 'series';
   directSource?: 'm3u' | 'xtream';
+}
+
+export type PlaylistChannel = Channel;
+
+export interface CountrySection {
+  code: string;
+  name: string;
+  channelCount: number;
+  channels: Channel[];
+}
+
+export interface XmltvChannel {
+  id: string;
+  displayNames: string[];
+  icon?: string;
+  countryCode?: string;
+  language?: string;
+}
+
+export interface XmltvProgramme {
+  channel: string;
+  start: string;
+  stop?: string;
+  title: string;
+  desc?: string;
+  category?: string[];
+  icon?: string;
+  sourcePriority: number;
+}
+
+export interface EpgProvider {
+  key: string;
+  kind: 'licensed' | 'public-xmltv' | 'community';
+  priority: number;
+  enabled: boolean;
+  baseUrl?: string;
+  token?: string;
+  countries?: string[];
+}
+
+export interface UpgradeAppConfig {
+  paths: {
+    channelsFile: string;
+    iptvOrgChannelsFile: string;
+    iptvOrgCountriesFile: string;
+    publicXmltvDirectory: string;
+    outputDirectory: string;
+  };
+  epg: {
+    timezone: string;
+    providers: EpgProvider[];
+    fallbackWindowHours: number;
+    includeUnmatchedChannels: boolean;
+  };
 }
 
 export interface XtreamAccount {

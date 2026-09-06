@@ -1,9 +1,10 @@
 import * as React from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { simRouter } from '../shims/expo-router';
-import { Search, Play, Heart, Tv, Grid, List, Maximize2, Smartphone } from 'lucide-react';
+import { Search, Play, Heart, Tv, Grid, List, Maximize2, Smartphone, Globe } from 'lucide-react';
 import { Channel } from '../types/iptv';
 import WebCinemaPlayer from './WebCinemaPlayer';
+import CountryChannelSections from './CountryChannelSections';
 
 interface DesktopChannelsProps {
   onSwitchToMultiScreen?: () => void;
@@ -13,7 +14,7 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
   const { channels, groups, favorites, toggleFavorite } = usePlayerStore();
   const [searchQuery, setSearchQuery] = React.useState('');
   const [selectedGroup, setSelectedGroup] = React.useState<string | null>(null);
-  const [viewMode, setViewMode] = React.useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = React.useState<'grid' | 'list' | 'country'>('grid');
   const [cinemaChannel, setCinemaChannel] = React.useState<Channel | null>(null);
 
   // Filter channels based on group and search term
@@ -75,6 +76,15 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
             >
               <List className="w-4 h-4" />
             </button>
+            <button
+              onClick={() => setViewMode('country')}
+              className={`p-1.5 rounded-lg transition-colors flex items-center gap-1 text-xs font-semibold ${
+                viewMode === 'country' ? 'bg-blue-600 text-white' : 'text-zinc-400 hover:text-white'
+              }`}
+              title="Country Sections View"
+            >
+              <Globe className="w-4 h-4" />
+            </button>
           </div>
 
           <div className="relative w-full md:w-64">
@@ -125,8 +135,15 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
         </div>
       </div>
 
-      {/* Main Grid/List catalog */}
-      {filteredChannels.length === 0 ? (
+      {/* Main Grid/List/Country catalog */}
+      {viewMode === 'country' ? (
+        <div className="overflow-y-auto max-h-[600px] pr-2 scrollbar-thin">
+          <CountryChannelSections
+            onOpenCinema={handleOpenCinema}
+            onPlayInSimulator={handlePlayInSimulator}
+          />
+        </div>
+      ) : filteredChannels.length === 0 ? (
         <div className="flex-1 min-h-[300px] flex flex-col items-center justify-center border border-dashed border-white/10 rounded-2xl bg-white/2 p-8">
           <Tv className="w-12 h-12 text-zinc-600 mb-3 animate-pulse" />
           <h3 className="text-sm font-bold text-zinc-300">No Channels Found</h3>
