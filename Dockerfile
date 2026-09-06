@@ -9,13 +9,14 @@ COPY tsconfig.json ./
 COPY vite.config.ts ./
 COPY index.html ./
 
-# Copy source directories
+# Copy packages and source directories
+COPY packages/ ./packages/
 COPY public/ ./public/
 COPY src/ ./src/
 
 # Install dependencies and build
 RUN npm ci
-RUN npm run build
+RUN npm run build:packages && npm run build:web
 
 # Production Runner Stage
 FROM nginx:alpine AS runner
