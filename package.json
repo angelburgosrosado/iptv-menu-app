@@ -10,10 +10,10 @@
   ],
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
-    "build:packages": "npm --workspace=@iptv-menu/types run build && npm --workspace=@iptv-menu/logging run build && npm --workspace=@iptv-menu/config run build && npm --workspace=@iptv-menu/ui run build && npm --workspace=@iptv-menu/storage run build && npm --workspace=@iptv-menu/auth run build && npm --workspace=@iptv-menu/db run build && npm --workspace=@iptv-menu/billing run build && npm --workspace=@iptv-menu/jobs run build && npm --workspace=iptv-api run build",
+    "build:packages": "npm --workspace=@iptv-menu/types run build && npm --workspace=@iptv-menu/logging run build && npm --workspace=@iptv-menu/config run build && npm --workspace=@iptv-menu/ui run build && npm --workspace=@iptv-menu/storage run build && npm --workspace=@iptv-menu/auth run build && npm --workspace=@iptv-menu/db run build && npm --workspace=@iptv-menu/billing run build && npm --workspace=@iptv-menu/jobs run build",
     "build:web": "vite build",
-    "build": "npm run build:packages && vite build",
-    "build:all": "npm run build:packages && vite build",
+    "build": "npm run build:packages && npm --workspace=iptv-api run build && vite build",
+    "build:all": "npm run build:packages && npm --workspace=iptv-api run build && vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
