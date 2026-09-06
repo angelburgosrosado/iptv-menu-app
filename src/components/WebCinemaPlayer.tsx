@@ -1,0 +1,343 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import * as React from 'react';
+import { 
+  X, 
+  Tv, 
+  ChevronLeft, 
+  ChevronRight, 
+  Heart, 
+  Search, 
+  Grid, 
+  Maximize2, 
+  ShieldCheck, 
+  Zap, 
+  Radio, 
+  Layers,
+  Sparkles
+} from 'lucide-react';
+import { Channel } from '../types/iptv';
+import { usePlayerStore } from '../store/usePlayerStore';
+import { VideoPlayer } from './VideoPlayer';
+
+interface WebCinemaPlayerProps {
+  initialChannel: Channel;
+  onClose: () => void;
+  onSwitchToMultiScreen?: () => void;
+}
+
+export default function WebCinemaPlayer({
+  initialChannel,
+  onClose,
+  onSwitchToMultiScreen
+}: WebCinemaPlayerProps) {
+  const { channels, favorites, toggleFavorite, addToHistory } = usePlayerStore();
+  const [currentChannel, setCurrentChannel] = React.useState<Channel>(initialChannel);
+  const [showChannelDrawer, setShowChannelDrawer] = React.useState(false);
+  const [drawerSearch, setDrawerSearch] = React.useState('');
+  const [selectedGroup, setSelectedGroup] = React.useState<string | null>(null);
+
+  // Keep track of current index in channels array
+  const currentIndex = React.useMemo(() => {
+    return channels.findIndex((c) => c.id === currentChannel.id);
+  }, [channels, currentChannel.id]);
+
+  const isFav = React.useMemo(() => {
+    return favorites.includes(currentChannel.id);
+  }, [favorites, currentChannel.id]);
+
+  // Log to history on channel change
+  React.useEffect(() => {
+    if (currentChannel) {
+      addToHistory(currentChannel.id);
+    }
+  }, [currentChannel, addToHistory]);
+
+  // Channel switching functions
+  const handleNextChannel = () => {
+    if (channels.length === 0) return;
+    const nextIdx = (currentIndex + 1) % channels.length;
+    setCurrentChannel(channels[nextIdx]);
+  };
+
+  const handlePrevChannel = () => {
+    if (channels.length === 0) return;
+    const prevIdx = (currentIndex - 1 + channels.length) % channels.length;
+    setCurrentChannel(channels[prevIdx]);
+  };
+
+  // Close on Escape key
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (showChannelDrawer) {
+          setShowChannelDrawer(false);
+        } else {
+          onClose();
+        }
+      }
+      if ((e.key === 'e' || e.key === 'E') && !(e.target instanceof HTMLInputElement)) {
+        setShowChannelDrawer((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose, showChannelDrawer]);
+
+  // Filtered channels for drawer
+  const filteredDrawerChannels = React.useMemo(() => {
+    let list = channels;
+    if (selectedGroup) {
+      list = list.filter((c) => c.group === selectedGroup);
+    }
+    if (drawerSearch.trim()) {
+      const q = drawerSearch.toLowerCase();
+      list = list.filter(
+        (c) => c.name.toLowerCase().includes(q) || c.group.toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [channels, selectedGroup, drawerSearch]);
+
+  const uniqueGroups = React.useMemo(() => {
+    return Array.from(new Set(channels.map((c) => c.group))).sort();
+  }, [channels]);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-2xl flex flex-col overflow-hidden select-none animate-fade-in">
+      {/* Top Header Bar */}
+      <header className="h-16 px-6 border-b border-white/10 flex items-center justify-between bg-zinc-950/80 backdrop-blur-md z-20">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-xl bg-blue-600/10 text-blue-400 border border-blue-500/20">
+            <Tv className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-black text-white tracking-tight">{currentChannel.name}</h2>
+              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                {currentChannel.group || 'Live TV'}
+              </span>
+            </div>
+            <p className="text-[11px] text-zinc-400">
+              Channel {currentIndex + 1} of {channels.length} • Use <span className="text-blue-400 font-bold">↑ ↓</span> to switch channels
+            </p>
+          </div>
+        </div>
+
+        {/* Quick Toolbar */}
+        <div className="flex items-center gap-2.5">
+          {/* Quick channel drawer toggle */}
+          <button
+            onClick={() => setShowChannelDrawer((prev) => !prev)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border ${
+              showChannelDrawer 
+                ? 'bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-500/20' 
+                : 'bg-white/5 hover:bg-white/10 text-zinc-300 border-white/10'
+            }`}
+          >
+            <Grid className="w-3.5 h-3.5" />
+            <span>Channel Guide (E)</span>
+          </button>
+
+          {/* Switch to Quad-View Matrix if requested */}
+          {onSwitchToMultiScreen && (
+            <button
+              onClick={() => {
+                onClose();
+                onSwitchToMultiScreen();
+              }}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/5 hover:bg-white/10 text-zinc-300 border border-white/10 transition-all flex items-center gap-1.5"
+              title="Launch Multi-Screen Quad Canvas"
+            >
+              <Layers className="w-3.5 h-3.5 text-amber-400" />
+              <span className="hidden sm:inline">Quad-View</span>
+            </button>
+          )}
+
+          {/* Favorite Button */}
+          <button
+            onClick={() => toggleFavorite(currentChannel.id)}
+            className={`p-2 rounded-xl border transition-all ${
+              isFav 
+                ? 'bg-red-500/15 text-red-400 border-red-500/30' 
+                : 'bg-white/5 text-zinc-400 border-white/10 hover:text-white'
+            }`}
+            title={isFav ? 'Remove Favorite' : 'Save Favorite'}
+          >
+            <Heart className={`w-4 h-4 ${isFav ? 'fill-current' : ''}`} />
+          </button>
+
+          {/* Close Cinema Mode */}
+          <button
+            onClick={onClose}
+            className="p-2 rounded-xl bg-white/5 hover:bg-red-500/20 text-zinc-400 hover:text-red-400 border border-white/10 transition-all ml-1"
+            title="Exit Cinema Mode (Esc)"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      </header>
+
+      {/* Main Player Canvas Area */}
+      <div className="flex-1 relative flex items-center justify-center bg-black overflow-hidden">
+        
+        {/* Left / Right Quick Channel Surfing Chevrons */}
+        <button
+          onClick={handlePrevChannel}
+          className="absolute left-4 top-1/2 -translate-y-1/2 z-30 p-3 rounded-full bg-black/50 hover:bg-blue-600/80 text-white backdrop-blur-md border border-white/10 opacity-40 hover:opacity-100 transition-all cursor-pointer"
+          title="Previous Channel (↑)"
+        >
+          <ChevronLeft className="w-6 h-6" />
+        </button>
+
+        <button
+          onClick={handleNextChannel}
+          className="absolute right-4 top-1/2 -translate-y-1/2 z-30 p-3 rounded-full bg-black/50 hover:bg-blue-600/80 text-white backdrop-blur-md border border-white/10 opacity-40 hover:opacity-100 transition-all cursor-pointer"
+          title="Next Channel (↓)"
+        >
+          <ChevronRight className="w-6 h-6" />
+        </button>
+
+        {/* Video Player Core with Key/D-Pad Navigation */}
+        <div className="w-full h-full max-w-7xl max-h-[85vh] p-2 md:p-6 flex items-center justify-center">
+          <div className="w-full h-full rounded-2xl overflow-hidden shadow-2xl border border-white/10 bg-black relative">
+            <VideoPlayer
+              key={currentChannel.id}
+              streamUrl={currentChannel.url}
+              channelName={currentChannel.name}
+              groupTitle={currentChannel.group}
+              onNextChannel={handleNextChannel}
+              onPrevChannel={handlePrevChannel}
+              enableKeyboardNavigation={!showChannelDrawer}
+            />
+          </div>
+        </div>
+
+        {/* Slide-in Channel Guide Drawer */}
+        {showChannelDrawer && (
+          <aside className="absolute inset-y-0 right-0 w-80 md:w-96 bg-zinc-950/95 backdrop-blur-2xl border-l border-white/10 z-40 flex flex-col shadow-2xl animate-in slide-in-from-right duration-200">
+            {/* Drawer Header */}
+            <div className="p-4 border-b border-white/10 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Grid className="w-4 h-4 text-blue-400" />
+                <h3 className="text-sm font-bold text-white">Channel Lineup</h3>
+              </div>
+              <button
+                onClick={() => setShowChannelDrawer(false)}
+                className="p-1 rounded-lg text-zinc-400 hover:text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Filter Search */}
+            <div className="p-3 border-b border-white/5">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Quick search channels..."
+                  value={drawerSearch}
+                  onChange={(e) => setDrawerSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-1.5 bg-white/5 border border-white/10 rounded-xl text-xs text-white placeholder-zinc-500 outline-none focus:border-blue-500"
+                />
+              </div>
+
+              {/* Category pills */}
+              <div className="flex items-center gap-1.5 mt-2 overflow-x-auto pb-1 scrollbar-thin">
+                <button
+                  onClick={() => setSelectedGroup(null)}
+                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold whitespace-nowrap border ${
+                    !selectedGroup 
+                      ? 'bg-blue-600 text-white border-blue-500' 
+                      : 'bg-white/5 text-zinc-400 border-white/5'
+                  }`}
+                >
+                  All ({channels.length})
+                </button>
+                {uniqueGroups.map((g) => (
+                  <button
+                    key={g}
+                    onClick={() => setSelectedGroup(g)}
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold whitespace-nowrap border ${
+                      selectedGroup === g 
+                        ? 'bg-blue-600 text-white border-blue-500' 
+                        : 'bg-white/5 text-zinc-400 border-white/5'
+                    }`}
+                  >
+                    {g}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Scrollable Channel List */}
+            <div className="flex-1 overflow-y-auto p-2 divide-y divide-white/5 scrollbar-thin">
+              {filteredDrawerChannels.map((c, idx) => {
+                const isSelected = c.id === currentChannel.id;
+                return (
+                  <div
+                    key={c.id}
+                    onClick={() => {
+                      setCurrentChannel(c);
+                      setShowChannelDrawer(false);
+                    }}
+                    className={`flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all ${
+                      isSelected 
+                        ? 'bg-blue-600/20 border border-blue-500/40 text-white' 
+                        : 'hover:bg-white/5 text-zinc-300'
+                    }`}
+                  >
+                    <span className="text-[10px] font-mono text-zinc-500 w-5 text-right">{idx + 1}</span>
+                    <div className="w-8 h-8 rounded-lg bg-black/50 border border-white/10 flex items-center justify-center p-1 flex-shrink-0">
+                      <img
+                        src={c.logo || 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=80&auto=format&fit=crop&q=60'}
+                        alt={c.name}
+                        className="w-full h-full object-contain"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=80&auto=format&fit=crop&q=60';
+                        }}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-xs font-bold truncate">{c.name}</h4>
+                      <span className="text-[9px] uppercase tracking-wider text-zinc-500 font-semibold">{c.group}</span>
+                    </div>
+                    {isSelected && (
+                      <span className="text-[9px] text-blue-400 font-bold px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/20">
+                        NOW
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </aside>
+        )}
+      </div>
+
+      {/* Bottom Status Bar */}
+      <footer className="h-10 px-6 bg-zinc-950 border-t border-white/5 flex items-center justify-between text-[11px] text-zinc-500 z-20">
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1 text-emerald-400 font-bold">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            Dual-Engine MSE Engine Active
+          </span>
+          <span className="hidden sm:inline">•</span>
+          <span className="hidden sm:inline text-zinc-400">
+            Auto CORS / Mixed-Content Relay Armed
+          </span>
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="hidden md:inline">
+            Shortcuts: <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">Space</kbd> Pause • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">F</kbd> Fullscreen • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">P</kbd> PiP • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">E</kbd> Guide
+          </span>
+          <span className="text-blue-400 font-mono text-[10px] font-bold">10-FOOT LEANBACK TV READY</span>
+        </div>
+      </footer>
+    </div>
+  );
+}

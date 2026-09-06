@@ -1,14 +1,20 @@
 import * as React from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { simRouter } from '../shims/expo-router';
-import { Search, Play, Heart, Tv, Grid, List } from 'lucide-react';
+import { Search, Play, Heart, Tv, Grid, List, Maximize2, Smartphone } from 'lucide-react';
 import { Channel } from '../types/iptv';
+import WebCinemaPlayer from './WebCinemaPlayer';
 
-export default function DesktopChannels() {
+interface DesktopChannelsProps {
+  onSwitchToMultiScreen?: () => void;
+}
+
+export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChannelsProps = {}) {
   const { channels, groups, favorites, toggleFavorite } = usePlayerStore();
   const [searchQuery, setSearchQuery] = React.useState('');
   const [selectedGroup, setSelectedGroup] = React.useState<string | null>(null);
   const [viewMode, setViewMode] = React.useState<'grid' | 'list'>('grid');
+  const [cinemaChannel, setCinemaChannel] = React.useState<Channel | null>(null);
 
   // Filter channels based on group and search term
   const filteredChannels = React.useMemo(() => {
@@ -28,6 +34,10 @@ export default function DesktopChannels() {
   const handlePlayInSimulator = (channel: Channel) => {
     // Navigate simulator to the player screen
     simRouter.push(`/player/${channel.id}`);
+  };
+
+  const handleOpenCinema = (channel: Channel) => {
+    setCinemaChannel(channel);
   };
 
   return (
@@ -154,7 +164,7 @@ export default function DesktopChannels() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <button
                     onClick={() => toggleFavorite(c.id)}
                     className={`p-2 rounded-xl border transition-all ${
@@ -166,12 +176,24 @@ export default function DesktopChannels() {
                   >
                     <Heart className={`w-4 h-4 ${isFav ? 'fill-current' : ''}`} />
                   </button>
+
+                  {/* Watch in Web Cinema Player (Theater Mode) */}
+                  <button
+                    onClick={() => handleOpenCinema(c)}
+                    className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20 text-xs font-bold transition-all cursor-pointer"
+                    title="Watch in Full Web Cinema Player"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-current" />
+                    <span>Watch</span>
+                  </button>
+
+                  {/* Simulator option */}
                   <button
                     onClick={() => handlePlayInSimulator(c)}
-                    className="p-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/15 hover:shadow-blue-500/25 transition-all"
-                    title="Play on Phone Simulator"
+                    className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/10 transition-all"
+                    title="Preview on Phone Simulator Frame"
                   >
-                    <Play className="w-4 h-4 fill-current" />
+                    <Smartphone className="w-4 h-4" />
                   </button>
                 </div>
               </div>
@@ -212,7 +234,7 @@ export default function DesktopChannels() {
                   </span>
                 </div>
 
-                <div className="col-span-3 md:col-span-2 flex items-center justify-end gap-2">
+                <div className="col-span-3 md:col-span-2 flex items-center justify-end gap-1.5">
                   <button
                     onClick={() => toggleFavorite(c.id)}
                     className={`p-1.5 rounded-lg border transition-all ${
@@ -223,17 +245,37 @@ export default function DesktopChannels() {
                   >
                     <Heart className={`w-3.5 h-3.5 ${isFav ? 'fill-current' : ''}`} />
                   </button>
+
+                  <button
+                    onClick={() => handleOpenCinema(c)}
+                    className="px-2 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white shadow-lg text-[11px] font-bold transition-all flex items-center gap-1"
+                    title="Watch in Web Cinema Player"
+                  >
+                    <Play className="w-3 h-3 fill-current" />
+                    <span>Watch</span>
+                  </button>
+
                   <button
                     onClick={() => handlePlayInSimulator(c)}
-                    className="p-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white shadow-lg transition-all"
+                    className="p-1 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/10 transition-all"
+                    title="Play in Phone Simulator"
                   >
-                    <Play className="w-3.5 h-3.5 fill-current" />
+                    <Smartphone className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
             );
           })}
         </div>
+      )}
+
+      {/* Web Cinema / TV Mode Fullscreen Overlay */}
+      {cinemaChannel && (
+        <WebCinemaPlayer
+          initialChannel={cinemaChannel}
+          onClose={() => setCinemaChannel(null)}
+          onSwitchToMultiScreen={onSwitchToMultiScreen}
+        />
       )}
     </div>
   );

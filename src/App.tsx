@@ -254,7 +254,7 @@ export default function App() {
   const renderActiveSection = () => {
     switch (activeMenu) {
       case 'channels':
-        return <DesktopChannels />;
+        return <DesktopChannels onSwitchToMultiScreen={() => setActiveMenu('multiscreen')} />;
       case 'multiscreen':
         return <MultiScreenMatrix />;
       case 'favorites':

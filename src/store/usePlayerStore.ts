@@ -89,7 +89,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
       // when CORS issues occur in browser or URL fails
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout for mobile bandwidth
+        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
         
         const response = await fetch(url, { signal: controller.signal });
         clearTimeout(timeoutId);
@@ -100,10 +100,20 @@ export const usePlayerStore = create<AppState>((set, get) => ({
           throw new Error(`Playlist server returned status ${response.status}`);
         }
       } catch (e: any) {
-        console.warn('Network fetch aborted or blocked by browser CORS restrictions. Using local high-fidelity fallback playlist.', e);
-        // Fallback to our hardcoded list so player is active immediately
-        m3uText = FALLBACK_PLAYLIST;
-        set({ error: 'CORS or Network issue prevented fetching URL. Loaded 9 pre-vetted free CORS channels.' });
+        console.warn('Direct fetch failed or blocked by CORS. Attempting backend stream relay proxy...', e);
+        try {
+          const proxyUrl = `/api/stream/proxy?url=${encodeURIComponent(url)}`;
+          const proxyResp = await fetch(proxyUrl);
+          if (proxyResp.ok) {
+            m3uText = await proxyResp.text();
+          } else {
+            throw new Error(`Proxy status ${proxyResp.status}`);
+          }
+        } catch (proxyErr: any) {
+          console.warn('Proxy relay also unreachable, using local fallback playlist.', proxyErr);
+          m3uText = FALLBACK_PLAYLIST;
+          set({ error: 'CORS or Network issue prevented fetching URL. Loaded 9 pre-vetted standby channels.' });
+        }
       }
 
       // Parse the resulting text resiliently using the custom parser
