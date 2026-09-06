@@ -78,9 +78,55 @@ app.get('/api/health', (req, res) => {
 app.get('/api/public/pricing', (req, res) => {
   res.json({
     plans: [
-      { id: 'free', name: 'Free Tier', price: 0, features: ['1 Playlist upload', 'EPG test feeds', 'Basic player simulator'] },
-      { id: 'pro', name: 'Pro Tier', price: 9.99, stripePriceId: 'price_pro_subscription', features: ['Unlimited uploads', 'Auto-clean duplicates', 'Channel validator', 'Full offline support'] },
-      { id: 'builder', name: 'App Builder Tier', price: 29.99, stripePriceId: 'price_builder_subscription', features: ['Everything in Pro', 'Custom branding configuration', 'Expo mobile compilation export', 'Personalized IPTV android/iOS launcher APKs'] }
+      {
+        id: 'free',
+        name: 'Free',
+        price: 0,
+        priceMonthly: 0,
+        priceYearly: 0,
+        description: 'Perfect for exploring, validating, and parsing individual stream links.',
+        features: [
+          '1 M3U playlist upload & parser',
+          'Web TV stream preview simulator',
+          'Sample public IPTV channels',
+          'Standard latency buffer settings',
+          'Local M3U export & download'
+        ]
+      },
+      {
+        id: 'pro',
+        name: 'Pro Streamer',
+        price: 9.99,
+        priceMonthly: 9.99,
+        priceYearly: 7.99,
+        stripePriceId: 'price_pro_subscription',
+        description: 'Host, synchronize, and auto-clean live stream feeds.',
+        features: [
+          'Everything in Free tier',
+          'Up to 10 active playlists & 5 hosted remote URLs',
+          'Automated Stream Health Prober & dead link pruning',
+          '20 daily automated stream cleanups',
+          'Integrated live EPG (XMLTV) auto-feed',
+          'Fast global CDN caching & sync links'
+        ]
+      },
+      {
+        id: 'builder',
+        name: 'App Builder Suite',
+        price: 29.99,
+        priceMonthly: 29.99,
+        priceYearly: 23.99,
+        stripePriceId: 'price_builder_subscription',
+        description: 'Launch and distribute white-label Android apps with remote OTA engine.',
+        features: [
+          'Everything in Pro tier',
+          '10 cloud-compiled APK builds / mo (EAS)',
+          'Dynamic Remote OTA App Engine (no reinstall needed)',
+          '100% white-label branding & custom logos',
+          'Direct APK downloads & install QR codes',
+          'Dedicated developer support & SLA'
+        ]
+      }
     ]
   });
 });

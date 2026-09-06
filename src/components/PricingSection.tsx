@@ -19,15 +19,15 @@ export default function PricingSection({
     {
       id: 'free',
       name: 'Free',
-      description: 'Perfect for exploring and parsing individual stream links.',
+      description: 'Perfect for exploring, validating, and parsing individual stream links.',
       priceMonthly: 0,
       priceYearly: 0,
       features: [
-        'M3U stream upload & parsing',
-        'Cleaned M3U download files',
-        '1 stream cleanup per day',
-        'Standard player latency configuration',
-        'Community forum support'
+        '1 M3U playlist upload & parser',
+        'Web TV stream preview simulator',
+        'Sample public IPTV channels',
+        'Standard latency buffer settings',
+        'Local M3U export & download'
       ],
       cta: 'Get Started Free',
       icon: Zap,
@@ -38,16 +38,16 @@ export default function PricingSection({
     {
       id: 'pro',
       name: 'Pro Streamer',
-      description: 'Host, synchronize, and clean playlists automatically.',
-      priceMonthly: 2.99,
-      priceYearly: 1.99, // Billed as $23.88/yr
+      description: 'Host, synchronize, and auto-clean live stream feeds.',
+      priceMonthly: 9.99,
+      priceYearly: 7.99, // Billed as $95.88/yr (20% savings)
       features: [
         'Everything in Free tier',
-        'Premium CDN hosting & auto-sync link',
-        'Daily automatic stream cleanups',
-        'Integrated EPG XMLTV auto-feed',
-        'Optimized latency buffer settings',
-        'Priority email support (24h response)'
+        'Up to 10 active playlists & 5 hosted remote URLs',
+        'Automated Stream Health Prober & dead link pruning',
+        '20 daily automated stream cleanups',
+        'Integrated live EPG (XMLTV) auto-feed',
+        'Fast global CDN caching & sync links'
       ],
       cta: 'Upgrade to Pro',
       icon: Sparkles,
@@ -57,19 +57,19 @@ export default function PricingSection({
     },
     {
       id: 'builder',
-      name: 'App Builder',
-      description: 'Launch your own white-label white-glove Android app.',
-      priceMonthly: 19.99,
-      priceYearly: 14.99, // Billed as $179.88/yr
+      name: 'App Builder Suite',
+      description: 'Launch and distribute white-label Android apps with remote OTA engine.',
+      priceMonthly: 29.99,
+      priceYearly: 23.99, // Billed as $287.88/yr (20% savings)
       features: [
         'Everything in Pro tier',
-        '1 Custom branded Android APK compilation',
-        'Full brand customization suite',
-        'White-label assets and colors builder',
-        'No IPTV-Menu brand tags',
-        '24/7 dedicated Developer Support'
+        '10 cloud-compiled APK builds / mo (EAS)',
+        'Dynamic Remote OTA App Engine (no reinstall needed)',
+        '100% white-label branding & custom logos',
+        'Direct APK downloads & install QR codes',
+        'Dedicated developer support & SLA'
       ],
-      cta: 'Start Building Now',
+      cta: 'Start Building Apps',
       icon: Crown,
       accent: 'amber',
       onSelect: onSelectBuilder,
@@ -93,13 +93,13 @@ export default function PricingSection({
       {/* Header Info */}
       <div className="relative z-10 text-center max-w-2xl flex flex-col gap-3.5 mb-8">
         <span className="text-[10px] font-extrabold uppercase tracking-widest text-blue-400 bg-blue-500/10 border border-blue-500/20 px-3 py-1 rounded-full w-fit mx-auto shadow-[0_0_15px_rgba(59,130,246,0.1)]">
-          Simple Pricing
+          Simple & Transparent Pricing
         </span>
         <h3 className="text-xl sm:text-3xl font-black text-white tracking-tight leading-tight">
-          Flexible Plans for Streams and Custom Brands
+          Flexible Plans for Streamers, Curators & App Publishers
         </h3>
         <p className="text-xs sm:text-sm text-zinc-400 font-semibold leading-relaxed">
-          Select a standard caching plan or unlock standalone custom Android APK compiler tools.
+          Choose the right plan to clean, synchronize, and deploy live IPTV streams or build full white-label Android APKs.
         </p>
       </div>
 
@@ -123,7 +123,7 @@ export default function PricingSection({
         >
           Yearly
           <span className="text-[8px] bg-emerald-500/15 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20 font-black">
-            SAVE 30%
+            SAVE 20%
           </span>
         </button>
       </div>

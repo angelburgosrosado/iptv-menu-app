@@ -116,10 +116,10 @@ export default function DesktopPremium({ onTriggerAuth }: DesktopPremiumProps) {
 
             <div className="border-t border-white/5 pt-4 flex flex-col gap-2.5">
               {[
-                "Access to public fallback feeds",
-                "Basic client M3U parser tool",
-                "Up to 2 favorites streams saved",
-                "Default 3.0s pre-fetch buffer"
+                "1 active M3U playlist upload & parser",
+                "Web TV stream preview simulator",
+                "Sample public IPTV feeds",
+                "Standard latency buffer settings"
               ].map((f, idx) => (
                 <div key={idx} className="flex items-start gap-2.5 text-xs text-zinc-400">
                   <Check className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0 mt-0.5" />
@@ -151,24 +151,24 @@ export default function DesktopPremium({ onTriggerAuth }: DesktopPremiumProps) {
               Pro Streamer Suite
             </h3>
             <p className="text-xs text-zinc-400 mt-1 leading-snug">
-              Excellent for active entertainment buffs wanting premium features.
+              Excellent for active entertainment buffs wanting premium features and hosted links.
             </p>
 
             <div className="my-5 flex items-baseline gap-1">
               <span className="text-3xl font-black text-white">
-                ${(8.99 * discountFactor).toFixed(2)}
+                ${(9.99 * discountFactor).toFixed(2)}
               </span>
               <span className="text-xs text-zinc-500 font-semibold">/month</span>
             </div>
 
             <div className="border-t border-white/5 pt-4 flex flex-col gap-2.5">
               {[
-                "Infinite custom M3U playlist URLs",
-                "Full high-fidelity Electronic Program Guide",
-                "Unlimited favorites & custom categories",
-                "Custom 1.5s ultra-low latency buffer",
-                "Cross-device mobile sandbox cloud-sync",
-                "High performance list caching"
+                "Up to 10 active playlists & 5 hosted remote URLs",
+                "Automated Stream Health Prober & dead link pruning",
+                "20 daily automated stream cleanups",
+                "Full live EPG (XMLTV) program guide auto-feed",
+                "Ultra-low latency buffer optimization (1.5s)",
+                "Priority CDN synchronization links"
               ].map((f, idx) => (
                 <div key={idx} className="flex items-start gap-2.5 text-xs text-zinc-300">
                   <Check className="w-3.5 h-3.5 text-blue-400 flex-shrink-0 mt-0.5" />
@@ -179,7 +179,7 @@ export default function DesktopPremium({ onTriggerAuth }: DesktopPremiumProps) {
           </div>
 
           <button
-            onClick={() => handleCheckout("Pro Streamer Suite", "price_pro_tier")}
+            onClick={() => handleCheckout("Pro Streamer Suite", "price_pro_subscription")}
             disabled={isProcessing}
             className="w-full flex justify-center items-center gap-2 py-2.5 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-extrabold mt-6 shadow-lg shadow-blue-500/20 hover:shadow-blue-500/35 transition-all text-center disabled:opacity-50"
           >
@@ -187,32 +187,32 @@ export default function DesktopPremium({ onTriggerAuth }: DesktopPremiumProps) {
           </button>
         </div>
 
-        {/* Tier 3: Broadcast Developer Enterprise */}
+        {/* Tier 3: Broadcast Developer Enterprise / App Builder Suite */}
         <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-6 flex flex-col justify-between hover:border-white/10 transition-all">
           <div>
             <span className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest block mb-1">
               COMMERCIAL / B2B BUILD
             </span>
-            <h3 className="text-base font-bold text-zinc-200">Global Broadcast</h3>
+            <h3 className="text-base font-bold text-zinc-200">App Builder Suite</h3>
             <p className="text-xs text-zinc-500 mt-1 leading-snug">
-              Perfect for white-label app distributors and IPTV server hosters.
+              Perfect for white-label app distributors, IPTV curators, and custom broadcasters.
             </p>
 
             <div className="my-5 flex items-baseline gap-1">
               <span className="text-3xl font-black text-white">
-                ${(19.99 * discountFactor).toFixed(2)}
+                ${(29.99 * discountFactor).toFixed(2)}
               </span>
               <span className="text-xs text-zinc-500 font-semibold">/month</span>
             </div>
 
             <div className="border-t border-white/5 pt-4 flex flex-col gap-2.5">
               {[
-                "Everything included in Pro Streamer",
-                "White-label mobile app binary builder",
-                "Custom web proxy access for CORS bypass",
-                "Full audio description & closed caption codecs",
-                "24/7 dedicated server SLA monitoring",
-                "API developer webhooks endpoints"
+                "Everything included in Pro Streamer Suite",
+                "10 cloud-compiled Android APK builds/month (EAS)",
+                "Dynamic Remote OTA App Engine (live config/theme updates)",
+                "100% white-label branding & custom app launcher assets",
+                "Direct APK downloads & scan-to-install QR codes",
+                "Dedicated developer support & SLA"
               ].map((f, idx) => (
                 <div key={idx} className="flex items-start gap-2.5 text-xs text-zinc-400">
                   <Check className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0 mt-0.5" />
@@ -223,11 +223,11 @@ export default function DesktopPremium({ onTriggerAuth }: DesktopPremiumProps) {
           </div>
 
           <button
-            onClick={() => handleCheckout("Global Broadcast Suite", "price_enterprise_tier")}
+            onClick={() => handleCheckout("App Builder Suite", "price_builder_subscription")}
             disabled={isProcessing}
             className="w-full flex justify-center items-center gap-2 py-2.5 px-4 rounded-xl bg-white/5 hover:bg-white/10 text-white text-xs font-bold mt-6 transition-all border border-white/10 text-center disabled:opacity-50"
           >
-             {isProcessing && selectedPlan === "Global Broadcast Suite" ? <Loader className="w-4 h-4 animate-spin" /> : "Purchase License"}
+             {isProcessing && selectedPlan === "App Builder Suite" ? <Loader className="w-4 h-4 animate-spin" /> : "Purchase Builder License"}
           </button>
         </div>
 
