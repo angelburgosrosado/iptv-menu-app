@@ -95,7 +95,7 @@ export function checkWorkspaceQuota(key: keyof Workspace['entitlements']) {
     if (typeof entitlementValue === 'boolean') {
       if (!entitlementValue) {
         return res.status(403).json({ 
-          error: `Upgrade required: Feature [${key}] is not enabled on the ${workspace.plan} plan.` 
+          error: `Upgrade required: Feature [${String(key)}] is not enabled on the ${workspace.plan} plan.` 
         });
       }
       return next();
@@ -117,7 +117,7 @@ export function checkWorkspaceQuota(key: keyof Workspace['entitlements']) {
 
       if (currentUsage >= entitlementValue) {
         return res.status(403).json({ 
-          error: `Quota exceeded: Limit for [${key}] is ${entitlementValue}. Current usage: ${currentUsage}. Please upgrade your plan.` 
+          error: `Quota exceeded: Limit for [${String(key)}] is ${entitlementValue}. Current usage: ${currentUsage}. Please upgrade your plan.` 
         });
       }
     }
