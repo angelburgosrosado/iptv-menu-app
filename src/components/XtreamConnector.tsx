@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { authenticateXtreamCodes, generateXtreamChannelList, XtreamStreamItem } from '../utils/xtreamClient';
+import { PageProtocolHeader } from './PageProtocolHeader';
 
 export default function XtreamConnector() {
   const [serverUrl, setServerUrl] = React.useState('http://line.iptv-service.tv:8080');
@@ -66,13 +67,13 @@ export default function XtreamConnector() {
           },
           {
             num: 2,
-            name: 'Sky Sports Premier League 4K',
+            name: 'CNN International World (H.265)',
             stream_type: 'live',
             stream_id: 1043,
-            stream_icon: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=120',
-            epg_channel_id: 'SKYPL.UK',
+            stream_icon: 'https://images.unsplash.com/photo-1585829365295-ab7cd400c167?w=120',
+            epg_channel_id: 'CNN.US',
             added: '1692000000',
-            category_id: '1',
+            category_id: '2',
             custom_sid: '',
             tv_archive: 1,
             direct_source: ''
@@ -118,19 +119,18 @@ export default function XtreamConnector() {
 
   return (
     <div className="bg-neutral-900/70 border border-neutral-800 rounded-2xl p-6 text-neutral-200">
-      <div className="flex items-center justify-between pb-4 border-b border-neutral-800/80 mb-6">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded text-[10px] font-mono uppercase font-semibold">
-              Native Protocol
-            </span>
-            <span className="text-xs text-neutral-400 font-mono">Xtream Codes v2.9 API</span>
-          </div>
-          <h2 className="text-xl font-bold text-white mt-1">Xtream Codes / Stalker Direct Connect</h2>
-          <p className="text-xs text-neutral-400">Authenticate using standard IPTV credentials to automatically ingest live TV, VOD, and Series.</p>
-        </div>
-        <Server className="w-8 h-8 text-emerald-400/80" />
-      </div>
+      {/* Protocol Architecture Header */}
+      <PageProtocolHeader
+        title="Xtream Codes / Stalker Direct Connect"
+        description="Direct client integration with Xtream Codes API v2.9 and Stalker Portal REST backends. Queries player_api.php endpoints to authenticate user sessions, stream live feeds, catalogue VOD items, and poll server concurrency quotas."
+        protocol="Xtream Codes API v2 & Stalker Portal"
+        schema="JSON REST Player API Schema (action=get_live_streams)"
+        rfcOrStandard="Xtream Codes v2.9.2 Protocol • JSON RPC"
+        layer="Middleware & Subscription Auth Layer"
+        supportedTags={['player_api.php', 'get_live_categories', 'get_live_streams', 'get_vod_streams', 'max_connections', 'exp_date']}
+        icon={Server}
+        badgeColor="emerald"
+      />
 
       <form onSubmit={handleConnect} className="space-y-4 max-w-xl">
         <div>

@@ -3,6 +3,7 @@ import { usePlayerStore } from '../store/usePlayerStore';
 import { simRouter } from '../shims/expo-router';
 import { CalendarRange, Play, Clock, Info, Tv } from 'lucide-react';
 import { Channel } from '../types/iptv';
+import { PageProtocolHeader } from './PageProtocolHeader';
 
 interface Show {
   title: string;
@@ -77,23 +78,23 @@ export default function DesktopEpg() {
 
   return (
     <div className="flex flex-col h-full gap-6">
-      {/* EPG Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-            <CalendarRange className="w-6 h-6 text-blue-500" />
-            Electronic Program Guide (EPG)
-          </h2>
-          <p className="text-xs text-zinc-400 mt-1">
-            Browse schedule matrices, find active on-air broadcasts, and sync with simulator playback.
-          </p>
+      {/* EPG Protocol & Schema Architecture Header */}
+      <PageProtocolHeader
+        title="Electronic Program Guide (EPG)"
+        description="Dual-layer schedule synchronization matrix combining licensed primary provider feeds with automated XMLTV fallback overlays. Schedules are cross-referenced with channel tvg-id tags according to XMLTV DTD and RFC 5545 specifications."
+        protocol="XMLTV DTD & RFC 5545 (iCalendar)"
+        schema="XMLTV Schema v0.6 & DVB-SI Event Information"
+        rfcOrStandard="XMLTV DTD 0.6 • DVB-SI EN 300 468"
+        layer="Metadata & Schedule Synchronization Layer"
+        supportedTags={['<tv>', '<channel id="">', '<programme start="" stop="">', '<title>', '<desc>', '<category>', 'tvg-id']}
+        icon={CalendarRange}
+        badgeColor="indigo"
+      >
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 rounded-full border border-emerald-500/20 text-[10px] text-emerald-400 font-bold uppercase tracking-wider">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          Dual-Layer Backbone Active
         </div>
-
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-green-500/10 rounded-full border border-green-500/10 text-[10px] text-green-400 font-bold uppercase tracking-wider w-fit self-start sm:self-auto">
-          <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
-          Simulated GMT Timetable Active
-        </div>
-      </div>
+      </PageProtocolHeader>
 
       {guideChannels.length === 0 ? (
         <div className="flex-1 min-h-[300px] flex flex-col items-center justify-center border border-dashed border-white/10 rounded-2xl bg-white/2 p-8">

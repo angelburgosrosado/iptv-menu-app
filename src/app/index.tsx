@@ -35,12 +35,14 @@ import {
   Crown,
   AlertCircle,
   Activity,
-  Trash2
+  Trash2,
+  Sparkles
 } from 'lucide-react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { ChannelCard } from '../components/ChannelCard';
 import { Channel } from '../types/iptv';
 import { parseM3U } from '../utils/m3uParser';
+import HomePage from '../components/HomePage';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -65,9 +67,9 @@ export default function HomeScreen() {
   const [showSettings, setShowSettings] = React.useState(false);
   const [inputUrl, setInputUrl] = React.useState(playlistUrl);
 
-  // --- PLAYLIST MANAGER INTEGRATION ---
-  // Tab selector inside simulated mobile view
-  const [activeTab, setActiveTab] = React.useState<'live' | 'playlist'>('live');
+  // --- PLAYLIST MANAGER & DEV SUITE INTEGRATION ---
+  // Tab selector inside simulated mobile view: 'suite' (default), 'live', or 'playlist'
+  const [activeTab, setActiveTab] = React.useState<'suite' | 'live' | 'playlist'>('suite');
 
   // Local drag-and-drop & parsing states
   const [dragActive, setDragActive] = React.useState(false);
@@ -379,13 +381,15 @@ export default function HomeScreen() {
       {/* 1. Header Toolbar */}
       <View style={styles.header}>
         <View style={styles.headerTitleArea}>
-          {activeTab === 'live' ? (
+          {activeTab === 'suite' ? (
+            <Sparkles size={22} color="#56d6c2" style={styles.headerIcon} />
+          ) : activeTab === 'live' ? (
             <Compass size={24} color="#3b82f6" style={styles.headerIcon} />
           ) : (
             <UploadCloud size={24} color="#3b82f6" style={styles.headerIcon} />
           )}
           <Text style={styles.headerMainTitle}>
-            {activeTab === 'live' ? 'Live IPTV' : 'Playlist Manager'}
+            {activeTab === 'suite' ? 'IPTV Suite' : activeTab === 'live' ? 'Live IPTV' : 'Playlist Manager'}
           </Text>
         </View>
         
@@ -442,7 +446,11 @@ export default function HomeScreen() {
         </View>
       )}
 
-      {activeTab === 'live' ? (
+      {activeTab === 'suite' ? (
+        <View style={{ flex: 1 }}>
+          <HomePage />
+        </View>
+      ) : activeTab === 'live' ? (
         <>
           {/* 4. Search Bar */}
           <View style={styles.searchBarContainer}>
@@ -1051,6 +1059,17 @@ export default function HomeScreen() {
 
       {/* Bottom Simulated Mobile Navigation Bar */}
       <View style={styles.bottomTabBar}>
+        <TouchableOpacity
+          onPress={() => setActiveTab('suite')}
+          style={[styles.bottomTabButton, activeTab === 'suite' && styles.bottomTabButtonActive]}
+          activeOpacity={0.7}
+        >
+          <Sparkles size={18} color={activeTab === 'suite' ? '#56d6c2' : '#64748b'} />
+          <Text style={[styles.bottomTabText, activeTab === 'suite' && { color: '#56d6c2', fontWeight: 'bold' }]}>
+            Dev Suite
+          </Text>
+        </TouchableOpacity>
+
         <TouchableOpacity
           onPress={() => setActiveTab('live')}
           style={[styles.bottomTabButton, activeTab === 'live' && styles.bottomTabButtonActive]}

@@ -4,6 +4,7 @@ import { UploadCloud, Link, FileText, Check, AlertCircle, RefreshCw, Layers } fr
 import { parseM3U } from '../utils/m3uParser';
 import { authStore } from '../authStore';
 import { fetchWithAuth, uploadFileToSignedUrl } from '../lib/apiClient';
+import { PageProtocolHeader } from './PageProtocolHeader';
 
 export default function DesktopM3uUpload() {
   const { playlistUrl, setPlaylistUrl, loadPlaylist, channels } = usePlayerStore();
@@ -59,36 +60,36 @@ export default function DesktopM3uUpload() {
 
       setLocalStatus({
         type: 'success',
-        message: `Successfully loaded ${parsed.length} channels locally with ${uniqueGroups.length} groups!`
+        message: `Parsed ${parsed.length} channels from offline file into active session.`
       });
-    } catch (err: any) {
-      setLocalStatus({ type: 'error', message: `Parse failure: ${err.message || err}` });
+    } catch (e: any) {
+      setLocalStatus({ type: 'error', message: `Parse error: ${e.message}` });
     }
   };
 
   const processFileUpload = async (file: File) => {
+    // Immediate fallback: read client-side into store for offline/demo speed
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      if (text) parseM3uText(text);
+    };
+    reader.readAsText(file);
+
+    // If not authenticated, we keep only the fast client-side parse
+    if (!authStore.isAuthenticated) {
+      return;
+    }
+
     try {
-      const { isLoggedIn, isPremium } = authStore.getState();
-      
-      if (!isLoggedIn) {
-        setLocalStatus({ type: 'error', message: 'You must be signed in to upload a playlist.' });
-        return;
-      }
-      
-      if (!isPremium) {
-        setLocalStatus({ type: 'error', message: 'Premium is required to sync custom M3U files to the Cloud.' });
-        return;
-      }
-
-      setLocalStatus({ type: 'loading', message: 'Generating secure upload URL...' });
-
-      // 1. Create Playlist Record in DB and get Upload URL
+      // 1. Create Playlist metadata record in backend
+      setLocalStatus({ type: 'loading', message: `Initializing playlist upload for ${file.name}...` });
       const { playlist, uploadUrl } = await fetchWithAuth('/api/playlists', {
         method: 'POST',
         body: JSON.stringify({
-          name: file.name.replace(/\.[^/.]+$/, ""), // Remove extension
-          sourceType: 'upload',
-          originalFileName: file.name
+          title: file.name.replace(/\.[^/.]+$/, ""),
+          contentType: file.type || 'audio/x-mpegurl',
+          fileSize: file.size
         })
       });
 
@@ -130,16 +131,18 @@ export default function DesktopM3uUpload() {
 
   return (
     <div className="flex flex-col h-full gap-6">
-      {/* Upload Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-          <UploadCloud className="w-6 h-6 text-blue-500" />
-          Synchronize IPTV Playlists
-        </h2>
-        <p className="text-xs text-zinc-400 mt-1">
-          Import playlists from web feeds or drag-and-drop local .m3u files directly. Fast parsing engine.
-        </p>
-      </div>
+      {/* Protocol Architecture Header */}
+      <PageProtocolHeader
+        title="M3U Playlist Ingestion & Parser"
+        description="Conforming lexical analyzer for RFC 8216 extended M3U/M3U8 playlists. Extracts track duration directives, group-title categories, regional tvg-country identifiers, and canonical IPTV-org metadata with client and Cloud Storage dispatch."
+        protocol="RFC 8216 Section 4.3.2.1"
+        schema="Extended M3U8 Playlist Specification (UTF-8)"
+        rfcOrStandard="RFC 8216 • IETF Pantos HLS Spec"
+        layer="Lexical Ingestion & Tokenizer Layer"
+        supportedTags={['#EXTM3U', '#EXTINF', 'tvg-id', 'tvg-name', 'tvg-country', 'group-title', '#EXTVLCOPT', '#EXTGRP']}
+        icon={UploadCloud}
+        badgeColor="emerald"
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         

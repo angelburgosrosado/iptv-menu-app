@@ -92,14 +92,22 @@ export default function PricingSection({
 
       {/* Header Info */}
       <div className="relative z-10 text-center max-w-2xl flex flex-col gap-3.5 mb-8">
-        <span className="text-[10px] font-extrabold uppercase tracking-widest text-blue-400 bg-blue-500/10 border border-blue-500/20 px-3 py-1 rounded-full w-fit mx-auto shadow-[0_0_15px_rgba(59,130,246,0.1)]">
-          Simple & Transparent Pricing
-        </span>
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <span className="text-[10px] font-extrabold uppercase tracking-widest text-blue-400 bg-blue-500/10 border border-blue-500/20 px-3 py-1 rounded-full shadow-[0_0_15px_rgba(59,130,246,0.1)]">
+            Simple & Transparent Pricing
+          </span>
+          <span className="text-[10px] font-mono text-zinc-400 bg-white/5 border border-white/10 px-2.5 py-1 rounded-full">
+            Protocol: Stripe Billing API v1 (PCI DSS Level 1)
+          </span>
+          <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full">
+            Schema: SaaS Entitlement Lifecycle
+          </span>
+        </div>
         <h3 className="text-xl sm:text-3xl font-black text-white tracking-tight leading-tight">
           Flexible Plans for Streamers, Curators & App Publishers
         </h3>
         <p className="text-xs sm:text-sm text-zinc-400 font-semibold leading-relaxed">
-          Choose the right plan to clean, synchronize, and deploy live IPTV streams or build full white-label Android APKs.
+          Choose the right plan to clean, synchronize, and deploy live IPTV streams or build full white-label Android APKs with over-the-air (OTA) updates.
         </p>
       </div>
 

@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { Channel } from '../types/iptv';
 import { usePlayerStore } from '../store/usePlayerStore';
+import { PageProtocolHeader } from './PageProtocolHeader';
 
 export default function MultiScreenMatrix() {
   const { channels } = usePlayerStore();
@@ -57,24 +58,23 @@ export default function MultiScreenMatrix() {
 
   return (
     <div className="flex flex-col gap-5 p-6 bg-neutral-900/80 rounded-2xl border border-neutral-800 text-neutral-200">
-      {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-neutral-800 gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded text-[10px] font-mono uppercase font-semibold">
-              Quad-View Matrix
-            </span>
-            <span className="text-xs text-neutral-400 font-mono">Live Multi-Stream Hub</span>
-          </div>
-          <h2 className="text-xl font-bold text-white mt-1">Multi-Screen Monitoring Canvas</h2>
-          <p className="text-xs text-neutral-400">Stream up to 4 simultaneous live TV channels or office training feeds with independent audio switching.</p>
-        </div>
-
+      {/* Protocol Architecture Header */}
+      <PageProtocolHeader
+        title="Multi-Screen Monitoring Canvas"
+        description="Concurrent multi-feed media orchestration canvas running parallel HLS demuxing pipelines with hardware-accelerated decoding, independent audio routing, and seamless grid slot allocation."
+        protocol="SMPTE ST 2022-7 & RFC 8216 HLS"
+        schema="Multi-Program Transport Stream (MPTS) & W3C MSE"
+        rfcOrStandard="SMPTE ST 2022-7 • W3C Media Source Extensions"
+        layer="Demuxing & Concurrent Rendering Layer"
+        supportedTags={['MSE', 'HLS.js Demuxer', 'SMPTE 2022-7', 'Audio Arbiter', 'Quad Buffer']}
+        icon={LayoutGrid}
+        badgeColor="cyan"
+      >
         <div className="flex items-center gap-2">
           <button
             onClick={() => setActiveSlotCount(2)}
             className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-              activeSlotCount === 2 ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'bg-neutral-800 text-neutral-400 hover:text-white'
+              activeSlotCount === 2 ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-500/20' : 'bg-neutral-800 text-neutral-400 hover:text-white'
             }`}
           >
             Dual (2x1)
@@ -82,13 +82,13 @@ export default function MultiScreenMatrix() {
           <button
             onClick={() => setActiveSlotCount(4)}
             className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-              activeSlotCount === 4 ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/20' : 'bg-neutral-800 text-neutral-400 hover:text-white'
+              activeSlotCount === 4 ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-500/20' : 'bg-neutral-800 text-neutral-400 hover:text-white'
             }`}
           >
             Quad (2x2)
           </button>
         </div>
-      </div>
+      </PageProtocolHeader>
 
       {/* Multi-Grid Canvas */}
       <div className={`grid gap-4 ${activeSlotCount === 2 ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 md:grid-cols-2'}`}>

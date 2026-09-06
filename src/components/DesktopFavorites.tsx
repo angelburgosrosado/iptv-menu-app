@@ -3,6 +3,7 @@ import { usePlayerStore } from '../store/usePlayerStore';
 import { simRouter } from '../shims/expo-router';
 import { Heart, Play, Star, Sparkles } from 'lucide-react';
 import { Channel } from '../types/iptv';
+import { PageProtocolHeader } from './PageProtocolHeader';
 
 export default function DesktopFavorites() {
   const { channels, favorites, toggleFavorite } = usePlayerStore();
@@ -18,16 +19,18 @@ export default function DesktopFavorites() {
 
   return (
     <div className="flex flex-col h-full gap-6">
-      {/* Favorites Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-          <Heart className="w-6 h-6 text-red-500 fill-current" />
-          My Favorite Streams
-        </h2>
-        <p className="text-xs text-zinc-400 mt-1">
-          Quick-access portal for your bookmarked live channels. Instant simulation sync.
-        </p>
-      </div>
+      {/* Protocol Architecture Header */}
+      <PageProtocolHeader
+        title="Personal Favorites Ledger"
+        description="Client-side stream bookmark curation ledger. Caches favorited stream channels with instant zero-latency lookups, tvg-id key correlation, and direct playback dispatch."
+        protocol="Client Personalization & Bookmark Protocol"
+        schema="User Favorites Cache Schema (favorites: string[])"
+        rfcOrStandard="W3C Storage • MMKV Binary Store"
+        layer="Client Presentation & Personalization Layer"
+        supportedTags={['user_favorites', 'tvg-id indexing', 'MMKV Cache', 'Instant Dispatch', 'Local State']}
+        icon={Heart}
+        badgeColor="purple"
+      />
 
       {favoriteChannels.length === 0 ? (
         <div className="flex-1 min-h-[350px] flex flex-col items-center justify-center border border-dashed border-white/10 rounded-2xl bg-white/2 p-8 text-center">

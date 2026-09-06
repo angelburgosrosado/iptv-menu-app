@@ -2,6 +2,7 @@ import * as React from 'react';
 import { Crown, Check, Sparkles, Zap, Award, Star, Loader } from 'lucide-react';
 import { useAuth } from '../authStore';
 import { fetchWithAuth } from '../lib/apiClient';
+import { PageProtocolHeader } from './PageProtocolHeader';
 
 interface DesktopPremiumProps {
   onTriggerAuth: () => void;
@@ -56,26 +57,25 @@ export default function DesktopPremium({ onTriggerAuth }: DesktopPremiumProps) {
 
   return (
     <div className="flex flex-col h-full gap-6 relative">
-      
-      {/* Premium Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-            <Crown className="w-6 h-6 text-amber-500 fill-current animate-pulse" />
-            IPTV Menu Premium Club
-          </h2>
-          <p className="text-xs text-zinc-400 mt-1">
-            Unlock absolute streaming power, deep EPG scheduling, global content syncing, and offline buffer caches.
-          </p>
-        </div>
-
+      {/* Premium Protocol Architecture Header */}
+      <PageProtocolHeader
+        title="Premium Club & Cloud Entitlements"
+        description="SaaS subscription and merchant billing management interface. Integrates Stripe Checkout session creation, automated webhook idempotency keys, and tenant entitlement unlocking for cloud builds and stream quotas."
+        protocol="Stripe Billing API v1 & SaaS Lifecycle Protocol"
+        schema="Stripe Checkout Session & Webhook Event Schema"
+        rfcOrStandard="PCI DSS Level 1 • ISO/IEC 27001 • TLS 1.3"
+        layer="Commercial & Entitlement Lifecycle Layer"
+        supportedTags={['Stripe Checkout v1', 'PCI-DSS', 'Webhook HMAC-SHA256', 'Customer Portal', 'Quota Entitlements']}
+        icon={Crown}
+        badgeColor="amber"
+      >
         {/* Monthly/Yearly toggle with 20% discount indicator */}
-        <div className="flex items-center gap-3 self-start md:self-auto">
+        <div className="flex items-center gap-3">
           <div className="flex bg-zinc-950/40 p-1 border border-white/10 rounded-xl">
             <button
               onClick={() => setBillingCycle('monthly')}
               className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
-                billingCycle === 'monthly' ? 'bg-blue-600 text-white' : 'text-zinc-500 hover:text-zinc-300'
+                billingCycle === 'monthly' ? 'bg-amber-600 text-white' : 'text-zinc-500 hover:text-zinc-300'
               }`}
             >
               Monthly
@@ -83,17 +83,17 @@ export default function DesktopPremium({ onTriggerAuth }: DesktopPremiumProps) {
             <button
               onClick={() => setBillingCycle('yearly')}
               className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1 ${
-                billingCycle === 'yearly' ? 'bg-blue-600 text-white' : 'text-zinc-500 hover:text-zinc-300'
+                billingCycle === 'yearly' ? 'bg-amber-600 text-white' : 'text-zinc-500 hover:text-zinc-300'
               }`}
             >
               Yearly
-              <span className="bg-amber-400/10 text-amber-400 text-[8px] font-extrabold px-1 py-0.5 rounded border border-amber-400/10">
+              <span className="bg-amber-400/20 text-amber-300 text-[8px] font-extrabold px-1 py-0.5 rounded border border-amber-400/20">
                 -20%
               </span>
             </button>
           </div>
         </div>
-      </div>
+      </PageProtocolHeader>
 
       {/* Pricing Matrices Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">

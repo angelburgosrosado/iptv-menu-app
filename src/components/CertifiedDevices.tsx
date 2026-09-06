@@ -20,6 +20,8 @@ import {
   Sparkles
 } from 'lucide-react';
 
+import { PageProtocolHeader } from './PageProtocolHeader';
+
 export type DeviceTier = 'all' | 'budget' | 'premium' | 'ultra';
 
 export interface DeviceInfo {
@@ -58,75 +60,75 @@ export default function CertifiedDevices() {
         ram: '3GB LPDDR4X',
         storage: '16GB (Expandable)',
         os: 'Android TV 11 (Shield Experience)',
-        video: '4K HDR10, Dolby Vision, 60 FPS'
+        video: '4K HDR, Dolby Vision, Dolby Atmos'
       },
       pros: [
-        'Unmatched AI upscaling of SD/HD streams',
-        'Direct hardware audio passthrough',
-        'Runs Tivimate & premium players with zero lag'
+        'Hardware deinterlacing for 1080i European satellite feeds',
+        'Gigabit Ethernet prevents buffer underrun spikes',
+        'Dolby TrueHD, DTS:X lossless audio pass-through'
       ],
-      amazonUrl: 'https://www.amazon.com/s?k=Nvidia+Shield+TV+Pro&tag=iptvmenu-20',
-      icon: Cpu,
-      accentColor: 'from-emerald-500/10 to-emerald-600/5'
+      amazonUrl: 'https://www.amazon.com/s?k=NVIDIA+Shield+TV+Pro&tag=iptvmenu-20',
+      icon: Tv,
+      accentColor: 'from-emerald-500/10 to-teal-600/5'
     },
     {
-      id: 'apple-tv-4k',
-      name: 'Apple TV 4K (3rd Gen)',
+      id: 'fire-tv-cube-3',
+      name: 'Amazon Fire TV Cube (3rd Gen)',
       tier: 'ultra',
-      performanceScore: '9.6/10',
-      compatibilityRating: '95% Compatibility. Ultra-premium performance, but requires iOS/tvOS-specific player apps.',
-      compatPercentage: 95,
+      performanceScore: '9.5/10',
+      compatibilityRating: '96% Native support. Octa-core CPU, AV1 video decoding, & Wi-Fi 6E connectivity.',
+      compatPercentage: 96,
       specs: {
-        processor: 'Apple A15 Bionic Chip',
-        ram: '4GB Unified',
-        storage: '64GB / 128GB',
-        os: 'tvOS 17+',
-        video: '4K HDR10+, Dolby Vision, 60 FPS'
+        processor: 'Octa-Core (4x 2.2GHz, 4x 2.0GHz)',
+        ram: '2GB LPDDR4X',
+        storage: '16GB Storage',
+        os: 'Fire OS 7 (Android 9/11 Base)',
+        video: '4K Ultra HD, Dolby Vision, HDR10+, AV1'
       },
       pros: [
-        'Blazing fast A15 Bionic loading speeds',
-        'Extremely fluid UI animations & frame-rate matching',
-        'Outstanding codec optimizations'
+        'AV1 Hardware Decoding for next-gen low-bandwidth streams',
+        'Super-resolution upscaling turns 720p feeds into sharp 4K',
+        'HDMI passthrough to connect legacy cable boxes'
       ],
-      amazonUrl: 'https://www.amazon.com/s?k=Apple+TV+4K&tag=iptvmenu-20',
-      icon: Layers,
+      amazonUrl: 'https://www.amazon.com/s?k=Amazon+Fire+TV+Cube+3rd+Gen&tag=iptvmenu-20',
+      icon: Cpu,
+      accentColor: 'from-blue-500/10 to-indigo-600/5'
+    },
+    {
+      id: 'fire-tv-stick-4k-max',
+      name: 'Amazon Fire TV Stick 4K Max',
+      tier: 'premium',
+      performanceScore: '9.1/10',
+      compatibilityRating: '94% Native support. Quad-core 2.0GHz CPU, Wi-Fi 6E, & 16GB internal memory.',
+      compatPercentage: 94,
+      specs: {
+        processor: 'Quad-core 2.0GHz',
+        ram: '2GB RAM',
+        storage: '16GB Storage',
+        os: 'Fire OS 8',
+        video: '4K Ultra HD, Dolby Vision, HDR10+'
+      },
+      pros: [
+        'High value to performance benchmark ratio',
+        'Wi-Fi 6E triband support for congested home routers',
+        'Ambient Experience and quick app switching'
+      ],
+      amazonUrl: 'https://www.amazon.com/s?k=Amazon+Fire+TV+Stick+4K+Max&tag=iptvmenu-20',
+      icon: HardDrive,
       accentColor: 'from-indigo-500/10 to-purple-600/5'
     },
     {
-      id: 'fire-tv-4k',
-      name: 'Amazon Fire TV Stick 4K Max',
+      id: 'chromecast-google-tv-4k',
+      name: 'Chromecast with Google TV (4K)',
       tier: 'premium',
       performanceScore: '8.9/10',
-      compatibilityRating: '92% Compatibility. Sideloading necessary for specific apps, but fully optimized H.265 decoding.',
+      compatibilityRating: '92% Native support. Official Google Play Store & Leanback launcher ecosystem.',
       compatPercentage: 92,
       specs: {
-        processor: 'Quad-core 2.0GHz MT8696',
-        ram: '2GB LPDDR4',
-        storage: '16GB Flash',
-        os: 'Fire OS 8',
-        video: '4K UHD, HDR10+, Dolby Vision, Wi-Fi 6E'
-      },
-      pros: [
-        'Excellent budget 4K hardware decoding specs',
-        'Support for modern AV1/HEVC stream codecs',
-        'Affordable and highly portable dongle'
-      ],
-      amazonUrl: 'https://www.amazon.com/s?k=Fire+TV+Stick+4K+Max&tag=iptvmenu-20',
-      icon: Tv,
-      accentColor: 'from-orange-500/10 to-amber-600/5'
-    },
-    {
-      id: 'chromecast-google-tv',
-      name: 'Chromecast with Google TV 4K',
-      tier: 'premium',
-      performanceScore: '8.7/10',
-      compatibilityRating: '90% Compatibility. Native Google Play Store support. Rare thermal slowing on high bitrates.',
-      compatPercentage: 90,
-      specs: {
-        processor: 'Amlogic S905D3 Quad-core',
+        processor: 'Amlogic S905X3 Quad-Core',
         ram: '2GB RAM',
         storage: '8GB Storage',
-        os: 'Google TV (Android 12)',
+        os: 'Google TV UI (Android TV 12)',
         video: '4K HDR10+, Dolby Vision, 60 FPS'
       },
       pros: [
@@ -170,21 +172,18 @@ export default function CertifiedDevices() {
   return (
     <div className="flex flex-col h-full gap-6">
       
-      {/* Header section with badge */}
-      <div className="flex flex-col gap-1.5 pb-5 border-b border-white/10">
-        <div className="flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-emerald-400" />
-          <span className="text-xs font-bold text-emerald-400 tracking-widest uppercase">
-            Verified Hardware Standard
-          </span>
-        </div>
-        <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-          Certified IPTV Streaming Devices
-        </h2>
-        <p className="text-xs text-zinc-400 mt-1">
-          Hand-tested hardware benchmarks specifically optimized for multi-connection M3U playlist buffering and 60FPS raw streams.
-        </p>
-      </div>
+      {/* Hardware Architecture Protocol Header */}
+      <PageProtocolHeader
+        title="Certified IPTV Streaming Hardware"
+        description="Hardware decoder certification directory and benchmark validation index. Profiles SoC chipsets, hardware buffer depth, Widevine DRM compliance, and Android TV Leanback compatibility for jitter-free multi-stream decoding."
+        protocol="Android TV Leanback & Widevine DRM"
+        schema="Android MediaCodec SoC Profile & CTA-2072 Standard"
+        rfcOrStandard="Google Cast v2 • CTA-2072 • ISO/IEC 23001-7"
+        layer="Hardware Abstraction & MediaCodec Layer"
+        supportedTags={['MediaCodec H.264/HEVC/AV1', 'Widevine L1/L3', 'ExoPlayer Tuner', 'Leanback UI', '4K 60FPS HDR']}
+        icon={ShieldCheck}
+        badgeColor="purple"
+      />
 
       {/* Filter Segmented Control Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-zinc-950/40 p-2 border border-white/5 rounded-2xl">

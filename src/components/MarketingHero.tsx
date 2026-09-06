@@ -35,19 +35,30 @@ export default function MarketingHero({
         />
       </div>
 
-      {/* Hero Badge */}
+      {/* Hero Badge & Protocol Standards Bar */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, delay: 0.1 }}
-        className="relative z-10 inline-flex items-center gap-1.5 px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full text-[10px] md:text-xs font-bold uppercase tracking-widest text-blue-400 select-none shadow-[0_0_15px_rgba(59,130,246,0.1)]"
+        className="relative z-10 flex flex-wrap items-center justify-center gap-2"
       >
-        <Sparkles className="w-3 h-3 text-blue-400 animate-pulse" />
-        IPTV Developer Suite
+        <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-500/10 border border-blue-500/20 rounded-full text-[10px] md:text-xs font-bold uppercase tracking-widest text-blue-400 select-none shadow-[0_0_15px_rgba(59,130,246,0.1)]">
+          <Sparkles className="w-3 h-3 text-blue-400 animate-pulse" />
+          IPTV Developer Suite v2.4
+        </div>
+        <span className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-zinc-300 font-mono text-[10px] md:text-xs font-semibold">
+          Protocol: RFC 8216 (HLS)
+        </span>
+        <span className="px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-mono text-[10px] md:text-xs font-semibold">
+          Schema: XMLTV DTD & IPTV-Org
+        </span>
+        <span className="px-2.5 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 font-mono text-[10px] md:text-xs font-semibold">
+          ISO-3166-1 Regional
+        </span>
       </motion.div>
 
       {/* Headline & Subtext */}
-      <div className="relative z-10 max-w-3xl flex flex-col gap-3 sm:gap-4">
+      <div className="relative z-10 max-w-4xl flex flex-col gap-3 sm:gap-4">
         <motion.h2
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
@@ -61,11 +72,67 @@ export default function MarketingHero({
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.3 }}
-          className="text-xs sm:text-sm md:text-base lg:text-lg text-zinc-400 font-medium max-w-2xl mx-auto leading-relaxed select-text"
+          className="text-xs sm:text-sm md:text-base lg:text-lg text-zinc-300 font-medium max-w-3xl mx-auto leading-relaxed select-text"
         >
-          Clean playlists. Branded apps. Live EPG. One platform.
+          Parse M3U playlists, enrich streams with canonical <strong className="text-white">IPTV-Org metadata</strong>, partition feeds by <strong className="text-white">ISO country sections</strong>, and layer licensed schedules over <strong className="text-white">XMLTV EPG backbones</strong> — all through a high-performance CORS proxy gateway.
         </motion.p>
       </div>
+
+      {/* Interactive Core Architecture Feature Grid */}
+      <motion.div
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, delay: 0.35 }}
+        className="relative z-10 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 w-full max-w-5xl my-2 text-left"
+      >
+        <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-blue-500/30 transition-all group">
+          <div className="text-[10px] font-mono text-blue-400 uppercase tracking-wider font-bold mb-1">
+            ISO-3166-1 Regional
+          </div>
+          <h4 className="text-sm font-bold text-white group-hover:text-blue-300 transition-colors">
+            Country Channel Sections
+          </h4>
+          <p className="text-xs text-zinc-400 mt-1 leading-normal">
+            Partition playlists by territory with quick-jump filters, region counts, and localized stream search.
+          </p>
+        </div>
+
+        <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-emerald-500/30 transition-all group">
+          <div className="text-[10px] font-mono text-emerald-400 uppercase tracking-wider font-bold mb-1">
+            IPTV-Org Schema v1.2
+          </div>
+          <h4 className="text-sm font-bold text-white group-hover:text-emerald-300 transition-colors">
+            Metadata Auto-Enrichment
+          </h4>
+          <p className="text-xs text-zinc-400 mt-1 leading-normal">
+            Dual-indexed lookup automatically maps stream URLs to canonical logos, official channel names, and categories.
+          </p>
+        </div>
+
+        <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-indigo-500/30 transition-all group">
+          <div className="text-[10px] font-mono text-indigo-400 uppercase tracking-wider font-bold mb-1">
+            XMLTV DTD & RFC 5545
+          </div>
+          <h4 className="text-sm font-bold text-white group-hover:text-indigo-300 transition-colors">
+            Dual-Layer EPG Backbone
+          </h4>
+          <p className="text-xs text-zinc-400 mt-1 leading-normal">
+            Licensed schedule authority sits primary, with public XMLTV feeds providing automated fallback coverage.
+          </p>
+        </div>
+
+        <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-amber-500/30 transition-all group">
+          <div className="text-[10px] font-mono text-amber-400 uppercase tracking-wider font-bold mb-1">
+            RFC 8216 Gateway
+          </div>
+          <h4 className="text-sm font-bold text-white group-hover:text-amber-300 transition-colors">
+            Universal Stream Relay
+          </h4>
+          <p className="text-xs text-zinc-400 mt-1 leading-normal">
+            Server-side M3U8 & TS chunk proxying with CORS shielding, AES key rewrites, and SSRF loopback protections.
+          </p>
+        </div>
+      </motion.div>
 
       {/* Three CTA Buttons */}
       <motion.div
@@ -124,50 +191,50 @@ export default function MarketingHero({
             }}
           >
             {/* Ticker Batch 1 */}
-            <div className="flex gap-16 items-center flex-shrink-0">
-              <span className="flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 px-3 py-1 rounded-full whitespace-nowrap">
+            <div className="flex gap-8 items-center flex-shrink-0">
+              <span className="flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 px-3 py-1 rounded-full whitespace-nowrap text-blue-400">
                 <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping" />
-                1,497+ Free Channels
+                RFC 8216 HLS Compliant
               </span>
-              <span className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full whitespace-nowrap">
+              <span className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full whitespace-nowrap text-emerald-400">
                 <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                60 FPS Streaming
+                XMLTV DTD EPG Backbone
               </span>
-              <span className="flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 px-3 py-1 rounded-full whitespace-nowrap">
+              <span className="flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 px-3 py-1 rounded-full whitespace-nowrap text-indigo-400">
                 <span className="w-2 h-2 rounded-full bg-indigo-400" />
-                M3U Auto-Clean
+                ISO-3166-1 Regional Sections
+              </span>
+              <span className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full whitespace-nowrap text-amber-400">
+                <span className="w-2 h-2 rounded-full bg-amber-400" />
+                IPTV-Org Canonical Metadata
+              </span>
+              <span className="flex items-center gap-2 bg-cyan-500/10 border border-cyan-500/20 px-3 py-1 rounded-full whitespace-nowrap text-cyan-400">
+                <span className="w-2 h-2 rounded-full bg-cyan-400" />
+                SMPTE ST 2022-7 Quad Matrix
               </span>
             </div>
             
             {/* Ticker Batch 2 */}
-            <div className="flex gap-16 items-center flex-shrink-0">
-              <span className="flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 px-3 py-1 rounded-full whitespace-nowrap">
+            <div className="flex gap-8 items-center flex-shrink-0">
+              <span className="flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 px-3 py-1 rounded-full whitespace-nowrap text-blue-400">
                 <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping" />
-                1,497+ Free Channels
+                RFC 8216 HLS Compliant
               </span>
-              <span className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full whitespace-nowrap">
+              <span className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full whitespace-nowrap text-emerald-400">
                 <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                60 FPS Streaming
+                XMLTV DTD EPG Backbone
               </span>
-              <span className="flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 px-3 py-1 rounded-full whitespace-nowrap">
+              <span className="flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 px-3 py-1 rounded-full whitespace-nowrap text-indigo-400">
                 <span className="w-2 h-2 rounded-full bg-indigo-400" />
-                M3U Auto-Clean
+                ISO-3166-1 Regional Sections
               </span>
-            </div>
-
-            {/* Ticker Batch 3 (To ensure perfect wrapping buffer) */}
-            <div className="flex gap-16 items-center flex-shrink-0">
-              <span className="flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 px-3 py-1 rounded-full whitespace-nowrap">
-                <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping" />
-                1,497+ Free Channels
+              <span className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full whitespace-nowrap text-amber-400">
+                <span className="w-2 h-2 rounded-full bg-amber-400" />
+                IPTV-Org Canonical Metadata
               </span>
-              <span className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full whitespace-nowrap">
-                <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                60 FPS Streaming
-              </span>
-              <span className="flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 px-3 py-1 rounded-full whitespace-nowrap">
-                <span className="w-2 h-2 rounded-full bg-indigo-400" />
-                M3U Auto-Clean
+              <span className="flex items-center gap-2 bg-cyan-500/10 border border-cyan-500/20 px-3 py-1 rounded-full whitespace-nowrap text-cyan-400">
+                <span className="w-2 h-2 rounded-full bg-cyan-400" />
+                SMPTE ST 2022-7 Quad Matrix
               </span>
             </div>
           </motion.div>

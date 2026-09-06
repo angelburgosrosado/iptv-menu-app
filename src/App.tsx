@@ -53,6 +53,7 @@ import PricingSection from './components/PricingSection';
 import CertifiedDevices from './components/CertifiedDevices';
 import AuthModal from './components/AuthModal';
 import WorkspaceSwitcher from './components/WorkspaceSwitcher';
+import { PageProtocolHeader } from './components/PageProtocolHeader';
 import { useAuth, authStore } from './authStore';
 import { fetchWithAuth } from './lib/apiClient';
 import {
@@ -279,23 +280,18 @@ export default function App() {
       default:
         return (
           <div className="flex flex-col h-full gap-4">
-            {/* Header Description with Subtab Switcher */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-white/10">
-              <div>
-                <div className="flex items-center gap-2 mb-1.5">
-                  <Sparkles className="w-4 h-4 text-blue-400" />
-                  <span className="text-xs font-bold text-blue-400 tracking-widest uppercase">
-                    Production Code Hub
-                  </span>
-                </div>
-                <h2 className="text-2xl font-bold text-white tracking-tight">
-                  Mobile IPTV Codebase Expo
-                </h2>
-                <p className="text-xs text-zinc-400 mt-1">
-                  Browse standard client-side modules or compile custom, white-label Android builds.
-                </p>
-              </div>
-
+            {/* Protocol Architecture Header with Subtab Switcher */}
+            <PageProtocolHeader
+              title="Mobile IPTV Codebase & Build Studio"
+              description="Open IPTV Interchange Specification (OIIS v2.4) developer environment and cloud compilation studio. Browse client runtime modules, inspect HLS parser shims, or configure custom white-label Android APK releases with OTA engine integration."
+              protocol="Open IPTV Interchange Spec (OIIS v2.4)"
+              schema="Expo Application Manifest Schema (app.json)"
+              rfcOrStandard="RFC 8216 • Expo SDK 51 • Android AAB"
+              layer="Application Framework & Cloud Compilation Layer"
+              supportedTags={['app.json', 'Expo SDK 51', 'EAS Build Cloud', 'Hermes Engine', 'Leanback Manifest', 'Fastlane OTA']}
+              icon={Sparkles}
+              badgeColor="blue"
+            >
               {/* Segmented Control Switcher */}
               <div className="flex bg-zinc-950/60 p-1 border border-white/5 rounded-xl self-start sm:self-center">
                 <button
@@ -320,7 +316,7 @@ export default function App() {
                   <span className="text-[8px] bg-amber-500/15 text-amber-400 px-1 py-0.5 rounded border border-amber-500/20 font-black animate-pulse">NEW</span>
                 </button>
               </div>
-            </div>
+            </PageProtocolHeader>
 
             {subTab === 'explorer' ? (
               <>

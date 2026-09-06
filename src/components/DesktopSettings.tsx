@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { Settings, Shield, HardDrive, Trash2, Cpu, Terminal, Play, RotateCcw } from 'lucide-react';
+import { PageProtocolHeader } from './PageProtocolHeader';
 
 export default function DesktopSettings() {
   const { clearHistory, clearCache } = usePlayerStore();
@@ -36,16 +37,18 @@ export default function DesktopSettings() {
 
   return (
     <div className="flex flex-col h-full gap-6">
-      {/* Settings Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-          <Settings className="w-6 h-6 text-zinc-400" />
-          Settings & Diagnostics
-        </h2>
-        <p className="text-xs text-zinc-400 mt-1">
-          Tune stream engines, clear storage indices, and monitor network logs.
-        </p>
-      </div>
+      {/* Settings Protocol Architecture Header */}
+      <PageProtocolHeader
+        title="Settings & Stream Pipeline Diagnostics"
+        description="Client configuration and pipeline diagnostic panel. Controls player buffer parameters, low-latency HLS tuning, MMKV binary storage state, and console telemetry logging."
+        protocol="W3C Web Storage & React Native MMKV Protocol"
+        schema="Client Key-Value Storage Schema & HLS Player Diagnostics"
+        rfcOrStandard="W3C Web Storage • RFC 8216 LL-HLS"
+        layer="Configuration & Local Persistence Layer"
+        supportedTags={['MMKV Binary Key-Store', 'HLS.js Buffer', 'LL-HLS Target Duration', 'Cache TTL', 'Diagnostic Console']}
+        icon={Settings}
+        badgeColor="indigo"
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         

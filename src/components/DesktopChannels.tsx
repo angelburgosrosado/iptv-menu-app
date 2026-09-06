@@ -5,6 +5,7 @@ import { Search, Play, Heart, Tv, Grid, List, Maximize2, Smartphone, Globe } fro
 import { Channel } from '../types/iptv';
 import WebCinemaPlayer from './WebCinemaPlayer';
 import CountryChannelSections from './CountryChannelSections';
+import { PageProtocolHeader } from './PageProtocolHeader';
 
 interface DesktopChannelsProps {
   onSwitchToMultiScreen?: () => void;
@@ -43,16 +44,58 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
 
   return (
     <div className="flex flex-col h-full gap-6">
-      {/* Directory Header with Quick Search */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Protocol & Specification Architecture Header */}
+      <PageProtocolHeader
+        title="Global IPTV Stream Catalog"
+        description="Real-time multi-resolution stream index and manifest catalog for live HLS feeds. Streams are parsed from M3U playlists, normalized with ISO-3166-1 regional tags, and dispatched to native players or low-latency Web Cinema playback."
+        protocol="RFC 8216 (HLS) & ISO-3166-1"
+        schema="Extended M3U & IPTV-Org Canonical v1.2"
+        rfcOrStandard="RFC 8216 §4.3.2 • ISO-3166-1 Alpha-2"
+        layer="Transport & Manifest Parsing Layer"
+        supportedTags={['#EXTM3U', '#EXTINF', 'tvg-id', 'tvg-name', 'tvg-country', 'group-title', 'tvg-logo']}
+        icon={Tv}
+        badgeColor="blue"
+      >
+        <div className="flex items-center gap-3">
+          <div className="flex items-center bg-white/5 border border-white/10 rounded-xl p-1">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`p-1.5 rounded-lg transition-colors ${
+                viewMode === 'grid' ? 'bg-blue-600 text-white' : 'text-zinc-400 hover:text-white'
+              }`}
+              title="Grid View"
+            >
+              <Grid className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`p-1.5 rounded-lg transition-colors ${
+                viewMode === 'list' ? 'bg-blue-600 text-white' : 'text-zinc-400 hover:text-white'
+              }`}
+              title="List View"
+            >
+              <List className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setViewMode('country')}
+              className={`p-1.5 rounded-lg transition-colors flex items-center gap-1 text-xs font-semibold ${
+                viewMode === 'country' ? 'bg-blue-600 text-white' : 'text-zinc-400 hover:text-white'
+              }`}
+              title="Country Sections View"
+            >
+              <Globe className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </PageProtocolHeader>
+
+      {/* Directory Search & Filter Subbar */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 -mt-2">
         <div>
-          <h2 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-            <Tv className="w-6 h-6 text-blue-500" />
-            Global IPTV Catalog
-          </h2>
-          <p className="text-xs text-zinc-400 mt-1">
-            Browse and query all channels parsed from M3U lists, with instant simulator controls.
-          </p>
+          <span className="text-xs text-zinc-400">
+            Showing <strong className="text-white">{filteredChannels.length}</strong> streams across{' '}
+            <strong className="text-white">{groups.length}</strong> categories
+          </span>
         </div>
 
         {/* View mode toggle + search */}

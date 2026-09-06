@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { fetchWithAuth } from '../lib/apiClient';
 import { authStore } from '../authStore';
+import { PageProtocolHeader } from './PageProtocolHeader';
 
 interface RemoteApp {
   appId: string;
@@ -278,23 +279,18 @@ export default function DesktopRemoteApps() {
 
   return (
     <div className="flex flex-col h-full gap-6 max-w-7xl mx-auto pb-12">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-white/10">
-        <div>
-          <div className="flex items-center gap-2 mb-1.5">
-            <Radio className="w-4 h-4 text-emerald-400 animate-pulse" />
-            <span className="text-xs font-bold text-emerald-400 tracking-widest uppercase">
-              Dynamic OTA Management
-            </span>
-          </div>
-          <h2 className="text-2xl font-bold text-white tracking-tight">
-            Remote App Configurations
-          </h2>
-          <p className="text-xs text-zinc-400 mt-1">
-            Push instant playlist, EPG, branding, and broadcast updates over-the-air to all installed Android APKs without recompilation.
-          </p>
-        </div>
-
+      {/* Dynamic OTA Protocol Architecture Header */}
+      <PageProtocolHeader
+        title="Remote App Configurations (OTA)"
+        description="Over-The-Air (OTA) fleet configuration hub. Provisions dynamic channel playlists, XMLTV schedule sources, brand identities, and emergency broadcast alerts across distributed Android TV and mobile builds without requiring client store updates."
+        protocol="Dynamic Remote OTA Configuration Protocol"
+        schema="Remote App Manifest JSON Schema & IETF RFC 7515"
+        rfcOrStandard="IETF RFC 7515 • RFC 8259 JSON"
+        layer="Control Plane & Fleet Provisioning Layer"
+        supportedTags={['appId', 'workspaceId', 'playlistUrl', 'epgUrl', 'theme.primaryColor', 'announcement', 'version', 'signature']}
+        icon={Radio}
+        badgeColor="emerald"
+      >
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -314,7 +310,7 @@ export default function DesktopRemoteApps() {
             New Remote App
           </button>
         </div>
-      </div>
+      </PageProtocolHeader>
 
       {saveStatus && (
         <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-medium flex items-center gap-2.5">

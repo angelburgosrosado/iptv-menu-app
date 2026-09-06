@@ -21,6 +21,7 @@ import {
   Clock
 } from 'lucide-react';
 import { fetchWithAuth } from '../../lib/apiClient';
+import { PageProtocolHeader } from '../PageProtocolHeader';
 
 interface AdminUser {
   uid: string;
@@ -303,26 +304,25 @@ export default function SystemAdminConsole() {
 
   return (
     <div className="flex flex-col gap-6 p-6 bg-[#08080a] min-h-[85vh] text-neutral-200 rounded-2xl border border-neutral-800 shadow-2xl">
-      {/* Top Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between pb-5 border-b border-neutral-800 gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded text-[10px] font-mono uppercase font-bold flex items-center gap-1">
-              <ShieldCheck className="w-3 h-3" /> Root Authority
-            </span>
-            <span className="text-xs text-neutral-400 font-mono">Neon PostgreSQL • Vercel Edge API</span>
-          </div>
-          <h1 className="text-2xl font-bold text-white mt-1 tracking-tight">Platform Administration Console</h1>
-          <p className="text-xs text-neutral-400">Master management for users, multi-tenant workspaces, APK build quotas, and audit logs.</p>
-        </div>
-
-        {/* Action toast notification */}
+      {/* Protocol Architecture Header */}
+      <PageProtocolHeader
+        title="Platform Administration Console"
+        description="Master administrative control plane for tenant governance. Manages RBAC permissions, workspace billing tiers, EAS build quotas, playlist telemetry, and system-wide security audit trails."
+        protocol="Platform RBAC & Multi-Tenant Governance Protocol"
+        schema="PostgreSQL Admin Telemetry Schema & W3C Audit Log Spec"
+        rfcOrStandard="NIST SP 800-162 (ABAC/RBAC) • RFC 7519 JWT"
+        layer="Control Plane & Multi-Tenant Governance Layer"
+        supportedTags={['RBAC:admin', 'Neon PostgreSQL', 'Workspaces Table', 'Audit Trail', 'Build Quotas', 'Vercel Edge']}
+        icon={ShieldCheck}
+        badgeColor="amber"
+      >
         {actionSuccess && (
           <div className="px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-lg text-xs flex items-center gap-2 animate-fade-in">
             <CheckCircle2 className="w-4 h-4" />
             {actionSuccess}
           </div>
         )}
+      </PageProtocolHeader>
 
         {/* Navigation Tabs */}
         <div className="flex flex-wrap bg-neutral-950 p-1 rounded-xl border border-neutral-800 self-start md:self-center">
@@ -372,7 +372,6 @@ export default function SystemAdminConsole() {
             Telemetry
           </button>
         </div>
-      </div>
 
       {/* 1. USERS TAB */}
       {activeTab === 'users' && (
