@@ -18,10 +18,19 @@ import {
   CheckCircle2,
   Sliders,
   Zap,
-  Clock
+  Clock,
+  Globe,
+  Tv,
+  Play,
+  ExternalLink,
+  Copy,
+  Check,
+  Radio
 } from 'lucide-react';
 import { fetchWithAuth } from '../../lib/apiClient';
 import { PageProtocolHeader } from '../PageProtocolHeader';
+import { MELHATA_CHANNELS, MELHATA_XTREAM_CONFIG } from '../../data/melhataChannels';
+import { usePlayerStore } from '../../store/usePlayerStore';
 
 interface AdminUser {
   uid: string;
@@ -120,7 +129,7 @@ interface SystemMetrics {
 }
 
 export default function SystemAdminConsole() {
-  const [activeTab, setActiveTab] = React.useState<'users' | 'workspaces' | 'playlists' | 'audit' | 'cluster'>('users');
+  const [activeTab, setActiveTab] = React.useState<'users' | 'workspaces' | 'playlists' | 'streamFeeds' | 'audit' | 'cluster'>('users');
   const [users, setUsers] = React.useState<AdminUser[]>([]);
   const [workspaces, setWorkspaces] = React.useState<AdminWorkspace[]>([]);
   const [playlists, setPlaylists] = React.useState<AdminPlaylist[]>([]);
@@ -129,6 +138,13 @@ export default function SystemAdminConsole() {
   const [searchTerm, setSearchTerm] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(false);
   const [actionSuccess, setActionSuccess] = React.useState<string | null>(null);
+
+  // Live Stream Feed Breakdown States
+  const [streamCountryFilter, setStreamCountryFilter] = React.useState<string | null>(null);
+  const [streamCategoryFilter, setStreamCategoryFilter] = React.useState<string | null>(null);
+  const [streamSearch, setStreamSearch] = React.useState<string>('');
+  const [copiedStreamId, setCopiedStreamId] = React.useState<string | null>(null);
+  const { channels } = usePlayerStore();
 
   const fetchAllAdminData = React.useCallback(async () => {
     setIsLoading(true);
@@ -352,6 +368,15 @@ export default function SystemAdminConsole() {
           >
             <Layers className="w-3.5 h-3.5" />
             Playlists ({playlists.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('streamFeeds')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+              activeTab === 'streamFeeds' ? 'bg-cyan-900/60 text-cyan-300 border border-cyan-700/50 shadow' : 'text-neutral-400 hover:text-white'
+            }`}
+          >
+            <Radio className="w-3.5 h-3.5 text-cyan-400" />
+            Feed Inventory ({channels.length} m3u8)
           </button>
           <button
             onClick={() => setActiveTab('audit')}
@@ -597,7 +622,285 @@ export default function SystemAdminConsole() {
         </div>
       )}
 
-      {/* 4. AUDIT LOGS TAB */}
+      {/* 4. STREAM FEEDS INVENTORY & INDIVIDUAL M3U8 BREAKDOWN */}
+      {activeTab === 'streamFeeds' && (() => {
+        // Group channels by country and by category
+        const countryMap: Record<string, { name: string; count: number; code: string }> = {};
+        const categoryMap: Record<string, number> = {};
+
+        channels.forEach(c => {
+          const countryKey = c.countryCode || (c.group.includes('UK') ? 'GB' : c.group.includes('USA') ? 'US' : c.group.includes('LATINO') ? 'ES' : 'US');
+          const countryName = c.countryName || (countryKey === 'GB' ? 'United Kingdom' : countryKey === 'ES' ? 'Latin America / Spain' : 'United States');
+          if (!countryMap[countryKey]) {
+            countryMap[countryKey] = { name: countryName, count: 0, code: countryKey };
+          }
+          countryMap[countryKey].count++;
+
+          const cat = c.group || 'Live TV';
+          categoryMap[cat] = (categoryMap[cat] || 0) + 1;
+        });
+
+        const countriesList = Object.values(countryMap).sort((a, b) => b.count - a.count);
+        const categoriesList = Object.entries(categoryMap).sort((a, b) => b[1] - a[1]);
+
+        // Filter streams
+        let displayedStreams = channels;
+        if (streamCountryFilter) {
+          displayedStreams = displayedStreams.filter(c => {
+            const countryKey = c.countryCode || (c.group.includes('UK') ? 'GB' : c.group.includes('USA') ? 'US' : c.group.includes('LATINO') ? 'ES' : 'US');
+            return countryKey === streamCountryFilter;
+          });
+        }
+        if (streamCategoryFilter) {
+          displayedStreams = displayedStreams.filter(c => c.group === streamCategoryFilter);
+        }
+        if (streamSearch.trim()) {
+          const q = streamSearch.toLowerCase();
+          displayedStreams = displayedStreams.filter(c => 
+            c.name.toLowerCase().includes(q) || 
+            c.group.toLowerCase().includes(q) || 
+            c.url.toLowerCase().includes(q) ||
+            (c.tvgId && c.tvgId.toLowerCase().includes(q))
+          );
+        }
+
+        const handleCopyUrl = (id: string, url: string) => {
+          navigator.clipboard.writeText(url);
+          setCopiedStreamId(id);
+          setTimeout(() => setCopiedStreamId(null), 2000);
+          showNotification('Direct .m3u8 stream URL copied to clipboard');
+        };
+
+        return (
+          <div className="space-y-6">
+            {/* Gateway Credential Header Badge */}
+            <div className="p-4 bg-gradient-to-r from-cyan-950/40 via-neutral-900 to-blue-950/40 border border-cyan-500/20 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+                  <Radio className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-white font-sans">{MELHATA_XTREAM_CONFIG.name}</h3>
+                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                      Gateway Connected
+                    </span>
+                  </div>
+                  <p className="text-xs text-neutral-400 font-mono mt-0.5">
+                    Host: <span className="text-cyan-300 font-semibold">{MELHATA_XTREAM_CONFIG.serverUrl}</span> • User: <span className="text-neutral-200">{MELHATA_XTREAM_CONFIG.username}</span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-neutral-400 font-mono">Total Feeds:</span>
+                <span className="px-3 py-1 bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 rounded-xl text-xs font-black font-mono">
+                  {channels.length} Individual .m3u8
+                </span>
+              </div>
+            </div>
+
+            {/* Country and Category Drill-Down Ribbons */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Country Breakdown Filter */}
+              <div className="p-4 bg-neutral-950 border border-neutral-800 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-neutral-300 font-sans flex items-center gap-1.5">
+                    <Globe className="w-3.5 h-3.5 text-cyan-400" />
+                    Breakdown by Country
+                  </span>
+                  {streamCountryFilter && (
+                    <button 
+                      onClick={() => setStreamCountryFilter(null)}
+                      className="text-[10px] text-cyan-400 hover:underline"
+                    >
+                      Clear Filter
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {countriesList.map(c => {
+                    const isActive = streamCountryFilter === c.code;
+                    return (
+                      <button
+                        key={c.code}
+                        onClick={() => setStreamCountryFilter(isActive ? null : c.code)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-mono transition-all flex items-center gap-1.5 ${
+                          isActive 
+                            ? 'bg-cyan-600 text-white shadow-md' 
+                            : 'bg-neutral-900 text-neutral-300 hover:bg-neutral-800 border border-neutral-800'
+                        }`}
+                      >
+                        <span className="font-bold">{c.code}</span>
+                        <span className="text-[10px] opacity-75">{c.name}</span>
+                        <span className="px-1.5 py-0.2 bg-black/40 rounded text-[9px] font-bold text-cyan-300">
+                          {c.count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Category Breakdown Filter */}
+              <div className="p-4 bg-neutral-950 border border-neutral-800 rounded-xl space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-neutral-300 font-sans flex items-center gap-1.5">
+                    <Tv className="w-3.5 h-3.5 text-blue-400" />
+                    Breakdown by Category
+                  </span>
+                  {streamCategoryFilter && (
+                    <button 
+                      onClick={() => setStreamCategoryFilter(null)}
+                      className="text-[10px] text-cyan-400 hover:underline"
+                    >
+                      Clear Filter
+                    </button>
+                  )}
+                </div>
+                <div className="flex flex-wrap gap-2 pt-1 max-h-32 overflow-y-auto pr-1 scrollbar-thin">
+                  {categoriesList.map(([catName, count]) => {
+                    const isActive = streamCategoryFilter === catName;
+                    return (
+                      <button
+                        key={catName}
+                        onClick={() => setStreamCategoryFilter(isActive ? null : catName)}
+                        className={`px-2 py-0.5 rounded text-[11px] font-sans transition-all flex items-center gap-1.5 ${
+                          isActive 
+                            ? 'bg-blue-600 text-white shadow' 
+                            : 'bg-neutral-900 text-neutral-400 hover:text-white border border-neutral-800'
+                        }`}
+                      >
+                        <span>{catName}</span>
+                        <span className="text-[9px] px-1 bg-black/30 rounded text-blue-300 font-mono">
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Filter Search Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="relative flex-1 max-w-md">
+                <Search className="w-4 h-4 absolute left-3 top-2.5 text-neutral-500" />
+                <input
+                  type="text"
+                  placeholder="Filter streams by channel name, group, or ID..."
+                  value={streamSearch}
+                  onChange={(e) => setStreamSearch(e.target.value)}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded-xl pl-9 pr-4 py-2 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-cyan-500"
+                />
+              </div>
+
+              <div className="text-xs text-neutral-400 font-mono">
+                Showing <strong className="text-white">{displayedStreams.length}</strong> of {channels.length} individual feeds
+              </div>
+            </div>
+
+            {/* Streams Detailed Table */}
+            <div className="overflow-x-auto rounded-xl border border-neutral-800">
+              <table className="w-full text-left text-xs text-neutral-300">
+                <thead className="bg-neutral-950 text-neutral-400 uppercase font-mono text-[10px] border-b border-neutral-800">
+                  <tr>
+                    <th className="p-3">Stream / Channel</th>
+                    <th className="p-3">Country</th>
+                    <th className="p-3">Category Group</th>
+                    <th className="p-3">Direct .m3u8 Feed URL</th>
+                    <th className="p-3">Resolution</th>
+                    <th className="p-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-800/60 bg-neutral-900/40 font-mono">
+                  {displayedStreams.slice(0, 100).map(c => {
+                    const countryKey = c.countryCode || (c.group.includes('UK') ? 'GB' : c.group.includes('USA') ? 'US' : c.group.includes('LATINO') ? 'ES' : 'US');
+                    const isCopied = copiedStreamId === c.id;
+                    return (
+                      <tr key={c.id} className="hover:bg-neutral-800/30 transition-colors">
+                        <td className="p-3">
+                          <div className="flex items-center gap-2.5">
+                            {c.logo ? (
+                              <img 
+                                src={c.logo} 
+                                alt={c.name} 
+                                className="w-6 h-6 object-contain rounded bg-black/50 p-0.5 flex-shrink-0"
+                                onError={(e) => { (e.target as any).style.display = 'none'; }}
+                              />
+                            ) : (
+                              <div className="w-6 h-6 rounded bg-neutral-800 flex items-center justify-center text-neutral-500 flex-shrink-0">
+                                <Tv className="w-3 h-3" />
+                              </div>
+                            )}
+                            <div>
+                              <span className="font-sans font-bold text-white block truncate max-w-xs">{c.name}</span>
+                              <span className="text-[10px] text-neutral-500 font-mono">ID: {c.id}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <span className="px-2 py-0.5 rounded bg-neutral-800 text-neutral-300 text-[10px] font-bold border border-neutral-700">
+                            {countryKey}
+                          </span>
+                        </td>
+                        <td className="p-3">
+                          <span className="px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-[10px] font-bold">
+                            {c.group}
+                          </span>
+                        </td>
+                        <td className="p-3">
+                          <div className="flex items-center gap-2 max-w-md">
+                            <code className="text-[11px] text-neutral-400 truncate select-all bg-black/40 px-2 py-1 rounded border border-neutral-800 flex-1">
+                              {c.url}
+                            </code>
+                            <button
+                              onClick={() => handleCopyUrl(c.id, c.url)}
+                              className="p-1.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-white rounded transition-colors flex-shrink-0"
+                              title="Copy direct .m3u8 URL"
+                            >
+                              {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                            </button>
+                          </div>
+                        </td>
+                        <td className="p-3 text-neutral-400">
+                          <span className="text-[10px] text-emerald-400 font-bold">1080p@60</span>
+                        </td>
+                        <td className="p-3 text-right">
+                          <a
+                            href={c.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2 py-1 bg-cyan-950/60 hover:bg-cyan-900 border border-cyan-800/40 text-cyan-300 rounded text-[11px] font-sans transition-colors"
+                          >
+                            <Play className="w-3 h-3 fill-current" />
+                            <span>Test Feed</span>
+                          </a>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {displayedStreams.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="p-8 text-center text-neutral-500 font-sans">
+                        No feeds matching current country and category filters.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {displayedStreams.length > 100 && (
+              <div className="p-3 text-center text-xs text-neutral-500 font-mono border-t border-neutral-800">
+                Displaying first 100 feeds of {displayedStreams.length}. Use country filters or search to narrow down results.
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* 5. AUDIT LOGS TAB */}
       {activeTab === 'audit' && (
         <div className="space-y-3">
           {auditLogs.map(log => (

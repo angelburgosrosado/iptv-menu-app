@@ -44,6 +44,8 @@ https://live.ch9.tv/live/9chart/playlist.m3u8`;
 
 const DEFAULT_PLAYLIST_URL = 'https://iptv-org.github.io/iptv/countries/us.m3u';
 
+import { MELHATA_CHANNELS } from '../data/melhataChannels';
+
 // Read persistent arrays from MMKV securely
 const readArrayFromStorage = (key: string): string[] => {
   const json = storage.getString(key);
@@ -59,18 +61,18 @@ const writeArrayToStorage = (key: string, data: string[]): void => {
   storage.set(key, JSON.stringify(data));
 };
 
-const INITIAL_FALLBACK_CHANNELS = parseM3U(FALLBACK_PLAYLIST);
+const INITIAL_FALLBACK_CHANNELS = [...MELHATA_CHANNELS, ...parseM3U(FALLBACK_PLAYLIST)];
 const INITIAL_GROUPS = Array.from(new Set(INITIAL_FALLBACK_CHANNELS.map((c) => c.group))).sort();
 
 export const usePlayerStore = create<AppState>((set, get) => ({
-  // Active state holders (pre-seeded with verified streams so the app is immediately populated)
+  // Active state holders (pre-seeded with verified streams + Melhata Xtream channels)
   channels: INITIAL_FALLBACK_CHANNELS,
   groups: INITIAL_GROUPS,
   favorites: readArrayFromStorage('favorites'),
   history: readArrayFromStorage('history'),
   
   // Country & EPG Backbone enhancements
-  countrySections: buildCountrySections(parseM3U(FALLBACK_PLAYLIST)),
+  countrySections: buildCountrySections(INITIAL_FALLBACK_CHANNELS),
   selectedCountry: null,
   selectedGroup: null,
   searchTerm: '',

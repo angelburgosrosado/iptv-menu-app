@@ -36,6 +36,8 @@ import { buildCountrySections } from '../utils/channelEnrichment';
 import { PageProtocolHeader } from './PageProtocolHeader';
 import { Channel } from '../types/iptv';
 
+import { MELHATA_XTREAM_CONFIG, MELHATA_CHANNELS } from '../data/melhataChannels';
+
 export interface SavedXtreamAccount {
   id: string;
   serverUrl: string;
@@ -48,24 +50,40 @@ export interface SavedXtreamAccount {
   macAddress?: string;
 }
 
+const DEFAULT_MELHATA_SAVED: SavedXtreamAccount = {
+  id: 'melhata-primary',
+  serverUrl: MELHATA_XTREAM_CONFIG.serverUrl,
+  username: MELHATA_XTREAM_CONFIG.username,
+  password: MELHATA_XTREAM_CONFIG.password,
+  status: 'Active',
+  channelCount: MELHATA_CHANNELS.length,
+  lastConnected: 'Today',
+  type: 'xtream'
+};
+
 const getSavedAccounts = (): SavedXtreamAccount[] => {
   try {
     const raw = localStorage.getItem('iptv_xtream_accounts');
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        if (!parsed.some(a => a.serverUrl.includes('melhata.org'))) {
+          return [DEFAULT_MELHATA_SAVED, ...parsed];
+        }
+        return parsed;
+      }
     }
   } catch {}
-  return [];
+  return [DEFAULT_MELHATA_SAVED];
 };
 
 export default function XtreamConnector() {
   const [protocolType, setProtocolType] = React.useState<'xtream' | 'stalker'>('xtream');
 
-  // Xtream inputs
-  const [serverUrl, setServerUrl] = React.useState(() => localStorage.getItem('iptv_xtream_server_url') || '');
-  const [username, setUsername] = React.useState(() => localStorage.getItem('iptv_xtream_username') || '');
-  const [password, setPassword] = React.useState(() => localStorage.getItem('iptv_xtream_password') || '');
+  // Xtream inputs (Pre-filled with Melhata credentials)
+  const [serverUrl, setServerUrl] = React.useState(() => localStorage.getItem('iptv_xtream_server_url') || MELHATA_XTREAM_CONFIG.serverUrl);
+  const [username, setUsername] = React.useState(() => localStorage.getItem('iptv_xtream_username') || MELHATA_XTREAM_CONFIG.username);
+  const [password, setPassword] = React.useState(() => localStorage.getItem('iptv_xtream_password') || MELHATA_XTREAM_CONFIG.password);
 
   // Stalker inputs
   const [stalkerPortalUrl, setStalkerPortalUrl] = React.useState(() => localStorage.getItem('iptv_stalker_portal_url') || 'http://portal.example.com/c/');
