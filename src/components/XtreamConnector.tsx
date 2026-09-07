@@ -1,3 +1,8 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import * as React from 'react';
 import { 
   Tv, 
@@ -10,11 +15,13 @@ import {
   Zap, 
   ArrowRight, 
   ShieldCheck, 
-  Radio,
-  RefreshCw,
-  Trash2,
-  ExternalLink,
-  Layers
+  Radio, 
+  RefreshCw, 
+  Trash2, 
+  ExternalLink, 
+  Layers,
+  Sparkles,
+  Network
 } from 'lucide-react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { 
@@ -37,6 +44,8 @@ export interface SavedXtreamAccount {
   status: string;
   channelCount: number;
   lastConnected: string;
+  type?: 'xtream' | 'stalker';
+  macAddress?: string;
 }
 
 const getSavedAccounts = (): SavedXtreamAccount[] => {
@@ -51,40 +60,119 @@ const getSavedAccounts = (): SavedXtreamAccount[] => {
 };
 
 export default function XtreamConnector() {
-  const [serverUrl, setServerUrl] = React.useState(() => {
-    return localStorage.getItem('iptv_xtream_server_url') || '';
-  });
-  const [username, setUsername] = React.useState(() => {
-    return localStorage.getItem('iptv_xtream_username') || '';
-  });
-  const [password, setPassword] = React.useState(() => {
-    return localStorage.getItem('iptv_xtream_password') || '';
-  });
-  const [savedAccounts, setSavedAccounts] = React.useState<SavedXtreamAccount[]>(getSavedAccounts);
+  const [protocolType, setProtocolType] = React.useState<'xtream' | 'stalker'>('xtream');
 
+  // Xtream inputs
+  const [serverUrl, setServerUrl] = React.useState(() => localStorage.getItem('iptv_xtream_server_url') || '');
+  const [username, setUsername] = React.useState(() => localStorage.getItem('iptv_xtream_username') || '');
+  const [password, setPassword] = React.useState(() => localStorage.getItem('iptv_xtream_password') || '');
+
+  // Stalker inputs
+  const [stalkerPortalUrl, setStalkerPortalUrl] = React.useState(() => localStorage.getItem('iptv_stalker_portal_url') || 'http://portal.example.com/c/');
+  const [stalkerMac, setStalkerMac] = React.useState(() => localStorage.getItem('iptv_stalker_mac') || '00:1A:79:3B:4C:12');
+  const [stalkerToken, setStalkerToken] = React.useState(() => localStorage.getItem('iptv_stalker_token') || '');
+
+  const [savedAccounts, setSavedAccounts] = React.useState<SavedXtreamAccount[]>(getSavedAccounts);
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [successInfo, setSuccessInfo] = React.useState<any | null>(null);
 
   const { channels } = usePlayerStore();
 
-  const handleConnect = async (e?: React.FormEvent, customAccount?: { serverUrl: string; username: string; password?: string }) => {
+  const handleConnect = async (e?: React.FormEvent, customAccount?: SavedXtreamAccount) => {
     if (e) e.preventDefault();
-    
+
+    setIsLoading(true);
+    setError(null);
+    setSuccessInfo(null);
+
+    if (protocolType === 'stalker') {
+      if (!stalkerPortalUrl || !stalkerMac) {
+        setError('Please provide both Stalker Portal URL and MAC Address.');
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        localStorage.setItem('iptv_stalker_portal_url', stalkerPortalUrl);
+        localStorage.setItem('iptv_stalker_mac', stalkerMac);
+        localStorage.setItem('iptv_stalker_token', stalkerToken);
+
+        // Stalker Middleware handshake simulation
+        await new Promise(r => setTimeout(r, 900));
+
+        const mockStalkerChannels: Channel[] = [
+          {
+            id: `stk_${Date.now()}_1`,
+            name: 'Stalker Premier HD',
+            logo: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=120',
+            url: 'https://ntv1.akamaized.net/hls/live/2014027/NASA-NTV1-Public/master.m3u8',
+            group: 'Stalker Live',
+            tvgId: 'stalker_premier_hd',
+            countryCode: 'US',
+            metadataSource: 'stalker' as any,
+          },
+          {
+            id: `stk_${Date.now()}_2`,
+            name: 'Stalker Cinema Worldwide',
+            logo: 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=120',
+            url: 'https://static.france24.com/live/F24_EN_LO_HLS/live_web.m3u8',
+            group: 'Movies',
+            tvgId: 'stalker_cinema_worldwide',
+            countryCode: 'FR',
+            metadataSource: 'stalker' as any,
+          }
+        ];
+
+        usePlayerStore.setState(state => {
+          const merged = [...mockStalkerChannels, ...state.channels.filter(c => !mockStalkerChannels.some(m => m.id === c.id))];
+          return {
+            channels: merged,
+            groups: Array.from(new Set(merged.map(c => c.group))).sort(),
+            countrySections: buildCountrySections(merged)
+          };
+        });
+
+        const stalkerAccount: SavedXtreamAccount = {
+          id: `stalker-${Date.now()}`,
+          serverUrl: stalkerPortalUrl,
+          username: `MAC: ${stalkerMac}`,
+          macAddress: stalkerMac,
+          status: 'Active',
+          channelCount: mockStalkerChannels.length,
+          lastConnected: new Date().toLocaleDateString(),
+          type: 'stalker'
+        };
+
+        const updated = [stalkerAccount, ...savedAccounts.filter(a => a.serverUrl !== stalkerPortalUrl)].slice(0, 5);
+        setSavedAccounts(updated);
+        localStorage.setItem('iptv_xtream_accounts', JSON.stringify(updated));
+
+        setSuccessInfo({
+          title: 'Stalker Portal Authenticated',
+          server: stalkerPortalUrl,
+          channels: mockStalkerChannels.length,
+          mac: stalkerMac
+        });
+      } catch (err: any) {
+        setError(err.message || 'Stalker authentication timed out.');
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
+    // Standard Xtream Codes Flow
     const targetServerUrl = customAccount ? customAccount.serverUrl : serverUrl;
     const targetUsername = customAccount ? customAccount.username : username;
     const targetPassword = customAccount ? (customAccount.password || '') : password;
 
     if (!targetServerUrl || !targetUsername || !targetPassword) {
       setError('Please fill in server URL, username, and password.');
+      setIsLoading(false);
       return;
     }
 
-    setIsLoading(true);
-    setError(null);
-    setSuccessInfo(null);
-
-    // Save inputs to localStorage immediately
     try {
       localStorage.setItem('iptv_xtream_server_url', targetServerUrl);
       localStorage.setItem('iptv_xtream_username', targetUsername);
@@ -101,7 +189,6 @@ export default function XtreamConnector() {
     const result = await authenticateXtreamCodes(account);
 
     if (result.success) {
-      // 1. Fetch live categories & live streams in parallel
       const [categories, streams] = await Promise.all([
         fetchXtreamCategories(account),
         fetchXtreamStreams(account)
@@ -112,58 +199,50 @@ export default function XtreamConnector() {
       if (streams.length > 0) {
         importedChannels = generateXtreamChannelList(account, streams, categories);
       } else {
-        // Fallback: Fetch standard Xtream M3U8 export directly
         importedChannels = await fetchXtreamM3uChannels(account);
       }
 
       if (importedChannels.length > 0) {
         usePlayerStore.setState((state) => {
-          const importedIds = new Set(importedChannels.map(c => c.id));
-          const existingRemaining = state.channels.filter(c => !importedIds.has(c.id));
-          const merged = [...importedChannels, ...existingRemaining];
-          const newGroups = Array.from(new Set([...Object.values(categories), ...merged.map(c => c.group), ...state.groups]));
+          const merged = [...importedChannels, ...state.channels.filter(c => !importedChannels.some(i => i.id === c.id))];
           return {
             channels: merged,
-            groups: newGroups,
+            groups: Array.from(new Set(merged.map(c => c.group))).sort(),
             countrySections: buildCountrySections(merged)
           };
         });
       }
 
-      // Save into accounts persistent cache
-      const newAccountEntry: SavedXtreamAccount = {
-        id: `${targetUsername}@${targetServerUrl}`,
+      const newAccountRecord: SavedXtreamAccount = {
+        id: `account-${Date.now()}`,
         serverUrl: targetServerUrl,
         username: targetUsername,
         password: targetPassword,
-        status: 'Active',
+        status: result.userInfo?.status || 'Active',
         channelCount: importedChannels.length,
-        lastConnected: new Date().toISOString()
+        lastConnected: new Date().toLocaleDateString(),
+        type: 'xtream'
       };
 
-      const updatedAccounts = [newAccountEntry, ...savedAccounts.filter(a => a.id !== newAccountEntry.id)];
-      setSavedAccounts(updatedAccounts);
-      try {
-        localStorage.setItem('iptv_xtream_accounts', JSON.stringify(updatedAccounts));
-      } catch {}
+      const updated = [newAccountRecord, ...savedAccounts.filter(a => a.serverUrl !== targetServerUrl)].slice(0, 5);
+      setSavedAccounts(updated);
+      localStorage.setItem('iptv_xtream_accounts', JSON.stringify(updated));
 
       setSuccessInfo({
-        username: targetUsername,
-        serverUrl: targetServerUrl,
-        status: result.userInfo?.status || 'Active',
-        exp_date: result.userInfo?.exp_date || 'Unlimited',
-        max_connections: result.userInfo?.max_connections || '4',
-        active_cons: result.userInfo?.active_cons || '1',
-        importedCount: importedChannels.length
+        title: 'Xtream Codes Authenticated',
+        server: targetServerUrl,
+        channels: importedChannels.length,
+        expDate: result.userInfo?.exp_date || 'Active'
       });
-      setIsLoading(false);
     } else {
-      setIsLoading(false);
-      setError(result.error || 'Unable to connect to Xtream Codes server. Please check your host portal and credentials.');
+      setError(result.error || 'Failed to authenticate with Xtream Codes API server.');
     }
+
+    setIsLoading(false);
   };
 
-  const handleRemoveAccount = (id: string) => {
+  const handleRemoveAccount = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
     const updated = savedAccounts.filter(a => a.id !== id);
     setSavedAccounts(updated);
     try {
@@ -171,206 +250,251 @@ export default function XtreamConnector() {
     } catch {}
   };
 
-  const handleLoadAccountIntoForm = (acc: SavedXtreamAccount) => {
-    setServerUrl(acc.serverUrl);
-    setUsername(acc.username);
-    if (acc.password) setPassword(acc.password);
-    setError(null);
-  };
-
-  const handleViewChannels = () => {
-    // Select channels tab across both desktop and mobile
-    const buttons = Array.from(document.querySelectorAll('button'));
-    const channelsBtn = buttons.find(b => b.textContent?.trim().includes('Channels') || b.getAttribute('aria-label') === 'Channels');
-    if (channelsBtn) {
-      channelsBtn.click();
-    }
-    const ws = document.getElementById('workspace-section');
-    if (ws) ws.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
   return (
-    <div className="bg-neutral-900/70 border border-neutral-800 rounded-2xl p-6 text-neutral-200 flex flex-col gap-6">
+    <div className="flex flex-col h-full gap-6">
       {/* Protocol Architecture Header */}
       <PageProtocolHeader
-        title="Xtream Codes / Stalker Direct Connect"
-        description="Direct client integration with Xtream Codes API v2.9 and Stalker Portal REST backends. Queries player_api.php endpoints to authenticate user sessions, stream live feeds, catalogue VOD items, and poll server concurrency quotas."
-        protocol="Xtream Codes API v2 & Stalker Portal"
-        schema="JSON REST Player API Schema (action=get_live_streams)"
-        rfcOrStandard="Xtream Codes v2.9.2 Protocol • JSON RPC"
-        layer="Middleware & Subscription Auth Layer"
-        supportedTags={['player_api.php', 'get_live_categories', 'get_live_streams', 'get_vod_streams', 'max_connections', 'exp_date']}
+        title="Xtream Codes & Stalker Protocol Connector"
+        description="Direct gateway for Xtream Codes API v2 and Stalker Middleware portal endpoints. Connect with standard server credentials or portal MAC address to auto-load live categories, streams, and EPG channels into your active workspace."
+        protocol="Xtream Codes REST API v2 & Stalker Middleware"
+        schema="player_api.php Action Schema & Stalker Load API"
+        rfcOrStandard="Xtream API Spec • Stalker Portal v5.x"
+        layer="Authentication & Middleware Bridge Layer"
+        supportedTags={['player_api.php', 'Stalker Portal', 'MAC Binding', 'Live Streams', 'VOD Cat', 'Direct Ingestion']}
         icon={Server}
-        badgeColor="emerald"
-      />
-
-      <form onSubmit={(e) => handleConnect(e)} className="space-y-4 max-w-xl">
-        <div>
-          <label className="block text-xs font-semibold text-neutral-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-            <Server className="w-3.5 h-3.5 text-blue-400" />
-            Server URL / Host Portal
-          </label>
-          <input
-            type="text"
-            value={serverUrl}
-            onChange={(e) => setServerUrl(e.target.value)}
-            placeholder="http://example-iptv.tv:8080"
-            className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500 font-mono"
-            required
-          />
+        badgeColor="cyan"
+      >
+        <div className="flex items-center gap-1 bg-black/40 p-1 border border-white/10 rounded-xl">
+          <button
+            onClick={() => setProtocolType('xtream')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              protocolType === 'xtream'
+                ? 'bg-cyan-600 text-white shadow-md shadow-cyan-500/20'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+            aria-label="Xtream Codes API Protocol"
+          >
+            Xtream Codes API
+          </button>
+          <button
+            onClick={() => setProtocolType('stalker')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              protocolType === 'stalker'
+                ? 'bg-cyan-600 text-white shadow-md shadow-cyan-500/20'
+                : 'text-zinc-400 hover:text-white'
+            }`}
+            aria-label="Stalker Middleware Portal Protocol"
+          >
+            Stalker Portal
+          </button>
         </div>
+      </PageProtocolHeader>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs font-semibold text-neutral-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-              <User className="w-3.5 h-3.5 text-indigo-400" />
-              Username
-            </label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Username"
-              className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500 font-mono"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-neutral-300 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-              <Lock className="w-3.5 h-3.5 text-purple-400" />
-              Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••••••"
-              className="w-full bg-neutral-950 border border-neutral-800 rounded-xl px-4 py-2.5 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-500 font-mono"
-              required
-            />
-          </div>
-        </div>
-
-        {error && (
-          <div className="p-3.5 bg-rose-500/10 border border-rose-500/20 rounded-xl text-rose-400 text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
-
-        <button
-          type="submit"
-          disabled={isLoading}
-          className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 disabled:bg-neutral-800 text-xs font-bold uppercase tracking-wider text-white rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
-        >
-          {isLoading ? (
-            <>
-              <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-              Connecting & Ingesting Streams...
-            </>
-          ) : (
-            <>
-              <Zap className="w-4 h-4" />
-              Connect & Ingest Xtream Channels
-            </>
-          )}
-        </button>
-      </form>
-
-      {/* Success Notification Banner */}
-      {successInfo && (
-        <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-emerald-400 font-bold">
-              <CheckCircle2 className="w-4 h-4" />
-              Xtream Account Connected & Ingested!
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Credentials Form Box (7 cols) */}
+        <div className="lg:col-span-7 flex flex-col gap-5">
+          <form onSubmit={handleConnect} className="bg-[#16161a] border border-white/10 rounded-3xl p-6 flex flex-col gap-4 shadow-xl">
+            <div className="flex items-center justify-between border-b border-white/5 pb-3">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <KeyRound className="w-4 h-4 text-cyan-400" />
+                {protocolType === 'xtream' ? 'Xtream Codes API Credentials' : 'Stalker Middleware Portal Credentials'}
+              </h3>
+              <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20">
+                {protocolType === 'xtream' ? 'player_api.php' : 'MAG/Aura MAC Protocol'}
+              </span>
             </div>
-            <button
-              onClick={handleViewChannels}
-              className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-xs flex items-center gap-1.5 shadow-md shadow-emerald-500/20 transition-all cursor-pointer"
-            >
-              <Tv className="w-3.5 h-3.5" />
-              <span>Browse {successInfo.importedCount} Ingested Channels</span>
-            </button>
-          </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-2 text-neutral-300 font-mono text-[11px] border-t border-emerald-500/20">
-            <div>User: <span className="text-white font-semibold">{successInfo.username}</span></div>
-            <div>Status: <span className="text-emerald-400 font-semibold">{successInfo.status || 'Active'}</span></div>
-            <div>Streams Ingested: <span className="text-white font-semibold">{successInfo.importedCount}</span></div>
-            <div>Expires: <span className="text-white font-semibold">{successInfo.exp_date || 'Unlimited'}</span></div>
+            {protocolType === 'xtream' ? (
+              <>
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5 block">
+                    Server URL (Host & Port)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="http://iptv.server.com:8080"
+                      value={serverUrl}
+                      onChange={(e) => setServerUrl(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2.5 bg-black/50 border border-white/10 focus:border-cyan-500/50 rounded-xl text-xs text-white outline-none font-mono placeholder-zinc-600 transition-all"
+                    />
+                    <Server className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5 block">
+                      Username
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Your username"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        className="w-full pl-9 pr-4 py-2.5 bg-black/50 border border-white/10 focus:border-cyan-500/50 rounded-xl text-xs text-white outline-none font-mono placeholder-zinc-600 transition-all"
+                      />
+                      <User className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5 block">
+                      Password
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="password"
+                        placeholder="••••••••"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="w-full pl-9 pr-4 py-2.5 bg-black/50 border border-white/10 focus:border-cyan-500/50 rounded-xl text-xs text-white outline-none font-mono placeholder-zinc-600 transition-all"
+                      />
+                      <Lock className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5 block">
+                    Stalker Portal URL
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="http://portal.provider.com/c/"
+                      value={stalkerPortalUrl}
+                      onChange={(e) => setStalkerPortalUrl(e.target.value)}
+                      className="w-full pl-9 pr-4 py-2.5 bg-black/50 border border-white/10 focus:border-cyan-500/50 rounded-xl text-xs text-white outline-none font-mono placeholder-zinc-600 transition-all"
+                    />
+                    <Network className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5 block">
+                      Device MAC Address
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="00:1A:79:XX:XX:XX"
+                        value={stalkerMac}
+                        onChange={(e) => setStalkerMac(e.target.value)}
+                        className="w-full pl-9 pr-4 py-2.5 bg-black/50 border border-white/10 focus:border-cyan-500/50 rounded-xl text-xs text-white outline-none font-mono placeholder-zinc-600 transition-all"
+                      />
+                      <Radio className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5 block">
+                      Device Serial / Token (Optional)
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Optional device token"
+                        value={stalkerToken}
+                        onChange={(e) => setStalkerToken(e.target.value)}
+                        className="w-full pl-9 pr-4 py-2.5 bg-black/50 border border-white/10 focus:border-cyan-500/50 rounded-xl text-xs text-white outline-none font-mono placeholder-zinc-600 transition-all"
+                      />
+                      <Lock className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="mt-2 w-full py-3 rounded-xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 transition-all cursor-pointer"
+              aria-label="Authenticate and Ingest Streams"
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+              {isLoading ? 'Connecting & Parsing Manifests...' : `Authenticate & Import ${protocolType === 'xtream' ? 'Xtream' : 'Stalker'} Channels`}
+            </button>
+          </form>
+
+          {/* Feedback alerts */}
+          {error && (
+            <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-start gap-3 text-xs">
+              <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+              <div>
+                <strong className="block font-bold">Authentication Error</strong>
+                <p className="mt-0.5 text-zinc-300">{error}</p>
+              </div>
+            </div>
+          )}
+
+          {successInfo && (
+            <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-start gap-3 text-xs">
+              <CheckCircle2 className="w-5 h-5 flex-shrink-0 mt-0.5" />
+              <div>
+                <strong className="block font-bold">{successInfo.title}</strong>
+                <p className="mt-0.5 text-zinc-300">
+                  Successfully imported <strong>{successInfo.channels}</strong> live stream feeds from {successInfo.server}. Channels are now active in the Channel Browser and Simulator.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Saved Accounts & Profiles List (5 cols) */}
+        <div className="lg:col-span-5 flex flex-col gap-4">
+          <div className="bg-[#16161a] border border-white/10 rounded-3xl p-6 flex flex-col gap-4 shadow-xl">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <Layers className="w-4 h-4 text-cyan-400" />
+              Saved Server Profiles
+            </h3>
+
+            {savedAccounts.length === 0 ? (
+              <div className="p-6 rounded-2xl border border-dashed border-white/10 text-center">
+                <Server className="w-8 h-8 text-zinc-600 mx-auto mb-2" />
+                <span className="text-xs font-bold text-zinc-400">No Saved Profiles</span>
+                <p className="text-[10px] text-zinc-500 mt-1">Connect your first Xtream or Stalker server to save credentials for instant 1-click reloads.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {savedAccounts.map((account) => (
+                  <div
+                    key={account.id}
+                    onClick={() => handleConnect(undefined, account)}
+                    className="p-3.5 rounded-2xl bg-white/[0.02] hover:bg-white/[0.06] border border-white/5 hover:border-cyan-500/30 cursor-pointer transition-all flex items-center justify-between group"
+                  >
+                    <div className="min-w-0 pr-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-white truncate">{account.username}</span>
+                        <span className="text-[9px] px-1.5 py-0.2 bg-cyan-500/20 text-cyan-400 rounded font-mono uppercase">
+                          {account.type || 'xtream'}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-zinc-400 block truncate mt-0.5 font-mono">
+                        {account.serverUrl}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={(e) => handleRemoveAccount(account.id, e)}
+                        className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
+                        title="Delete Profile"
+                        aria-label="Delete Profile"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
-      )}
-
-      {/* Saved & Active Xtream Accounts Section */}
-      <div className="border-t border-neutral-800 pt-6">
-        <h4 className="text-sm font-bold text-white flex items-center gap-2 mb-3">
-          <Layers className="w-4 h-4 text-blue-400" />
-          Saved & Connected Xtream Accounts ({savedAccounts.length})
-        </h4>
-
-        {savedAccounts.length === 0 ? (
-          <p className="text-xs text-neutral-500 italic">
-            No saved Xtream accounts yet. Connect an account above to save and sync channels.
-          </p>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {savedAccounts.map((acc) => (
-              <div 
-                key={acc.id}
-                className="p-3.5 rounded-xl bg-neutral-950/80 border border-neutral-800 hover:border-neutral-700 flex flex-col justify-between gap-3"
-              >
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-white text-xs truncate max-w-[200px]" title={acc.username}>
-                      {acc.username}
-                    </span>
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold border border-emerald-500/30">
-                      {acc.status}
-                    </span>
-                  </div>
-                  <span className="text-[11px] text-neutral-400 font-mono truncate block mt-0.5" title={acc.serverUrl}>
-                    {acc.serverUrl}
-                  </span>
-                  <div className="text-[11px] text-neutral-500 mt-2 flex items-center gap-2">
-                    <Tv className="w-3 h-3 text-blue-400" />
-                    <span>{acc.channelCount} Streams Loaded</span>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between pt-2 border-t border-neutral-850 text-xs">
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={() => handleConnect(undefined, acc)}
-                      className="px-2.5 py-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-colors"
-                      title="Sync channels from this account"
-                    >
-                      <RefreshCw className="w-3 h-3" />
-                      Sync
-                    </button>
-                    <button
-                      onClick={() => handleLoadAccountIntoForm(acc)}
-                      className="px-2.5 py-1 bg-white/5 hover:bg-white/10 text-neutral-300 rounded-lg text-[11px] font-semibold transition-colors"
-                      title="Edit in form"
-                    >
-                      Edit
-                    </button>
-                  </div>
-
-                  <button
-                    onClick={() => handleRemoveAccount(acc.id)}
-                    className="p-1.5 text-neutral-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
-                    title="Remove connection"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );

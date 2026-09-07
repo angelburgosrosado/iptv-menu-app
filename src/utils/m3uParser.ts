@@ -43,6 +43,10 @@ export function parseM3U(m3uContent: string, options?: ParserOptions): Channel[]
     logo: string;
     group: string;
     name: string;
+    tvgName?: string;
+    tvgCountry?: string;
+    countryCode?: string;
+    language?: string;
   } | null = null;
 
   for (let i = 0; i < totalLines; i++) {

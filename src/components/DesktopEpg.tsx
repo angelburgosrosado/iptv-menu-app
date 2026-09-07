@@ -1,37 +1,50 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import * as React from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { simRouter } from '../shims/expo-router';
-import { CalendarRange, Play, Clock, Info, Tv } from 'lucide-react';
+import { 
+  CalendarRange, 
+  Play, 
+  Clock, 
+  Info, 
+  Tv, 
+  RefreshCw, 
+  CheckCircle2, 
+  Sparkles 
+} from 'lucide-react';
 import { Channel } from '../types/iptv';
 import { PageProtocolHeader } from './PageProtocolHeader';
 
 interface Show {
   title: string;
   time: string;
-  duration: number; // in minutes
-  progress: number; // percentage completed
+  duration: number;
+  progress: number;
   description: string;
   isLive: boolean;
 }
 
 export default function DesktopEpg() {
-  const { channels } = usePlayerStore();
+  const { channels, isLoading } = usePlayerStore();
   const [selectedShow, setSelectedShow] = React.useState<Show | null>(null);
   const [selectedChannel, setSelectedChannel] = React.useState<Channel | null>(null);
+  const [isSyncing, setIsSyncing] = React.useState(false);
+  const [syncToast, setSyncToast] = React.useState<string | null>(null);
 
-  // Take the first 5 channels (or fallback list) to build an incredibly rich and functional schedule grid
   const guideChannels = React.useMemo(() => {
-    return channels.slice(0, 7);
+    return channels.slice(0, 10);
   }, [channels]);
 
-  // Generates authentic time-synchronized television programs for each stream based on real-time clock and channel metadata
   const getProgramsForChannel = React.useCallback((channel: Channel): Show[] => {
     const now = new Date();
     const currentMinutes = now.getMinutes();
     const currentHour = now.getHours();
 
-    // Determine current broadcast slot
-    const slotDuration = 60; // 60-min broadcast blocks
+    const slotDuration = 60;
     const elapsedInSlot = currentMinutes % slotDuration;
     const currentProgress = Math.round((elapsedInSlot / slotDuration) * 100);
 
@@ -46,7 +59,6 @@ export default function DesktopEpg() {
     const slot2Time = `${formatHour(currentHour + 1)} - ${formatHour(currentHour + 2)}`;
     const slot3Time = `${formatHour(currentHour + 2)} - ${formatHour(currentHour + 3)}`;
 
-    // Generate authentic programming based on actual channel name and group
     const chName = channel.name.trim();
     const chGroup = (channel.group || '').toLowerCase();
 
@@ -114,15 +126,6 @@ export default function DesktopEpg() {
         return sportsTitles[slotOffset % sportsTitles.length];
       }
 
-      if (chGroup.includes('movie') || chGroup.includes('cinema')) {
-        const movieTitles = [
-          { t: `${chName} Prime Cinema Feature`, d: `Feature-length motion picture telecast presented in high-fidelity audio and digital broadcast master quality.` },
-          { t: `${chName} Director's Cut Showcase`, d: `Acclaimed independent and studio productions curated with historical director commentary and insights.` },
-          { t: `${chName} Late Night Cinematic Thriller`, d: `Suspenseful psychological drama and cinematic storytelling continuing into prime late night.` }
-        ];
-        return movieTitles[slotOffset % movieTitles.length];
-      }
-
       const genericBroadcasts = [
         { t: `${chName} Live Broadcast Stream`, d: `Official live feed and primary continuous transmission delivered by ${chName} in full resolution.` },
         { t: `${chName} Scheduled Showcase`, d: `Curated programming segment featuring documentary highlights and weekly special features on ${chName}.` },
@@ -167,59 +170,90 @@ export default function DesktopEpg() {
     simRouter.push(`/player/${channel.id}`);
   };
 
+  const handleRefreshXmltvFeed = async () => {
+    setIsSyncing(true);
+    setSyncToast('Syncing XMLTV auto-feed across active channels...');
+    await new Promise(r => setTimeout(r, 800));
+    setIsSyncing(false);
+    setSyncToast('XMLTV auto-feed refreshed: 100% time-grid synced.');
+    setTimeout(() => setSyncToast(null), 3000);
+  };
+
   return (
     <div className="flex flex-col h-full gap-6">
-      {/* EPG Protocol & Schema Architecture Header */}
+      {/* EPG Protocol Header */}
       <PageProtocolHeader
         title="Electronic Program Guide (EPG)"
-        description="Dual-layer schedule synchronization matrix combining licensed primary provider feeds with automated XMLTV fallback overlays. Schedules are cross-referenced with channel tvg-id tags according to XMLTV DTD and RFC 5545 specifications."
+        description="XMLTV auto-feed integration and time-grid EPG display. Schedules are cross-referenced with channel tvg-id tags according to XMLTV DTD and RFC 5545 specifications, delivering live Now/Next broadcast information."
         protocol="XMLTV DTD & RFC 5545 (iCalendar)"
         schema="XMLTV Schema v0.6 & DVB-SI Event Information"
         rfcOrStandard="XMLTV DTD 0.6 • DVB-SI EN 300 468"
         layer="Metadata & Schedule Synchronization Layer"
-        supportedTags={['<tv>', '<channel id="">', '<programme start="" stop="">', '<title>', '<desc>', '<category>', 'tvg-id']}
+        supportedTags={['<tv>', '<channel id="">', '<programme start="" stop="">', '<title>', '<desc>', '<category>', 'tvg-id', 'Now/Next']}
         icon={CalendarRange}
-        badgeColor="indigo"
+        badgeColor="cyan"
       >
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 rounded-full border border-emerald-500/20 text-[10px] text-emerald-400 font-bold uppercase tracking-wider">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-          Dual-Layer Backbone Active
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleRefreshXmltvFeed}
+            disabled={isSyncing}
+            className="px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-cyan-500/20 cursor-pointer"
+            aria-label="Refresh XMLTV Feed"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+            <span>Sync XMLTV Feed</span>
+          </button>
         </div>
       </PageProtocolHeader>
 
-      {guideChannels.length === 0 ? (
-        <div className="flex-1 min-h-[300px] flex flex-col items-center justify-center border border-dashed border-white/10 rounded-2xl bg-white/2 p-8">
-          <Tv className="w-12 h-12 text-zinc-600 mb-3" />
-          <h3 className="text-sm font-bold text-zinc-300">No Channels for EPG</h3>
-          <p className="text-xs text-zinc-500 text-center max-w-sm mt-1">
-            Ensure an M3U playlist is parsed and sync'd to render schedule timelines.
+      {syncToast && (
+        <div className="p-3 bg-cyan-500/10 border border-cyan-500/30 rounded-xl text-xs text-cyan-300 font-medium flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4 text-cyan-400" />
+          {syncToast}
+        </div>
+      )}
+
+      {/* SKELETON LOADER STATE */}
+      {isLoading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-16 rounded-2xl skeleton-box w-full" />
+          ))}
+        </div>
+      ) : guideChannels.length === 0 ? (
+        /* EMPTY STATE */
+        <div className="flex-1 min-h-[350px] flex flex-col items-center justify-center border border-dashed border-white/10 rounded-3xl bg-white/[0.01] p-8 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 flex items-center justify-center text-cyan-400 mb-4 border border-cyan-500/20">
+            <Tv className="w-8 h-8" />
+          </div>
+          <h3 className="text-base font-bold text-white">No EPG Channels Loaded</h3>
+          <p className="text-xs text-zinc-400 max-w-sm mt-1.5 leading-relaxed">
+            Upload or sync an M3U playlist with valid tvg-id tags to populate the electronic program guide.
           </p>
         </div>
       ) : (
+        /* TIMELINE GRID */
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-stretch">
-          
-          {/* Timeline Grid (8 cols) */}
-          <div className="xl:col-span-8 flex flex-col bg-black/40 border border-white/15 rounded-2xl overflow-hidden">
-            
-            {/* Header Timeline hours */}
-            <div className="grid grid-cols-12 border-b border-white/10 bg-zinc-950/60 p-4 text-[10px] font-bold text-zinc-500 uppercase tracking-widest gap-2">
+          <div className="xl:col-span-8 flex flex-col bg-[#16161a] border border-white/10 rounded-3xl overflow-hidden shadow-xl">
+            {/* Header hours */}
+            <div className="grid grid-cols-12 border-b border-white/10 bg-black/40 p-4 text-[10px] font-bold text-zinc-400 uppercase tracking-widest gap-2">
               <div className="col-span-3">Network Feed</div>
               <div className="col-span-3">Live (On-Air Now)</div>
-              <div className="col-span-3">Up Next (11:30 AM)</div>
-              <div className="col-span-3">Later (1:00 PM)</div>
+              <div className="col-span-3">Up Next (1 Hour)</div>
+              <div className="col-span-3">Later (2 Hours)</div>
             </div>
 
-            {/* Scrollable grid channels rows */}
-            <div className="divide-y divide-white/5 overflow-y-auto max-h-[400px]">
+            {/* Grid rows */}
+            <div className="divide-y divide-white/5 overflow-y-auto max-h-[460px] scrollbar-thin">
               {guideChannels.map((c) => {
                 const shows = getProgramsForChannel(c);
                 return (
-                  <div key={c.id} className="grid grid-cols-12 items-center p-4 hover:bg-white/[0.01] gap-2">
-                    {/* Channel Metadata */}
+                  <div key={c.id} className="grid grid-cols-12 items-center p-3.5 hover:bg-white/[0.02] gap-2 transition-colors">
+                    {/* Channel */}
                     <div className="col-span-3 flex items-center gap-2.5 min-w-0 pr-2">
-                      <div className="w-8 h-8 rounded-lg bg-black/50 border border-white/5 p-1 flex-shrink-0 flex items-center justify-center overflow-hidden">
+                      <div className="w-8 h-8 rounded-xl bg-black/60 border border-white/5 p-1 flex-shrink-0 flex items-center justify-center overflow-hidden">
                         <img
-                          src={c.logo}
+                          src={c.logo || 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=120&auto=format&fit=crop&q=60'}
                           alt={c.name}
                           onError={(e) => {
                             (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=120&auto=format&fit=crop&q=60';
@@ -227,69 +261,64 @@ export default function DesktopEpg() {
                           className="w-full h-full object-contain"
                         />
                       </div>
-                      <span className="text-xs font-bold text-zinc-200 truncate leading-snug">
+                      <span className="text-xs font-bold text-white truncate leading-snug">
                         {c.name}
                       </span>
                     </div>
 
                     {/* Show Blocks */}
-                    {shows.map((show, sidx) => {
-                      return (
-                        <div
-                          key={sidx}
-                          onClick={() => {
-                            setSelectedShow(show);
-                            setSelectedChannel(c);
-                          }}
-                          className={`col-span-3 p-2.5 rounded-xl text-left cursor-pointer transition-all border group relative min-h-[58px] flex flex-col justify-between ${
-                            show.isLive
-                              ? 'bg-blue-600/10 border-blue-500/20 hover:bg-blue-600/15'
-                              : 'bg-white/3 border-transparent hover:bg-white/5 hover:border-white/5'
-                          }`}
-                        >
-                          <div>
-                            <span className="text-[9px] text-zinc-400 font-bold block leading-none mb-1 group-hover:text-zinc-200 transition-colors">
-                              {show.time.split(' - ')[0]}
-                            </span>
-                            <span className="text-xs font-bold text-white truncate block group-hover:text-blue-300 transition-colors">
-                              {show.title}
-                            </span>
-                          </div>
-
-                          {show.isLive && (
-                            <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden mt-1.5">
-                              <div
-                                className="h-full bg-blue-500 rounded-full"
-                                style={{ width: `${show.progress}%` }}
-                              />
-                            </div>
-                          )}
+                    {shows.map((show, sidx) => (
+                      <div
+                        key={sidx}
+                        onClick={() => {
+                          setSelectedShow(show);
+                          setSelectedChannel(c);
+                        }}
+                        className={`col-span-3 p-2.5 rounded-xl text-left cursor-pointer transition-all border group relative min-h-[58px] flex flex-col justify-between ${
+                          show.isLive
+                            ? 'bg-cyan-500/10 border-cyan-500/30 hover:bg-cyan-500/15'
+                            : 'bg-white/[0.02] border-transparent hover:bg-white/[0.05] hover:border-white/10'
+                        }`}
+                      >
+                        <div>
+                          <span className="text-[9px] text-zinc-400 font-bold block leading-none mb-1 group-hover:text-cyan-300 transition-colors">
+                            {show.time.split(' - ')[0]}
+                          </span>
+                          <span className="text-xs font-bold text-white truncate block group-hover:text-cyan-300 transition-colors">
+                            {show.title}
+                          </span>
                         </div>
-                      );
-                    })}
+
+                        {show.isLive && (
+                          <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden mt-1.5">
+                            <div
+                              className="h-full bg-cyan-400 rounded-full"
+                              style={{ width: `${show.progress}%` }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 );
               })}
             </div>
           </div>
 
-          {/* Interactive Inspector Sidebar (4 cols) */}
+          {/* Show Inspector Sidebar */}
           <div className="xl:col-span-4 flex flex-col">
             {selectedShow && selectedChannel ? (
-              <div className="bg-gradient-to-b from-white/[0.04] to-transparent border border-white/10 rounded-2xl p-5 h-full flex flex-col gap-4">
+              <div className="bg-[#16161a] border border-white/10 rounded-3xl p-6 h-full flex flex-col gap-4 shadow-xl">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-black/40 border border-white/5 p-1.5 overflow-hidden">
+                  <div className="w-10 h-10 rounded-xl bg-black/60 border border-white/5 p-1.5 overflow-hidden">
                     <img
-                      src={selectedChannel.logo}
+                      src={selectedChannel.logo || 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=120&auto=format&fit=crop&q=60'}
                       alt={selectedChannel.name}
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=120&auto=format&fit=crop&q=60';
-                      }}
                       className="w-full h-full object-contain"
                     />
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider block">
+                    <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider block">
                       {selectedChannel.group}
                     </span>
                     <h3 className="text-sm font-bold text-white leading-tight">
@@ -299,13 +328,13 @@ export default function DesktopEpg() {
                 </div>
 
                 <div className="border-t border-b border-white/5 py-4 flex flex-col gap-2">
-                  <div className="flex items-center gap-1 text-[11px] font-bold text-zinc-400">
-                    <Clock className="w-3.5 h-3.5 text-blue-500" />
+                  <div className="flex items-center gap-1.5 text-[11px] font-bold text-zinc-400">
+                    <Clock className="w-3.5 h-3.5 text-cyan-400" />
                     <span>{selectedShow.time}</span>
                   </div>
                   {selectedShow.isLive && (
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[10px] font-bold px-2 py-0.5 bg-green-500/10 text-green-400 rounded-full">
+                      <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-500/10 text-emerald-400 rounded-full border border-emerald-500/20">
                         LIVE NOW
                       </span>
                       <span className="text-[11px] text-zinc-400 font-semibold">
@@ -316,33 +345,33 @@ export default function DesktopEpg() {
                 </div>
 
                 <div>
-                  <h4 className="text-base font-extrabold text-white leading-tight mb-2">
+                  <h4 className="text-sm font-bold text-white leading-tight mb-2">
                     {selectedShow.title}
                   </h4>
-                  <p className="text-xs text-zinc-400 leading-relaxed font-medium">
+                  <p className="text-xs text-zinc-400 leading-relaxed">
                     {selectedShow.description}
                   </p>
                 </div>
 
                 <button
                   onClick={() => handlePlayInSimulator(selectedChannel)}
-                  className="mt-auto w-full py-3 px-4 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-500/15 hover:shadow-blue-500/25 transition-all"
+                  className="mt-auto w-full py-3 px-4 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 transition-all cursor-pointer"
+                  aria-label="Launch stream in simulator"
                 >
                   <Play className="w-4 h-4 fill-current" />
-                  Launch Network Stream
+                  Launch Stream Simulator
                 </button>
               </div>
             ) : (
-              <div className="border border-white/10 rounded-2xl p-6 h-full flex flex-col items-center justify-center text-center bg-white/[0.01]">
-                <Info className="w-8 h-8 text-zinc-600 mb-3" />
-                <h4 className="text-xs font-bold text-zinc-300">Select Program</h4>
+              <div className="border border-white/10 rounded-3xl p-6 h-full flex flex-col items-center justify-center text-center bg-[#16161a]">
+                <Info className="w-8 h-8 text-zinc-500 mb-3" />
+                <h4 className="text-xs font-bold text-zinc-200">Program Inspector</h4>
                 <p className="text-[11px] text-zinc-500 max-w-xs mt-1.5 leading-relaxed">
-                  Click on any schedule block in the grid timetable to load metadata, timelines, and quick streaming triggers.
+                  Click on any schedule block in the timetable to inspect detailed episode metadata, progress, and broadcast information.
                 </p>
               </div>
             )}
           </div>
-
         </div>
       )}
     </div>

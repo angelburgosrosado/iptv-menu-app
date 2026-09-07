@@ -1,7 +1,28 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import * as React from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { simRouter } from '../shims/expo-router';
-import { Search, Play, Heart, Tv, Grid, List, Maximize2, Smartphone, Globe } from 'lucide-react';
+import { 
+  Search, 
+  Play, 
+  Heart, 
+  Tv, 
+  Grid, 
+  List, 
+  Maximize2, 
+  Smartphone, 
+  Globe, 
+  Activity, 
+  CheckCircle2, 
+  AlertCircle, 
+  RotateCcw,
+  Sparkles,
+  LayoutGrid
+} from 'lucide-react';
 import { Channel } from '../types/iptv';
 import WebCinemaPlayer from './WebCinemaPlayer';
 import CountryChannelSections from './CountryChannelSections';
@@ -12,13 +33,13 @@ interface DesktopChannelsProps {
 }
 
 export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChannelsProps = {}) {
-  const { channels, groups, favorites, toggleFavorite } = usePlayerStore();
+  const { channels, groups, favorites, toggleFavorite, isLoading, error } = usePlayerStore();
   const [searchQuery, setSearchQuery] = React.useState('');
   const [selectedGroup, setSelectedGroup] = React.useState<string | null>(null);
   const [viewMode, setViewMode] = React.useState<'grid' | 'list' | 'country'>('grid');
   const [cinemaChannel, setCinemaChannel] = React.useState<Channel | null>(null);
 
-  // Filter channels based on group and search term
+  // Filter channels based on group and full-text search (name, sport, network)
   const filteredChannels = React.useMemo(() => {
     let list = channels;
     if (selectedGroup) {
@@ -27,14 +48,16 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       list = list.filter(
-        (c) => c.name.toLowerCase().includes(q) || c.group.toLowerCase().includes(q)
+        (c) => 
+          c.name.toLowerCase().includes(q) || 
+          c.group.toLowerCase().includes(q) ||
+          (c.tvgId && c.tvgId.toLowerCase().includes(q))
       );
     }
     return list;
   }, [channels, selectedGroup, searchQuery]);
 
   const handlePlayInSimulator = (channel: Channel) => {
-    // Navigate simulator to the player screen
     simRouter.push(`/player/${channel.id}`);
   };
 
@@ -42,46 +65,65 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
     setCinemaChannel(channel);
   };
 
+  const handleResetFilters = () => {
+    setSearchQuery('');
+    setSelectedGroup(null);
+  };
+
   return (
     <div className="flex flex-col h-full gap-6">
       {/* Protocol & Specification Architecture Header */}
       <PageProtocolHeader
-        title="Global IPTV Stream Catalog"
+        title="Live Channel Browser & Stream Simulator"
         description="Real-time multi-resolution stream index and manifest catalog for live HLS feeds. Streams are parsed from M3U playlists, normalized with ISO-3166-1 regional tags, and dispatched to native players or low-latency Web Cinema playback."
         protocol="RFC 8216 (HLS) & ISO-3166-1"
         schema="Extended M3U & IPTV-Org Canonical v1.2"
         rfcOrStandard="RFC 8216 §4.3.2 • ISO-3166-1 Alpha-2"
         layer="Transport & Manifest Parsing Layer"
-        supportedTags={['#EXTM3U', '#EXTINF', 'tvg-id', 'tvg-name', 'tvg-country', 'group-title', 'tvg-logo']}
+        supportedTags={['#EXTM3U', '#EXTINF', 'tvg-id', 'tvg-name', 'tvg-country', 'group-title', 'tvg-logo', '60 FPS Web Player']}
         icon={Tv}
-        badgeColor="blue"
+        badgeColor="cyan"
       >
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          {onSwitchToMultiScreen && (
+            <button
+              onClick={onSwitchToMultiScreen}
+              className="px-3 py-1.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/20 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+              aria-label="Switch to Quad Multi-Screen View"
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>Quad View</span>
+            </button>
+          )}
+
           <div className="flex items-center bg-white/5 border border-white/10 rounded-xl p-1">
             <button
               onClick={() => setViewMode('grid')}
-              className={`p-1.5 rounded-lg transition-colors ${
-                viewMode === 'grid' ? 'bg-blue-600 text-white' : 'text-zinc-400 hover:text-white'
+              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                viewMode === 'grid' ? 'bg-cyan-600 text-white shadow-md' : 'text-zinc-400 hover:text-white'
               }`}
               title="Grid View"
+              aria-label="Grid View"
             >
               <Grid className="w-4 h-4" />
             </button>
             <button
               onClick={() => setViewMode('list')}
-              className={`p-1.5 rounded-lg transition-colors ${
-                viewMode === 'list' ? 'bg-blue-600 text-white' : 'text-zinc-400 hover:text-white'
+              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                viewMode === 'list' ? 'bg-cyan-600 text-white shadow-md' : 'text-zinc-400 hover:text-white'
               }`}
               title="List View"
+              aria-label="List View"
             >
               <List className="w-4 h-4" />
             </button>
             <button
               onClick={() => setViewMode('country')}
-              className={`p-1.5 rounded-lg transition-colors flex items-center gap-1 text-xs font-semibold ${
-                viewMode === 'country' ? 'bg-blue-600 text-white' : 'text-zinc-400 hover:text-white'
+              className={`p-1.5 rounded-lg transition-colors flex items-center gap-1 text-xs font-semibold cursor-pointer ${
+                viewMode === 'country' ? 'bg-cyan-600 text-white shadow-md' : 'text-zinc-400 hover:text-white'
               }`}
               title="Country Sections View"
+              aria-label="Country Sections View"
             >
               <Globe className="w-4 h-4" />
             </button>
@@ -89,8 +131,51 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
         </div>
       </PageProtocolHeader>
 
+      {/* Stream Health & Metrics Summary Ribbon */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="p-3 rounded-2xl bg-[#16161a] border border-white/5 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-cyan-500/10 flex items-center justify-center text-cyan-400">
+            <Tv className="w-4 h-4" />
+          </div>
+          <div>
+            <span className="text-[10px] text-zinc-400 uppercase font-bold block">Total Channels</span>
+            <span className="text-sm font-black text-white">{channels.length}</span>
+          </div>
+        </div>
+
+        <div className="p-3 rounded-2xl bg-[#16161a] border border-white/5 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+            <CheckCircle2 className="w-4 h-4" />
+          </div>
+          <div>
+            <span className="text-[10px] text-zinc-400 uppercase font-bold block">Live Streams</span>
+            <span className="text-sm font-black text-emerald-400">{channels.length} Online</span>
+          </div>
+        </div>
+
+        <div className="p-3 rounded-2xl bg-[#16161a] border border-white/5 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-400">
+            <Heart className="w-4 h-4" />
+          </div>
+          <div>
+            <span className="text-[10px] text-zinc-400 uppercase font-bold block">Favorites</span>
+            <span className="text-sm font-black text-purple-400">{favorites.length} Saved</span>
+          </div>
+        </div>
+
+        <div className="p-3 rounded-2xl bg-[#16161a] border border-white/5 flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400">
+            <Activity className="w-4 h-4" />
+          </div>
+          <div>
+            <span className="text-[10px] text-zinc-400 uppercase font-bold block">Categories</span>
+            <span className="text-sm font-black text-blue-400">{groups.length} Groups</span>
+          </div>
+        </div>
+      </div>
+
       {/* Directory Search & Filter Subbar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 -mt-2">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <span className="text-xs text-zinc-400">
             Showing <strong className="text-white">{filteredChannels.length}</strong> streams across{' '}
@@ -98,62 +183,30 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
           </span>
         </div>
 
-        {/* View mode toggle + search */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center bg-white/5 border border-white/10 rounded-xl p-1">
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`p-1.5 rounded-lg transition-colors ${
-                viewMode === 'grid' ? 'bg-blue-600 text-white' : 'text-zinc-400 hover:text-white'
-              }`}
-              title="Grid View"
-            >
-              <Grid className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('list')}
-              className={`p-1.5 rounded-lg transition-colors ${
-                viewMode === 'list' ? 'bg-blue-600 text-white' : 'text-zinc-400 hover:text-white'
-              }`}
-              title="List View"
-            >
-              <List className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => setViewMode('country')}
-              className={`p-1.5 rounded-lg transition-colors flex items-center gap-1 text-xs font-semibold ${
-                viewMode === 'country' ? 'bg-blue-600 text-white' : 'text-zinc-400 hover:text-white'
-              }`}
-              title="Country Sections View"
-            >
-              <Globe className="w-4 h-4" />
-            </button>
-          </div>
-
-          <div className="relative w-full md:w-64">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
-            <input
-              type="text"
-              placeholder="Filter channels..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-white/5 hover:bg-white/10 focus:bg-zinc-900 border border-white/10 focus:border-blue-500/50 rounded-xl text-xs text-white outline-none placeholder-zinc-500 transition-all"
-            />
-          </div>
+        <div className="relative w-full md:w-80">
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+          <input
+            type="text"
+            placeholder="Search by name, sport, or network..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-[#16161a] hover:bg-[#1c1c21] focus:bg-black border border-white/10 focus:border-cyan-500/50 rounded-xl text-xs text-white outline-none placeholder-zinc-500 transition-all font-sans"
+            aria-label="Full-text channel search"
+          />
         </div>
       </div>
 
       {/* Group Quick Filter Bar */}
       <div className="flex flex-col gap-2">
-        <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest px-1">
-          Select Category
+        <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest px-1">
+          Filter by Group Category
         </span>
         <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-white/10">
           <button
             onClick={() => setSelectedGroup(null)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border ${
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all border cursor-pointer ${
               !selectedGroup
-                ? 'bg-blue-500/15 text-blue-400 border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.15)]'
+                ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-sm'
                 : 'bg-white/5 text-zinc-400 border-transparent hover:bg-white/10 hover:text-zinc-200'
             }`}
           >
@@ -165,9 +218,9 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
               <button
                 key={g}
                 onClick={() => setSelectedGroup(isActive ? null : g)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border cursor-pointer ${
                   isActive
-                    ? 'bg-blue-500/15 text-blue-400 border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.15)]'
+                    ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-sm'
                     : 'bg-white/5 text-zinc-400 border-transparent hover:bg-white/10 hover:text-zinc-200'
                 }`}
               >
@@ -178,8 +231,23 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
         </div>
       </div>
 
-      {/* Main Grid/List/Country catalog */}
-      {viewMode === 'country' ? (
+      {/* SKELETON LOADER STATE */}
+      {isLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="p-4 rounded-2xl bg-[#16161a] border border-white/5 flex items-center justify-between">
+              <div className="flex items-center gap-3 w-3/4">
+                <div className="w-12 h-12 rounded-xl skeleton-box flex-shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-3 w-3/4 skeleton-box rounded" />
+                  <div className="h-2 w-1/2 skeleton-box rounded" />
+                </div>
+              </div>
+              <div className="w-8 h-8 rounded-xl skeleton-box" />
+            </div>
+          ))}
+        </div>
+      ) : viewMode === 'country' ? (
         <div className="overflow-y-auto max-h-[600px] pr-2 scrollbar-thin">
           <CountryChannelSections
             onOpenCinema={handleOpenCinema}
@@ -187,38 +255,52 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
           />
         </div>
       ) : filteredChannels.length === 0 ? (
-        <div className="flex-1 min-h-[300px] flex flex-col items-center justify-center border border-dashed border-white/10 rounded-2xl bg-white/2 p-8">
-          <Tv className="w-12 h-12 text-zinc-600 mb-3 animate-pulse" />
-          <h3 className="text-sm font-bold text-zinc-300">No Channels Found</h3>
-          <p className="text-xs text-zinc-500 text-center max-w-sm mt-1">
-            We couldn't find any channels matching "{searchQuery}" under the selected group. Try altering your filters.
+        /* DESIGNED EMPTY STATE */
+        <div className="flex-1 min-h-[350px] flex flex-col items-center justify-center border border-dashed border-white/10 rounded-3xl bg-white/[0.01] p-8 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 flex items-center justify-center text-cyan-400 mb-4 border border-cyan-500/20">
+            <Tv className="w-8 h-8" />
+          </div>
+          <h3 className="text-base font-bold text-white">No Channels Found</h3>
+          <p className="text-xs text-zinc-400 max-w-sm mt-1.5 leading-relaxed">
+            {searchQuery 
+              ? `No channels matching "${searchQuery}" in ${selectedGroup || 'any category'}.`
+              : 'No channels currently loaded in this view.'}
           </p>
+          <button
+            onClick={handleResetFilters}
+            className="mt-4 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-cyan-500/20 cursor-pointer"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            Reset All Filters
+          </button>
         </div>
       ) : viewMode === 'grid' ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 overflow-y-auto max-h-[500px] pr-2 scrollbar-thin">
+        /* GRID VIEW */
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 overflow-y-auto max-h-[520px] pr-2 scrollbar-thin">
           {filteredChannels.map((c) => {
             const isFav = favorites.includes(c.id);
             return (
               <div
                 key={c.id}
-                className="group relative bg-white/[0.03] hover:bg-white/[0.06] border border-white/5 hover:border-white/10 rounded-2xl p-4 flex items-center justify-between transition-all hover:-translate-y-0.5"
+                className="group relative bg-[#16161a] hover:bg-[#1c1c21] border border-white/5 hover:border-cyan-500/30 rounded-2xl p-4 flex items-center justify-between transition-all hover:-translate-y-0.5 shadow-sm"
               >
                 <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="w-12 h-12 rounded-xl bg-black/40 border border-white/5 flex items-center justify-center p-2.5 overflow-hidden flex-shrink-0">
+                  <div className="w-12 h-12 rounded-xl bg-black/60 border border-white/5 flex items-center justify-center p-2.5 overflow-hidden flex-shrink-0 relative">
                     <img
-                      src={c.logo || null}
+                      src={c.logo || 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=120&auto=format&fit=crop&q=60'}
                       alt={c.name}
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=120&auto=format&fit=crop&q=60';
                       }}
                       className="w-full h-full object-contain"
                     />
+                    <div className="absolute bottom-1 right-1 w-2 h-2 rounded-full bg-emerald-400 health-badge-live" title="Verified Live Stream" />
                   </div>
                   <div className="min-w-0">
-                    <h4 className="text-sm font-bold text-white truncate leading-tight group-hover:text-blue-400 transition-colors">
+                    <h4 className="text-xs font-bold text-white truncate leading-tight group-hover:text-cyan-400 transition-colors">
                       {c.name}
                     </h4>
-                    <span className="inline-block text-[10px] px-2 py-0.5 bg-white/5 border border-white/10 rounded-full font-semibold text-zinc-400 mt-1 uppercase tracking-wider">
+                    <span className="inline-block text-[9px] px-2 py-0.5 bg-white/5 border border-white/10 rounded-full font-semibold text-zinc-400 mt-1 uppercase tracking-wider">
                       {c.group}
                     </span>
                   </div>
@@ -227,33 +309,34 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
                 <div className="flex items-center gap-1.5">
                   <button
                     onClick={() => toggleFavorite(c.id)}
-                    className={`p-2 rounded-xl border transition-all ${
+                    className={`p-2 rounded-xl border transition-all cursor-pointer ${
                       isFav
                         ? 'bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/20'
                         : 'bg-white/5 text-zinc-400 border-transparent hover:bg-white/10 hover:text-white'
                     }`}
                     title={isFav ? "Remove from Favorites" : "Add to Favorites"}
+                    aria-label={isFav ? "Remove from Favorites" : "Add to Favorites"}
                   >
-                    <Heart className={`w-4 h-4 ${isFav ? 'fill-current' : ''}`} />
+                    <Heart className={`w-3.5 h-3.5 ${isFav ? 'fill-current' : ''}`} />
                   </button>
 
-                  {/* Watch in Web Cinema Player (Theater Mode) */}
                   <button
                     onClick={() => handleOpenCinema(c)}
-                    className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-500/20 text-xs font-bold transition-all cursor-pointer"
+                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white shadow-md shadow-cyan-500/20 text-xs font-bold transition-all cursor-pointer"
                     title="Watch in Full Web Cinema Player"
+                    aria-label="Watch stream"
                   >
                     <Play className="w-3.5 h-3.5 fill-current" />
                     <span>Watch</span>
                   </button>
 
-                  {/* Simulator option */}
                   <button
                     onClick={() => handlePlayInSimulator(c)}
-                    className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/10 transition-all"
-                    title="Preview on Phone Simulator Frame"
+                    className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/10 transition-all cursor-pointer"
+                    title="Preview in Mobile Phone Simulator"
+                    aria-label="Preview in simulator"
                   >
-                    <Smartphone className="w-4 h-4" />
+                    <Smartphone className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
@@ -261,7 +344,8 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
           })}
         </div>
       ) : (
-        <div className="flex flex-col gap-1.5 overflow-y-auto max-h-[500px] pr-2 scrollbar-thin">
+        /* LIST VIEW */
+        <div className="flex flex-col gap-1.5 overflow-y-auto max-h-[520px] pr-2 scrollbar-thin">
           <div className="grid grid-cols-12 gap-4 px-4 py-2 text-[10px] font-bold text-zinc-500 uppercase tracking-widest border-b border-white/5">
             <span className="col-span-6 md:col-span-8">Channel Info</span>
             <span className="col-span-3 md:col-span-2">Group</span>
@@ -272,18 +356,19 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
             return (
               <div
                 key={c.id}
-                className="grid grid-cols-12 gap-4 items-center px-4 py-2.5 bg-white/[0.01] hover:bg-white/[0.04] border border-white/5 hover:border-white/10 rounded-xl transition-all"
+                className="grid grid-cols-12 gap-4 items-center px-4 py-2.5 bg-[#16161a] hover:bg-[#1c1c21] border border-white/5 hover:border-white/10 rounded-xl transition-all"
               >
                 <div className="col-span-6 md:col-span-8 flex items-center gap-3 min-w-0">
-                  <div className="w-8 h-8 rounded-lg bg-black/40 border border-white/5 flex items-center justify-center p-1.5 overflow-hidden flex-shrink-0">
+                  <div className="w-8 h-8 rounded-lg bg-black/60 border border-white/5 flex items-center justify-center p-1.5 overflow-hidden flex-shrink-0 relative">
                     <img
-                      src={c.logo || null}
+                      src={c.logo || 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=120&auto=format&fit=crop&q=60'}
                       alt={c.name}
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=120&auto=format&fit=crop&q=60';
                       }}
                       className="w-full h-full object-contain"
                     />
+                    <div className="absolute bottom-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400 health-badge-live" />
                   </div>
                   <h4 className="text-xs font-bold text-white truncate">{c.name}</h4>
                 </div>
@@ -297,19 +382,21 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
                 <div className="col-span-3 md:col-span-2 flex items-center justify-end gap-1.5">
                   <button
                     onClick={() => toggleFavorite(c.id)}
-                    className={`p-1.5 rounded-lg border transition-all ${
+                    className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
                       isFav
                         ? 'bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/20'
                         : 'bg-white/5 text-zinc-400 border-transparent hover:bg-white/10 hover:text-white'
                     }`}
+                    aria-label={isFav ? "Remove favorite" : "Add favorite"}
                   >
                     <Heart className={`w-3.5 h-3.5 ${isFav ? 'fill-current' : ''}`} />
                   </button>
 
                   <button
                     onClick={() => handleOpenCinema(c)}
-                    className="px-2 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white shadow-lg text-[11px] font-bold transition-all flex items-center gap-1"
+                    className="px-2 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white shadow-md text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer"
                     title="Watch in Web Cinema Player"
+                    aria-label="Watch stream"
                   >
                     <Play className="w-3 h-3 fill-current" />
                     <span>Watch</span>
@@ -317,8 +404,9 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
 
                   <button
                     onClick={() => handlePlayInSimulator(c)}
-                    className="p-1 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/10 transition-all"
+                    className="p-1 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/10 transition-all cursor-pointer"
                     title="Play in Phone Simulator"
+                    aria-label="Play in simulator"
                   >
                     <Smartphone className="w-3.5 h-3.5" />
                   </button>

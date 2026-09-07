@@ -47,6 +47,10 @@ import DesktopM3uUpload from './components/DesktopM3uUpload';
 import DesktopRemoteApps from './components/DesktopRemoteApps';
 import DesktopSettings from './components/DesktopSettings';
 import DesktopPremium from './components/DesktopPremium';
+import DesktopApkBuilder from './components/DesktopApkBuilder';
+import UserProfileModal from './components/UserProfileModal';
+import OnboardingModal from './components/OnboardingModal';
+import LegalModal, { LegalTab } from './components/LegalModal';
 import SystemAdminConsole from './components/admin/SystemAdminConsole';
 import XtreamConnector from './components/XtreamConnector';
 import MultiScreenMatrix from './components/MultiScreenMatrix';
@@ -77,16 +81,29 @@ import {
 export default function App() {
   const auth = useAuth();
   const [isAuthModalOpen, setIsAuthModalOpen] = React.useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = React.useState(false);
+  const [isOnboardingModalOpen, setIsOnboardingModalOpen] = React.useState(() => {
+    try {
+      return !localStorage.getItem('iptv_onboarding_completed');
+    } catch {
+      return false;
+    }
+  });
+  const [legalModalState, setLegalModalState] = React.useState<{ isOpen: boolean; tab: LegalTab }>({
+    isOpen: false,
+    tab: 'privacy'
+  });
   const [toastMessage, setToastMessage] = React.useState<string | null>(null);
 
   const MOBILE_TAB_ITEMS = [
-    { id: 'home', label: 'Home', icon: Home },
     { id: 'channels', label: 'Channels', icon: Tv },
+    { id: 'multiscreen', label: 'Quad', icon: LayoutGrid },
+    { id: 'epg', label: 'EPG', icon: CalendarRange },
+    { id: 'favorites', label: 'Saved', icon: Heart },
+    { id: 'upload', label: 'M3U', icon: UploadCloud },
+    { id: 'apk_builder', label: 'Builder', icon: Sparkles },
     { id: 'remote_apps', label: 'OTA', icon: Radio },
-    { id: 'multiscreen', label: 'Multi', icon: LayoutGrid },
-    { id: 'upload', label: 'Upload', icon: UploadCloud },
-    { id: 'devices', label: 'Devices', icon: ShieldCheck },
-    { id: 'premium', label: 'Upgrade', icon: Crown },
+    { id: 'premium', label: 'Billing', icon: Crown },
   ];
 
   const triggerToast = (msg: string) => {
@@ -241,18 +258,19 @@ export default function App() {
   };
 
   const SIDEBAR_ITEMS = [
-    { id: 'home', label: 'Home', icon: Home },
-    { id: 'channels', label: 'Channels', icon: Tv },
+    { id: 'channels', label: 'Live Channels', icon: Tv },
     { id: 'multiscreen', label: 'Quad Multi-Screen', icon: LayoutGrid },
-    { id: 'favorites', label: 'Favorites', icon: Heart },
-    { id: 'epg', label: 'EPG Guide', icon: CalendarRange },
+    { id: 'epg', label: 'EPG Program Guide', icon: CalendarRange },
+    { id: 'favorites', label: 'Favorites & History', icon: Heart },
+    { id: 'upload', label: 'M3U Playlist Manager', icon: UploadCloud },
+    { id: 'apk_builder', label: 'APK App Builder', icon: Sparkles },
+    { id: 'remote_apps', label: 'Remote OTA Apps', icon: Radio },
     { id: 'xtream', label: 'Xtream / Stalker', icon: Server },
-    { id: 'upload', label: 'M3U Upload', icon: UploadCloud },
-    { id: 'remote_apps', label: 'Remote Apps (OTA)', icon: Radio },
-    { id: 'system_admin', label: 'Platform Admin', icon: ShieldAlert },
     { id: 'devices', label: 'Certified Devices', icon: ShieldCheck },
+    { id: 'premium', label: 'Plans & Billing', icon: Crown },
     { id: 'settings', label: 'Settings', icon: Settings },
-    { id: 'premium', label: 'Premium Upgrade', icon: Crown },
+    { id: 'system_admin', label: 'Platform Admin', icon: ShieldAlert },
+    { id: 'home', label: 'Code Explorer', icon: Home },
   ];
 
   const renderActiveSection = () => {
@@ -269,6 +287,8 @@ export default function App() {
         return <XtreamConnector />;
       case 'upload':
         return <DesktopM3uUpload />;
+      case 'apk_builder':
+        return <DesktopApkBuilder />;
       case 'remote_apps':
         return <DesktopRemoteApps />;
       case 'system_admin':
@@ -1177,7 +1197,7 @@ export default function App() {
               )}
               <button
                 onClick={() => {
-                  authStore.getState().logout();
+                  authStore.logout();
                   triggerToast('Logged out successfully');
                 }}
                 className="ml-1 p-1.5 text-zinc-400 hover:text-red-400 hover:bg-red-500/10 rounded-full transition-colors"
@@ -1348,18 +1368,18 @@ export default function App() {
             {auth.isLoggedIn ? (
               <>
                 <button 
-                  onClick={() => triggerToast(`Active Account: ${auth.email} (${auth.role})`)}
+                  onClick={() => setIsProfileModalOpen(true)}
                   className="p-2 rounded-2xl text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 transition-all outline-none cursor-pointer border border-white/10"
-                  aria-label="User Profile"
+                  aria-label="User Profile & Billing"
                   tabIndex={0}
                 >
-                  <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-black text-[10px] flex items-center justify-center border border-white/20 shadow-md">
+                  <div className="w-6 h-6 rounded-full bg-gradient-to-tr from-cyan-500 to-blue-600 text-white font-black text-[10px] flex items-center justify-center border border-white/20 shadow-md">
                     {auth.email ? auth.email.substring(0, 2).toUpperCase() : 'AB'}
                   </div>
                 </button>
                 <div className="absolute left-full ml-4 px-3 py-1.5 bg-black/85 backdrop-blur-md text-[11px] font-bold text-white rounded-xl border border-white/10 opacity-0 translate-x-[-10px] pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 z-50 shadow-2xl whitespace-nowrap">
                   <span className="text-white font-semibold">{auth.email}</span>
-                  <span className="block text-[9px] text-amber-400 font-extrabold uppercase mt-0.5">{auth.role === 'admin' ? '★ Root Administrator' : 'Standard Member'}</span>
+                  <span className="block text-[9px] text-cyan-400 font-extrabold uppercase mt-0.5">{auth.role === 'admin' ? '★ Root Administrator' : `${auth.role.toUpperCase()} Member`}</span>
                 </div>
               </>
             ) : (
@@ -1483,9 +1503,50 @@ export default function App() {
       </div>
     </div>
 
-      {/* Footer copyright block */}
-      <footer className="py-6 pb-24 md:pb-6 border-t border-white/5 bg-zinc-950/40 text-center text-xs text-zinc-500 font-medium relative z-10">
-        <p>IPTV Mobile Simulation Platform • Fully Client-Side High-Contrast Render • 60fps Native list virtualizer</p>
+      {/* Footer copyright block & Compliance Legal Links */}
+      <footer className="py-8 pb-24 md:pb-8 border-t border-white/5 bg-[#0e0e10]/90 text-center text-xs text-zinc-500 font-medium relative z-10">
+        <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-[#00d4ff] shadow-[0_0_8px_#00d4ff]" />
+            <p className="text-zinc-400 font-mono text-[11px]">
+              IPTV Menu Pro • High-Performance IPTV Developer Platform • 60 FPS Native Simulator
+            </p>
+          </div>
+          
+          <div className="flex flex-wrap items-center justify-center gap-4 text-[11px] font-mono">
+            <button
+              onClick={() => setLegalModalState({ isOpen: true, tab: 'privacy' })}
+              className="text-zinc-400 hover:text-[#00d4ff] transition-colors cursor-pointer"
+              aria-label="View Privacy Policy"
+            >
+              Privacy Policy
+            </button>
+            <span className="text-zinc-700">•</span>
+            <button
+              onClick={() => setLegalModalState({ isOpen: true, tab: 'terms' })}
+              className="text-zinc-400 hover:text-[#00d4ff] transition-colors cursor-pointer"
+              aria-label="View Terms of Service"
+            >
+              Terms of Service
+            </button>
+            <span className="text-zinc-700">•</span>
+            <button
+              onClick={() => setLegalModalState({ isOpen: true, tab: 'dmca' })}
+              className="text-zinc-400 hover:text-[#00d4ff] transition-colors cursor-pointer"
+              aria-label="View DMCA Notice"
+            >
+              DMCA Compliance Notice
+            </button>
+            <span className="text-zinc-700">•</span>
+            <button
+              onClick={() => setIsOnboardingModalOpen(true)}
+              className="text-[#00d4ff] hover:underline cursor-pointer"
+              aria-label="Open Quick Setup Guide and Onboarding"
+            >
+              Quick Setup Guide
+            </button>
+          </div>
+        </div>
       </footer>
 
       {/* 4. Mobile Bottom Tab Bar with 5 Icons (Collapses from sidebar under md viewport) */}
@@ -1524,6 +1585,34 @@ export default function App() {
         isOpen={isAuthModalOpen} 
         onClose={() => setIsAuthModalOpen(false)} 
         triggerToast={triggerToast}
+      />
+
+      {/* User Profile & Subscription Account Modal */}
+      <UserProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        onOpenUpgrade={() => {
+          setIsProfileModalOpen(false);
+          setActiveMenu('premium');
+        }}
+        triggerToast={triggerToast}
+      />
+
+      {/* 3-Step First-Time Onboarding Modal */}
+      <OnboardingModal
+        isOpen={isOnboardingModalOpen}
+        onClose={() => setIsOnboardingModalOpen(false)}
+        onComplete={() => {
+          setIsOnboardingModalOpen(false);
+          setActiveMenu('channels');
+        }}
+      />
+
+      {/* Legal & Compliance Modal (Privacy, Terms, DMCA) */}
+      <LegalModal
+        isOpen={legalModalState.isOpen}
+        initialTab={legalModalState.tab}
+        onClose={() => setLegalModalState((prev) => ({ ...prev, isOpen: false }))}
       />
 
       {/* Global Animated feedback toast notification system */}

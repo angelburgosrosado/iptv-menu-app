@@ -3,6 +3,7 @@
 # Docs: https://render.com/docs/blueprint-spec
 # ==============================================================================
 services:
+  # 1. Background Playlist Sync & Cleanup Worker
   - type: worker
     name: iptv-worker
     runtime: docker
@@ -24,3 +25,55 @@ services:
         value: 1437b933-39d1-42b3-bb8d-803a5f33909e
       - key: EXPO_ACCESS_TOKEN
         sync: false
+
+  # 2. REST API & Stripe Webhook Backend Web Service
+  - type: web
+    name: iptv-api
+    runtime: docker
+    dockerfilePath: apps/api/Dockerfile
+    dockerContext: .
+    region: ohio
+    plan: starter
+    autoDeploy: true
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: APP_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: DATABASE_URL
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: EXPO_PROJECT_ID
+        value: 1437b933-39d1-42b3-bb8d-803a5f33909e
+      - key: EXPO_ACCESS_TOKEN
+        sync: false
+      - key: BLOB_READ_WRITE_TOKEN
+        sync: false
+      - key: ADMIN_ALLOWED_EMAILS
+        value: angelburgosrosado@gmail.com,admin@iptv.menu
+
+  # 3. Static Web App Frontend
+  - type: web
+    name: iptv-menu-web
+    runtime: static
+    buildCommand: npm install && npm run build:web
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: NODE_VERSION
+        value: 20.11.0
+      - key: VITE_API_URL
+        fromService:
+          type: web
+          name: iptv-api
+          property: host
+
