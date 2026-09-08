@@ -10,7 +10,7 @@ import { Logger } from '@iptv-menu/logging';
 const logger = new Logger('stream-proxy');
 
 // Standard user agent spoofing for IPTV server compatibility
-export const DEFAULT_UPSTREAM_USER_AGENT = 'VLC/3.0.18 LibVLC/3.0.18 (compatible; IPTV-Menu-Proxy/1.0)';
+export const DEFAULT_UPSTREAM_USER_AGENT = 'VLC/3.0.18 LibVLC/3.0.18';
 
 /**
  * Validates if the target URL is safe to proxy (SSRF prevention).
@@ -161,13 +161,16 @@ export async function handleStreamProxy(req: Request, res: Response): Promise<vo
     if (!upstreamResponse.ok && upstreamResponse.status !== 206) {
       logger.warn(`Upstream returned error status ${upstreamResponse.status}`, { targetUrl });
       res.status(upstreamResponse.status).json({
-        error: `Upstream stream server responded with HTTP ${upstreamResponse.status}`
+        error: `Upstream stream server responded with HTTP ${upstreamResponse.status}`,
+        statusCode: upstreamResponse.status,
+        targetUrl
       });
       return;
     }
 
     const contentType = upstreamResponse.headers.get('content-type') || '';
-    const isM3u8Url = targetUrl.toLowerCase().includes('.m3u8');
+    const finalBaseUrl = upstreamResponse.url || targetUrl;
+    const isM3u8Url = targetUrl.toLowerCase().includes('.m3u8') || finalBaseUrl.toLowerCase().includes('.m3u8');
     const isM3u8Mime = contentType.includes('mpegurl') || contentType.includes('application/x-mpegURL');
 
     // If it looks like a manifest, verify by checking content or URL
@@ -175,7 +178,7 @@ export async function handleStreamProxy(req: Request, res: Response): Promise<vo
       const text = await upstreamResponse.text();
 
       if (text.trim().startsWith('#EXTM3U') || text.includes('#EXTINF')) {
-        const rewritten = rewriteM3u8Manifest(text, targetUrl);
+        const rewritten = rewriteM3u8Manifest(text, finalBaseUrl);
 
         res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');

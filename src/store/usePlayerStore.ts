@@ -15,32 +15,29 @@ const storage = new MMKV({ id: 'iptv_user_storage_v1' });
 // Pre-provided high-definition royalty-free & public IPTV streams fallback
 // Keeps the app fully operational instantly on first launch with CORS-friendly streams
 const FALLBACK_PLAYLIST = `#EXTM3U
-#EXTINF:-1 tvg-id="NASA" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/e/e5/NASA_logo.svg" group-title="Science",NASA TV Public HD
-https://ntv1.akamaized.net/hls/live/2014027/NASA-NTV1-Public/master.m3u8
+#EXTINF:-1 tvg-id="ABCNews" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/thumb/6/63/ABC_News_Live_logo_2021.svg/960px-ABC_News_Live_logo_2021.svg.png" group-title="News",ABC News Live HD
+https://abcnews-streams.akamaized.net/hls/live/2023560/abcnewshudson1/master.m3u8
 
-#EXTINF:-1 tvg-id="France24EN" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/8/82/France_24_logo.svg" group-title="News",France 24 English HD
-https://static.france24.com/live/F24_EN_LO_HLS/live_web.m3u8
+#EXTINF:-1 tvg-id="CBSNews" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/CBS_News_247_logo.svg/960px-CBS_News_247_logo.svg.png" group-title="News",CBS News 24/7 HD
+https://lineup.cbsivideo.com/playout/8877a7d5-b094-4ac8-bc72-75a5fed68e5b/index.m3u8
 
-#EXTINF:-1 tvg-id="AlJazeera" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/c/c1/Al_Jazeera_English_logo_2022.svg" group-title="News",Al Jazeera English News
-https://live-aljazeera.akamaized.net/aljazeera/english/en/video.m3u8
+#EXTINF:-1 tvg-id="AlJazeera" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/c/c1/Al_Jazeera_English_logo_2022.svg" group-title="News",Al Jazeera English HD
+https://live-hls-apps-aje-fa.getaj.net/AJE/01.m3u8
 
-#EXTINF:-1 tvg-id="DW" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/5/5b/Deutsche_Welle_logo_2012.svg" group-title="News",Deutsche Welle (DW) English
-https://dwstream72.akamaized.net/hls/live/2014130/dwstream72/index.m3u8
+#EXTINF:-1 tvg-id="DW" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/5/5b/Deutsche_Welle_logo_2012.svg" group-title="News",Deutsche Welle (DW) English HD
+https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8
+
+#EXTINF:-1 tvg-id="France24" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/8/82/France_24_logo.svg" group-title="News",France 24 Live HD
+https://live.france24.com/hls/live/2037179-b/F24_FR_HI_HLS/master_5000.m3u8
 
 #EXTINF:-1 tvg-id="RedBull" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/c/c8/Red_Bull_Double_Bull_Logo.svg" group-title="Sports",Red Bull TV Live HD
-https://rbmn-live.akamaized.net/hls/live/590961/global/master.m3u8
+https://rbmn-live.akamaized.net/hls/live/590964/BoRB-AT/master.m3u8
 
-#EXTINF:-1 tvg-id="SkyNews" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/d/de/Sky_News_2020.svg" group-title="News",Sky News Live
-https://skynews-skynewshd-hls-or-live.akamaized.net/hls/live/2004245/skynewshd/master.m3u8
+#EXTINF:-1 tvg-id="BigBuckBunny" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/c/c5/Big_buck_bunny_poster_big.jpg" group-title="Cinema",Big Buck Bunny (60fps HD Demo)
+https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8
 
-#EXTINF:-1 tvg-id="Arirang" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/3/30/Arirang_TV_logo_%282016%29.svg" group-title="Entertainment",Arirang World K-Pop
-https://arirang.live.cdn.as99147.net/arirang/arirangtv/playlist.m3u8
-
-#EXTINF:-1 tvg-id="CGTN" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/3/3c/CGTN_logo.svg" group-title="News",CGTN Globe Live
-https://cgtneng.live.cdn.as99147.net/cgtneng/cgtneng/playlist.m3u8
-
-#EXTINF:-1 tvg-id="Lofi" tvg-logo="https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=120" group-title="Music",Classic Jazz Radio Live
-https://live.ch9.tv/live/9chart/playlist.m3u8`;
+#EXTINF:-1 tvg-id="TearsOfSteel" tvg-logo="https://images.unsplash.com/photo-1478760329108-5c3ed9d495a0?w=120" group-title="Cinema",Tears of Steel (4K Cinema Test)
+https://test-streams.mux.dev/test_001/stream.m3u8`;
 
 const DEFAULT_PLAYLIST_URL = 'https://iptv-org.github.io/iptv/countries/us.m3u';
 
@@ -61,7 +58,7 @@ const writeArrayToStorage = (key: string, data: string[]): void => {
   storage.set(key, JSON.stringify(data));
 };
 
-const INITIAL_FALLBACK_CHANNELS = [...MELHATA_CHANNELS, ...parseM3U(FALLBACK_PLAYLIST)];
+const INITIAL_FALLBACK_CHANNELS = [...parseM3U(FALLBACK_PLAYLIST), ...MELHATA_CHANNELS];
 const INITIAL_GROUPS = Array.from(new Set(INITIAL_FALLBACK_CHANNELS.map((c) => c.group))).sort();
 
 export const usePlayerStore = create<AppState>((set, get) => ({

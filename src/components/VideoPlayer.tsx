@@ -152,10 +152,21 @@ export function VideoPlayer({
     setIsPlaying(true);
   };
 
-  // Safe wrapper for React Native video status listeners
+  const [videoEl, setVideoEl] = React.useState<HTMLVideoElement | null>(() => player._videoRef?.current || null);
+
   React.useEffect(() => {
-    const video = player._videoRef?.current;
-    if (!video) return;
+    if (player._videoRef?.current) {
+      setVideoEl(player._videoRef.current);
+    }
+    const unsub = player.subscribe ? player.subscribe((el: HTMLVideoElement | null) => {
+      setVideoEl(el);
+    }) : undefined;
+    return () => unsub?.();
+  }, [player]);
+
+  // Safe wrapper for video status listeners
+  React.useEffect(() => {
+    if (!videoEl) return;
 
     const onPlay = () => {
       setIsPlaying(true);
@@ -182,20 +193,29 @@ export function VideoPlayer({
       setHasError(false);
     };
 
-    video.addEventListener('playing', onPlay);
-    video.addEventListener('pause', onPause);
-    video.addEventListener('waiting', onWaiting);
-    video.addEventListener('error', onError);
-    video.addEventListener('loadedmetadata', onLoad);
+    if (videoEl.readyState >= 2) {
+      setIsLoading(false);
+      setHasError(false);
+    }
+
+    videoEl.addEventListener('playing', onPlay);
+    videoEl.addEventListener('canplay', onLoad);
+    videoEl.addEventListener('loadeddata', onLoad);
+    videoEl.addEventListener('pause', onPause);
+    videoEl.addEventListener('waiting', onWaiting);
+    videoEl.addEventListener('error', onError);
+    videoEl.addEventListener('loadedmetadata', onLoad);
 
     return () => {
-      video.removeEventListener('playing', onPlay);
-      video.removeEventListener('pause', onPause);
-      video.removeEventListener('waiting', onWaiting);
-      video.removeEventListener('error', onError);
-      video.removeEventListener('loadedmetadata', onLoad);
+      videoEl.removeEventListener('playing', onPlay);
+      videoEl.removeEventListener('canplay', onLoad);
+      videoEl.removeEventListener('loadeddata', onLoad);
+      videoEl.removeEventListener('pause', onPause);
+      videoEl.removeEventListener('waiting', onWaiting);
+      videoEl.removeEventListener('error', onError);
+      videoEl.removeEventListener('loadedmetadata', onLoad);
     };
-  }, [player, retryCount]);
+  }, [videoEl, retryCount]);
 
   // 10-Foot D-Pad & TV Remote / Keyboard Navigation Listener
   React.useEffect(() => {
@@ -304,15 +324,34 @@ export function VideoPlayer({
         <View style={styles.errorOverlay}>
           <AlertCircle size={42} color="#ef4444" />
           <Text style={styles.errorText}>Stream Temporarily Offline</Text>
-          <Text style={styles.errorDetails}>This feed was unreachable or blocked by CORS. Automatic stream relay available.</Text>
-          <TouchableOpacity
-            style={styles.retryButton}
-            onPress={handleReloadStream}
-            activeOpacity={0.7}
-          >
-            <RotateCcw size={16} color="#ffffff" />
-            <Text style={styles.retryButtonText}>Auto-Recover via Relay</Text>
-          </TouchableOpacity>
+          <Text style={styles.errorDetails}>
+            This upstream feed is currently unreachable or locked by the provider (e.g. connection limit, IP restriction, or stream offline).
+          </Text>
+          <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={handleReloadStream}
+              activeOpacity={0.7}
+            >
+              <RotateCcw size={16} color="#ffffff" />
+              <Text style={styles.retryButtonText}>Retry Stream</Text>
+            </TouchableOpacity>
+
+            {onNextChannel && (
+              <TouchableOpacity
+                style={[styles.retryButton, { backgroundColor: '#2563eb' }]}
+                onPress={() => {
+                  setHasError(false);
+                  setIsLoading(true);
+                  onNextChannel();
+                }}
+                activeOpacity={0.7}
+              >
+                <Tv size={16} color="#ffffff" />
+                <Text style={styles.retryButtonText}>Next Channel</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       )}
 

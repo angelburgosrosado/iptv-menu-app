@@ -12,14 +12,43 @@ export function useVideoPlayer(source: VideoSource | string, setup?: (player: an
   const [isMuted, setIsMuted] = React.useState(false);
   const [volume, setVolumeState] = React.useState(1.0);
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
+  const subscribersRef = React.useRef(new Set<(el: HTMLVideoElement | null) => void>());
 
   const player = React.useMemo(() => {
     return {
       _uri: uri,
       _videoRef: videoRef,
+      _attachVideo: (el: HTMLVideoElement | null) => {
+        videoRef.current = el;
+        subscribersRef.current.forEach((sub) => {
+          try {
+            sub(el);
+          } catch (err) {
+            console.error('Video subscriber error:', err);
+          }
+        });
+      },
+      subscribe: (callback: (el: HTMLVideoElement | null) => void) => {
+        subscribersRef.current.add(callback);
+        if (videoRef.current) {
+          callback(videoRef.current);
+        }
+        return () => {
+          subscribersRef.current.delete(callback);
+        };
+      },
       play: () => {
         if (videoRef.current) {
-          videoRef.current.play().catch(err => console.log('playback error:', err));
+          const p = videoRef.current.play();
+          if (p !== undefined) {
+            p.catch(err => {
+              console.log('playback error, attempting muted fallback:', err);
+              if (videoRef.current) {
+                videoRef.current.muted = true;
+                videoRef.current.play().catch(e => console.log('muted playback also suppressed:', e));
+              }
+            });
+          }
           setIsPlaying(true);
         }
       },
@@ -124,12 +153,12 @@ export function useVideoPlayer(source: VideoSource | string, setup?: (player: an
 }
 
 export const VideoView = ({ player, style, startsInFullscreen = false, ...props }: any) => {
-  const videoRef = React.useRef<HTMLVideoElement | null>(null);
+  const localVideoRef = React.useRef<HTMLVideoElement | null>(null);
   const activeHlsRef = React.useRef<any>(null);
 
   React.useEffect(() => {
-    if (!player || !videoRef.current) return;
-    player._videoRef.current = videoRef.current;
+    if (!player || !localVideoRef.current) return;
+    player._attachVideo?.(localVideoRef.current);
 
     const rawUri = player._uri;
     if (!rawUri) return;
@@ -158,11 +187,21 @@ export const VideoView = ({ player, style, startsInFullscreen = false, ...props 
         document.body.appendChild(script);
       }
     } else {
-      videoRef.current.src = initialStreamUrl;
+      localVideoRef.current.src = initialStreamUrl;
+      const playPromise = localVideoRef.current.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          console.log('Direct video autoplay blocked, falling back to muted:', err);
+          if (localVideoRef.current) {
+            localVideoRef.current.muted = true;
+            localVideoRef.current.play().catch(() => {});
+          }
+        });
+      }
     }
 
     function initHls(streamUrl: string, isFallbackAttempt = false) {
-      const video = videoRef.current;
+      const video = localVideoRef.current;
       if (!video) return;
 
       if ((window as any).Hls?.isSupported()) {
@@ -180,7 +219,14 @@ export const VideoView = ({ player, style, startsInFullscreen = false, ...props 
         hls.attachMedia(video);
 
         hls.on((window as any).Hls.Events.MANIFEST_PARSED, () => {
-          video.play().catch(err => console.log('hls autoplay suppressed:', err));
+          const playPromise = video.play();
+          if (playPromise !== undefined) {
+            playPromise.catch((err) => {
+              console.log('hls unmuted autoplay suppressed by browser policy, trying muted:', err);
+              video.muted = true;
+              video.play().catch(e => console.log('hls muted autoplay also suppressed:', e));
+            });
+          }
         });
 
         hls.on((window as any).Hls.Events.ERROR, (event: any, data: any) => {
@@ -196,12 +242,15 @@ export const VideoView = ({ player, style, startsInFullscreen = false, ...props 
                   initHls(proxyUrl, true);
                   return;
                 }
+                // Both direct and proxy failed or recurring network error
+                video.dispatchEvent(new CustomEvent('error', { detail: data }));
                 hls.startLoad();
                 break;
               case (window as any).Hls.ErrorTypes.MEDIA_ERROR:
                 hls.recoverMediaError();
                 break;
               default:
+                video.dispatchEvent(new CustomEvent('error', { detail: data }));
                 hls.destroy();
                 activeHlsRef.current = null;
                 break;
@@ -211,6 +260,13 @@ export const VideoView = ({ player, style, startsInFullscreen = false, ...props 
       } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
         // Native Apple Safari HLS support
         video.src = streamUrl;
+        const playPromise = video.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(() => {
+            video.muted = true;
+            video.play().catch(() => {});
+          });
+        }
       }
     }
 
@@ -224,7 +280,12 @@ export const VideoView = ({ player, style, startsInFullscreen = false, ...props 
 
   return (
     <video
-      ref={videoRef}
+      ref={(el) => {
+        localVideoRef.current = el;
+        if (player) {
+          player._attachVideo?.(el);
+        }
+      }}
       style={{
         width: '100%',
         height: '100%',

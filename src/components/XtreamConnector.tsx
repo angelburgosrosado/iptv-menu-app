@@ -122,9 +122,9 @@ export default function XtreamConnector() {
         const mockStalkerChannels: Channel[] = [
           {
             id: `stk_${Date.now()}_1`,
-            name: 'Stalker Premier HD',
-            logo: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?w=120',
-            url: 'https://ntv1.akamaized.net/hls/live/2014027/NASA-NTV1-Public/master.m3u8',
+            name: 'Stalker Premier HD (ABC News)',
+            logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/63/ABC_News_Live_logo_2021.svg/960px-ABC_News_Live_logo_2021.svg.png',
+            url: 'https://abcnews-streams.akamaized.net/hls/live/2023560/abcnewshudson1/master.m3u8',
             group: 'Stalker Live',
             tvgId: 'stalker_premier_hd',
             countryCode: 'US',
@@ -132,12 +132,12 @@ export default function XtreamConnector() {
           },
           {
             id: `stk_${Date.now()}_2`,
-            name: 'Stalker Cinema Worldwide',
-            logo: 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=120',
-            url: 'https://static.france24.com/live/F24_EN_LO_HLS/live_web.m3u8',
-            group: 'Movies',
-            tvgId: 'stalker_cinema_worldwide',
-            countryCode: 'FR',
+            name: 'Stalker 24/7 (CBS News)',
+            logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/CBS_News_247_logo.svg/960px-CBS_News_247_logo.svg.png',
+            url: 'https://lineup.cbsivideo.com/playout/8877a7d5-b094-4ac8-bc72-75a5fed68e5b/index.m3u8',
+            group: 'News',
+            tvgId: 'stalker_cbs_news',
+            countryCode: 'US',
             metadataSource: 'stalker' as any,
           }
         ];

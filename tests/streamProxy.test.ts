@@ -39,6 +39,15 @@ chunk_001.ts
 #EXTINF:10.0,
 chunk_002.ts
 `);
+      } else if (req.url === '/redirect/stream.m3u8') {
+        res.writeHead(302, { 'Location': '/destination/playlist.m3u8' });
+        res.end();
+      } else if (req.url === '/destination/playlist.m3u8') {
+        res.writeHead(200, { 'Content-Type': 'application/vnd.apple.mpegurl' });
+        res.end(`#EXTM3U
+#EXTINF:10.0,
+relative_segment.ts
+`);
       } else if (req.url === '/live/chunk_001.ts') {
         res.writeHead(200, { 
           'Content-Type': 'video/mp2t',
@@ -175,6 +184,17 @@ seg1.ts
       expect(res.headers['cache-control']).toContain('public');
       const dataStr = Buffer.isBuffer(res.body) ? res.body.toString('utf8') : (res.text || '');
       expect(dataStr).toBe('FAKE_TS_DATA');
+    });
+
+    it('should rewrite relative segments using the final redirected URL', async () => {
+      const targetUrl = `http://127.0.0.1:${mockServerPort}/redirect/stream.m3u8`;
+      const res = await request(app).get('/api/stream/proxy?url=' + encodeURIComponent(targetUrl));
+
+      expect(res.status).toBe(200);
+      expect(res.headers['content-type']).toContain('application/vnd.apple.mpegurl');
+      // Must resolve against /destination/playlist.m3u8, NOT /redirect/stream.m3u8
+      const expectedSegmentUrl = `http://127.0.0.1:${mockServerPort}/destination/relative_segment.ts`;
+      expect(res.text).toContain('/api/stream/proxy?url=' + encodeURIComponent(expectedSegmentUrl));
     });
   });
 });
