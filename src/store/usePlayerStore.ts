@@ -15,9 +15,6 @@ const storage = new MMKV({ id: 'iptv_user_storage_v1' });
 // Pre-provided high-definition royalty-free & public IPTV streams fallback
 // Keeps the app fully operational instantly on first launch with CORS-friendly streams
 const FALLBACK_PLAYLIST = `#EXTM3U
-#EXTINF:-1 tvg-id="ABCNews" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/thumb/6/63/ABC_News_Live_logo_2021.svg/960px-ABC_News_Live_logo_2021.svg.png" group-title="News",ABC News Live HD
-https://abcnews-streams.akamaized.net/hls/live/2023560/abcnewshudson1/master.m3u8
-
 #EXTINF:-1 tvg-id="CBSNews" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/CBS_News_247_logo.svg/960px-CBS_News_247_logo.svg.png" group-title="News",CBS News 24/7 HD
 https://lineup.cbsivideo.com/playout/8877a7d5-b094-4ac8-bc72-75a5fed68e5b/index.m3u8
 
