@@ -58,6 +58,11 @@ const writeArrayToStorage = (key: string, data: string[]): void => {
 const INITIAL_FALLBACK_CHANNELS = [...parseM3U(FALLBACK_PLAYLIST), ...MELHATA_CHANNELS];
 const INITIAL_GROUPS = Array.from(new Set(INITIAL_FALLBACK_CHANNELS.map((c) => c.group))).sort();
 
+const getApiUrl = (path: string): string => {
+  if (typeof window !== 'undefined') return path;
+  return `http://localhost:${process.env.PORT || 3001}${path}`;
+};
+
 export const usePlayerStore = create<AppState>((set, get) => ({
   // Active state holders (pre-seeded with verified streams + Melhata Xtream channels)
   channels: INITIAL_FALLBACK_CHANNELS,
@@ -93,6 +98,37 @@ export const usePlayerStore = create<AppState>((set, get) => ({
       await get().loadPlaylist();
       currentChannels = get().channels;
     }
+    if (!currentChannels || currentChannels.length === 0) return;
+
+    try {
+      // Backend metadata enrichment via Option 1
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      const res = await fetch(getApiUrl('/api/channels/enrich'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channels: currentChannels }),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.channels) && data.channels.length > 0) {
+          const uniqueGroups = Array.from(new Set(data.channels.map((c: any) => c.group || 'General'))).sort() as string[];
+          const sections = buildCountrySections(data.channels);
+          set({
+            channels: data.channels,
+            groups: uniqueGroups,
+            countrySections: sections
+          });
+          return;
+        }
+      }
+    } catch (enrichErr) {
+      console.warn('Backend channel enrichment unavailable, using local fallback matching', enrichErr);
+    }
+
     const sections = buildCountrySections(currentChannels);
     set({ countrySections: sections });
   },
@@ -102,6 +138,49 @@ export const usePlayerStore = create<AppState>((set, get) => ({
     if (!currentChannels || currentChannels.length === 0) {
       currentChannels = parseM3U(FALLBACK_PLAYLIST);
     }
+
+    const channelKeys = Array.from(
+      new Set(
+        currentChannels
+          .map((c) => c.tvgId || c.epgChannelId || c.id)
+          .filter(Boolean)
+      )
+    );
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      const res = await fetch(getApiUrl(`/api/epg/live?channelIds=${encodeURIComponent(channelKeys.join(','))}`), {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const liveData = await res.json();
+        if (liveData && liveData.channels) {
+          const formattedMap: Record<string, any[]> = {};
+          for (const [key, prog] of Object.entries(liveData.channels as Record<string, any>)) {
+            const list: any[] = [];
+            if (prog.now) list.push(prog.now);
+            if (prog.next) list.push(prog.next);
+            formattedMap[key] = list;
+          }
+
+          set({
+            epgSources: [
+              { key: 'backend-live-epg', label: 'Backend Live Sliced Feed', priority: 1, enabled: true },
+              { key: 'licensed-primary', label: 'Licensed Primary Backbone', priority: 2, enabled: true },
+              { key: 'open-epg', label: 'Public XMLTV Interchange', priority: 3, enabled: true }
+            ],
+            epgByChannel: formattedMap
+          });
+          return;
+        }
+      }
+    } catch (epgErr) {
+      console.warn('Backend live EPG unavailable, utilizing local schedule backbone', epgErr);
+    }
+
     const epgMap: Record<string, any[]> = {};
     for (const c of currentChannels) {
       const channelKey = c.tvgId || c.epgChannelId || c.id;

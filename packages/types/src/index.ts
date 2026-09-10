@@ -249,3 +249,50 @@ export interface UpgradeAppConfig {
     includeUnmatchedChannels: boolean;
   };
 }
+
+export interface EpgProgramme {
+  channelId: string;
+  title: string;
+  desc?: string;
+  start: string; // ISO 8601 string
+  stop: string;  // ISO 8601 string
+  category?: string[];
+  icon?: string;
+  sourcePriority: number;
+}
+
+export interface NowNextProgrammes {
+  now?: EpgProgramme;
+  next?: EpgProgramme;
+}
+
+export interface IptvOrgChannel {
+  id: string;
+  name: string;
+  alt_names?: string[];
+  network?: string | null;
+  owners?: string[];
+  country?: string;
+  categories?: string[];
+  is_nsfw?: boolean;
+  launched?: string | null;
+  closed?: string | null;
+  replaced_by?: string | null;
+  website?: string | null;
+  logo?: string | null;
+}
+
+export interface ChannelEnrichmentRequest {
+  channels: PlaylistChannel[];
+}
+
+export interface ChannelEnrichmentResponse {
+  channels: PlaylistChannel[];
+  enrichedCount: number;
+  totalCount: number;
+}
+
+export interface EpgLiveResponse {
+  channels: Record<string, NowNextProgrammes>;
+  updatedAt: string;
+}

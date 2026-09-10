@@ -8,6 +8,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import { Heart, Play, Share2, Tv } from 'lucide-react';
 import { Channel } from '../types/iptv';
+import { usePlayerStore } from '../store/usePlayerStore';
 
 interface ChannelCardProps {
   channel: Channel;
@@ -23,6 +24,10 @@ export const ChannelCard = React.memo(({
   onPress = () => {},
   onFavoriteToggle = () => {},
 }: ChannelCardProps) => {
+  const epgByChannel = usePlayerStore((s) => s.epgByChannel);
+  const channelKey = channel.tvgId || channel.epgChannelId || channel.id;
+  const currentProgram = epgByChannel?.[channelKey]?.[0];
+
   const [imageError, setImageError] = React.useState(!channel.logo);
   const [streamStatus, setStreamStatus] = React.useState<'idle' | 'checking' | 'online' | 'offline'>('idle');
   const [showSharedToast, setShowSharedToast] = React.useState(false);
@@ -284,6 +289,14 @@ export const ChannelCard = React.memo(({
                 {channel.metadataSource === 'iptv-org' ? 'iptv-org metadata' : 'playlist metadata'}
               </Text>
             </View>
+            {currentProgram?.title && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                <Text numberOfLines={1} style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11 }}>
+                  {currentProgram.title}
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* Favorite Quick Action (Heart) */}

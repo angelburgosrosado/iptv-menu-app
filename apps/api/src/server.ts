@@ -37,6 +37,8 @@ import {
 import { UserProfile, Playlist, EpgFeed, BuildRequest, AdminAction, UserRole, Workspace, AppConfig } from '@iptv-menu/types';
 import { attachWorkspaceContext, checkWorkspaceQuota } from './middleware/workspaceGuard';
 import { handleStreamProxy } from './services/streamProxyService';
+import { channelMetadataService } from './services/channelMetadataService';
+import { epgService } from './services/epgService';
 
 const logger = new Logger('api-server');
 
@@ -281,6 +283,70 @@ app.use('/api/stream', cors({ origin: '*' }));
 app.get('/api/stream/proxy', handleStreamProxy);
 app.head('/api/stream/proxy', handleStreamProxy);
 app.options('/api/stream/proxy', handleStreamProxy);
+
+// ==========================================
+// CHANNEL METADATA & ENRICHMENT (IPTV-ORG)
+// ==========================================
+app.use('/api/channels', cors({ origin: '*' }));
+
+app.post('/api/channels/enrich', async (req: any, res) => {
+  try {
+    const { channels } = req.body;
+    if (!Array.isArray(channels)) {
+      return res.status(400).json({ error: 'Expected channels array in request body' });
+    }
+    const result = await channelMetadataService.enrichChannels(channels);
+    res.json(result);
+  } catch (error: any) {
+    logger.error('Error enriching channels', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/channels/metadata/stats', async (req, res) => {
+  try {
+    res.json(channelMetadataService.getStats());
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==========================================
+// PUBLIC EPG GUIDE & SCHEDULE API
+// ==========================================
+app.use('/api/epg/live', cors({ origin: '*' }));
+app.use('/api/epg/schedule', cors({ origin: '*' }));
+
+app.get('/api/epg/live', async (req, res) => {
+  try {
+    const rawIds = (req.query.channelIds as string) || '';
+    const channelIds = rawIds ? rawIds.split(',').map((id) => id.trim()).filter(Boolean) : [];
+    const liveMap = epgService.getNowNext(channelIds);
+    res.json({
+      channels: liveMap,
+      updatedAt: new Date().toISOString()
+    });
+  } catch (error: any) {
+    logger.error('Error serving live EPG', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/epg/schedule/:channelId', async (req, res) => {
+  try {
+    const { channelId } = req.params;
+    const hours = Number(req.query.hours) || 24;
+    const schedule = epgService.getSchedule(channelId, hours);
+    res.json({
+      channelId,
+      hours,
+      programmes: schedule
+    });
+  } catch (error: any) {
+    logger.error('Error serving channel schedule', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // ==========================================
 // AUTHENTICATED USER ROUTES
@@ -530,6 +596,22 @@ app.get('/api/epg/:epgId', async (req: any, res) => {
     }
     res.json(epg);
   } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/epg/sync', async (req: any, res) => {
+  try {
+    const { urls } = req.body || {};
+    const targetUrls = Array.isArray(urls) && urls.length > 0
+      ? urls
+      : ['https://iptv-org.github.io/epg/guides/us.xml'];
+
+    const result = await epgService.fetchAndIngestFeeds(targetUrls);
+    await channelMetadataService.refreshIndex();
+    res.json({ success: true, ...result });
+  } catch (error: any) {
+    logger.error('Error executing EPG sync', error);
     res.status(500).json({ error: error.message });
   }
 });

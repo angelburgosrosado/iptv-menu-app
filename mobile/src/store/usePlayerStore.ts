@@ -83,6 +83,37 @@ export const usePlayerStore = create<AppState>((set, get) => ({
       await get().loadPlaylist();
       currentChannels = get().channels;
     }
+    if (!currentChannels || currentChannels.length === 0) return;
+
+    const apiBase = process.env.EXPO_PUBLIC_API_URL || 'https://iptv.menu';
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      const res = await fetch(`${apiBase}/api/channels/enrich`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channels: currentChannels }),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.channels) && data.channels.length > 0) {
+          const uniqueGroups = Array.from(new Set(data.channels.map((c: any) => c.group || 'General'))).sort() as string[];
+          const sections = buildCountrySections(data.channels);
+          set({
+            channels: data.channels,
+            groups: uniqueGroups,
+            countrySections: sections
+          });
+          return;
+        }
+      }
+    } catch (enrichErr) {
+      console.warn('Backend channel enrichment unavailable on mobile, using local matching', enrichErr);
+    }
+
     const sections = buildCountrySections(currentChannels);
     set({ countrySections: sections });
   },
@@ -93,6 +124,50 @@ export const usePlayerStore = create<AppState>((set, get) => ({
       await get().loadPlaylist();
       currentChannels = get().channels;
     }
+
+    const channelKeys = Array.from(
+      new Set(
+        currentChannels
+          .map((c) => c.tvgId || c.epgChannelId || c.id)
+          .filter(Boolean)
+      )
+    );
+
+    const apiBase = process.env.EXPO_PUBLIC_API_URL || 'https://iptv.menu';
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      const res = await fetch(`${apiBase}/api/epg/live?channelIds=${encodeURIComponent(channelKeys.join(','))}`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const liveData = await res.json();
+        if (liveData && liveData.channels) {
+          const formattedMap: Record<string, any[]> = {};
+          for (const [key, prog] of Object.entries(liveData.channels as Record<string, any>)) {
+            const list: any[] = [];
+            if (prog.now) list.push(prog.now);
+            if (prog.next) list.push(prog.next);
+            formattedMap[key] = list;
+          }
+
+          set({
+            epgSources: [
+              { key: 'backend-live-epg', label: 'Backend Live Sliced Feed', priority: 1, enabled: true },
+              { key: 'licensed-primary', label: 'Licensed Primary Feed', priority: 2, enabled: true },
+              { key: 'open-epg', label: 'Public XMLTV Aggregator', priority: 3, enabled: true }
+            ],
+            epgByChannel: formattedMap
+          });
+          return;
+        }
+      }
+    } catch (epgErr) {
+      console.warn('Backend live EPG unavailable on mobile, utilizing local schedule', epgErr);
+    }
+
     const epgMap: Record<string, any[]> = {};
     for (const c of currentChannels) {
       const channelKey = c.tvgId || c.epgChannelId || c.id;
