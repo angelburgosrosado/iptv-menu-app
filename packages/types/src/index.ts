@@ -296,3 +296,22 @@ export interface EpgLiveResponse {
   channels: Record<string, NowNextProgrammes>;
   updatedAt: string;
 }
+
+export interface AdSenseSlotConfig {
+  topBannerSlot: string;      // Designated Area: Workspace Top Banner
+  bottomBannerSlot: string;   // Designated Area: Workspace Bottom Banner
+  sidebarSlot?: string;       // Designated Area: EPG & Sidebar Inspector
+  channelListSlot?: string;   // Designated Area: Channel Guide Inline
+  playerOverlaySlot?: string; // Designated Area: Video Player / Simulator
+  [key: string]: string | undefined;
+}
+
+export interface AdSenseConfig {
+  enabled: boolean;
+  clientId: string;
+  slots: AdSenseSlotConfig;
+  autoAdsEnabled?: boolean;
+  testMode?: boolean;
+  updatedAt?: string;
+  updatedBy?: string;
+}

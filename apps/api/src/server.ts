@@ -39,6 +39,7 @@ import { attachWorkspaceContext, checkWorkspaceQuota } from './middleware/worksp
 import { handleStreamProxy } from './services/streamProxyService';
 import { channelMetadataService } from './services/channelMetadataService';
 import { epgService } from './services/epgService';
+import { adsenseService } from './services/adsenseService';
 
 const logger = new Logger('api-server');
 
@@ -76,6 +77,23 @@ app.get('/api/health', (req, res) => {
     env: config.APP_ENV,
     service: 'iptv-api'
   });
+});
+
+app.get('/api/public/adsense', async (req, res) => {
+  try {
+    const adsConfig = await adsenseService.getConfig();
+    res.json({
+      enabled: adsConfig.enabled,
+      clientId: adsConfig.clientId,
+      slots: adsConfig.slots,
+      testMode: adsConfig.testMode ?? false,
+      autoAdsEnabled: adsConfig.autoAdsEnabled ?? false,
+      updatedAt: adsConfig.updatedAt
+    });
+  } catch (err: any) {
+    logger.error('Failed to retrieve public AdSense configuration', err);
+    res.status(500).json({ error: 'Failed to retrieve AdSense configuration' });
+  }
 });
 
 app.get('/api/public/pricing', (req, res) => {
@@ -1337,6 +1355,52 @@ app.get('/api/admin/audit-logs', adminGuard, async (req, res) => {
     res.json(logs);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+// 7. Google AdSense Monetization & Designated Slots Management
+app.get('/api/admin/adsense', adminGuard, async (req, res) => {
+  try {
+    const config = await adsenseService.getConfig();
+    res.json(config);
+  } catch (err: any) {
+    logger.error('Failed to retrieve admin AdSense configuration', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/admin/adsense', adminGuard, async (req: any, res) => {
+  try {
+    const { clientId, enabled, testMode, autoAdsEnabled, slots } = req.body;
+
+    const updatedConfig = await adsenseService.updateConfig({
+      clientId,
+      enabled: typeof enabled === 'boolean' ? enabled : undefined,
+      testMode: typeof testMode === 'boolean' ? testMode : undefined,
+      autoAdsEnabled: typeof autoAdsEnabled === 'boolean' ? autoAdsEnabled : undefined,
+      slots: slots && typeof slots === 'object' ? slots : undefined,
+      updatedBy: req.user?.email || req.user?.uid || 'admin'
+    });
+
+    const adminAction: AdminAction = {
+      actionId: `act_${Math.random().toString(36).substring(2, 15)}`,
+      adminUid: req.user?.uid || 'admin',
+      actionType: 'ADSENSE_CONFIG_UPDATE',
+      targetType: 'SYSTEM_SETTINGS',
+      targetId: 'adsense',
+      notes: `Updated Google AdSense configuration (Publisher: ${updatedConfig.clientId}, Enabled: ${updatedConfig.enabled})`,
+      createdAt: new Date().toISOString()
+    };
+    await auditRepo.logAction(adminAction);
+
+    res.json({
+      success: true,
+      message: 'Google AdSense settings updated successfully',
+      config: updatedConfig
+    });
+  } catch (err: any) {
+    logger.error('Failed to update AdSense configuration', err);
+    res.status(500).json({ error: err.message });
   }
 });
 

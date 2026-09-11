@@ -182,5 +182,73 @@ describe('apps/api - REST API Endpoints & Public Services', () => {
       expect(response.status).toBe(200);
       expect(Array.isArray(response.body)).toBe(true);
     });
+
+    it('should deny unauthenticated requests to /api/admin/adsense with 401', async () => {
+      const response = await request(app).get('/api/admin/adsense');
+      expect(response.status).toBe(401);
+    });
+
+    it('should deny non-admin users access to /api/admin/adsense with 403', async () => {
+      const response = await request(app)
+        .get('/api/admin/adsense')
+        .set('Authorization', regularUserToken);
+      expect(response.status).toBe(403);
+    });
+
+    it('should allow admin to retrieve full AdSense config via GET /api/admin/adsense', async () => {
+      const response = await request(app)
+        .get('/api/admin/adsense')
+        .set('Authorization', adminToken);
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('clientId');
+      expect(response.body).toHaveProperty('slots');
+      expect(response.body.slots).toHaveProperty('topBannerSlot');
+      expect(response.body.slots).toHaveProperty('bottomBannerSlot');
+    });
+
+    it('should allow admin to update AdSense publisher ID and designated slots via PUT /api/admin/adsense', async () => {
+      const updatePayload = {
+        clientId: 'ca-pub-9999888877776666',
+        enabled: true,
+        testMode: true,
+        slots: {
+          topBannerSlot: '1111222233',
+          bottomBannerSlot: '4444555566',
+          sidebarSlot: '7777888899'
+        }
+      };
+
+      const putRes = await request(app)
+        .put('/api/admin/adsense')
+        .set('Authorization', adminToken)
+        .send(updatePayload);
+
+      expect(putRes.status).toBe(200);
+      expect(putRes.body.success).toBe(true);
+      expect(putRes.body.config.clientId).toBe('ca-pub-9999888877776666');
+      expect(putRes.body.config.testMode).toBe(true);
+      expect(putRes.body.config.slots.topBannerSlot).toBe('1111222233');
+
+      // Verify that the public endpoint immediately returns the updated config
+      const pubRes = await request(app).get('/api/public/adsense');
+      expect(pubRes.status).toBe(200);
+      expect(pubRes.body.clientId).toBe('ca-pub-9999888877776666');
+      expect(pubRes.body.testMode).toBe(true);
+      expect(pubRes.body.slots.topBannerSlot).toBe('1111222233');
+    });
+  });
+
+  describe('GET /api/public/adsense', () => {
+    it('should return public AdSense configuration with active client and designated slots', async () => {
+      const response = await request(app).get('/api/public/adsense');
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('enabled');
+      expect(response.body).toHaveProperty('clientId');
+      expect(response.body).toHaveProperty('slots');
+      expect(response.body.slots).toHaveProperty('topBannerSlot');
+      expect(response.body.slots).toHaveProperty('bottomBannerSlot');
+    });
   });
 });

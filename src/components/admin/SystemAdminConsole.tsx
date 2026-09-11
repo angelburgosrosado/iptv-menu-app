@@ -25,12 +25,18 @@ import {
   ExternalLink,
   Copy,
   Check,
-  Radio
+  Radio,
+  DollarSign,
+  LayoutTemplate,
+  Save,
+  Eye
 } from 'lucide-react';
 import { fetchWithAuth } from '../../lib/apiClient';
 import { PageProtocolHeader } from '../PageProtocolHeader';
 import { MELHATA_CHANNELS, MELHATA_XTREAM_CONFIG } from '../../data/melhataChannels';
 import { usePlayerStore } from '../../store/usePlayerStore';
+import { AdSenseConfig, AdSenseSlotConfig } from '../../types/iptv';
+import { useAdSenseStore } from '../../store/useAdSenseStore';
 
 interface AdminUser {
   uid: string;
@@ -129,7 +135,7 @@ interface SystemMetrics {
 }
 
 export default function SystemAdminConsole() {
-  const [activeTab, setActiveTab] = React.useState<'users' | 'workspaces' | 'playlists' | 'streamFeeds' | 'audit' | 'cluster'>('users');
+  const [activeTab, setActiveTab] = React.useState<'users' | 'workspaces' | 'playlists' | 'streamFeeds' | 'monetization' | 'audit' | 'cluster'>('users');
   const [users, setUsers] = React.useState<AdminUser[]>([]);
   const [workspaces, setWorkspaces] = React.useState<AdminWorkspace[]>([]);
   const [playlists, setPlaylists] = React.useState<AdminPlaylist[]>([]);
@@ -138,6 +144,22 @@ export default function SystemAdminConsole() {
   const [searchTerm, setSearchTerm] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(false);
   const [actionSuccess, setActionSuccess] = React.useState<string | null>(null);
+
+  // Google AdSense Monetization States
+  const [adConfig, setAdConfig] = React.useState<AdSenseConfig | null>(null);
+  const [adClientInput, setAdClientInput] = React.useState('ca-pub-1578853238313624');
+  const [adEnabledInput, setAdEnabledInput] = React.useState(true);
+  const [adTestModeInput, setAdTestModeInput] = React.useState(false);
+  const [adAutoAdsInput, setAdAutoAdsInput] = React.useState(false);
+  const [adSlotsInput, setAdSlotsInput] = React.useState<AdSenseSlotConfig>({
+    topBannerSlot: '8849201938',
+    bottomBannerSlot: '9938102948',
+    sidebarSlot: '7748192031',
+    channelListSlot: '6638192042',
+    playerOverlaySlot: '5529102831'
+  });
+  const [isSavingAdSense, setIsSavingAdSense] = React.useState(false);
+  const [copiedSnippet, setCopiedSnippet] = React.useState(false);
 
   // Live Stream Feed Breakdown States
   const [streamCountryFilter, setStreamCountryFilter] = React.useState<string | null>(null);
@@ -149,13 +171,31 @@ export default function SystemAdminConsole() {
   const fetchAllAdminData = React.useCallback(async () => {
     setIsLoading(true);
     try {
-      const [usersData, playlistsData, auditData, metricsData, workspacesData] = await Promise.all([
+      const [usersData, playlistsData, auditData, metricsData, workspacesData, adsenseData] = await Promise.all([
         fetchWithAuth('/api/admin/users').catch(() => null),
         fetchWithAuth('/api/admin/playlists').catch(() => null),
         fetchWithAuth('/api/admin/audit-logs').catch(() => null),
         fetchWithAuth('/api/admin/metrics').catch(() => null),
         fetchWithAuth('/api/admin/workspaces').catch(() => null),
+        fetchWithAuth('/api/admin/adsense').catch(() => null),
       ]);
+
+      if (adsenseData && typeof adsenseData === 'object') {
+        setAdConfig(adsenseData);
+        if (adsenseData.clientId) setAdClientInput(adsenseData.clientId);
+        if (adsenseData.enabled !== undefined) setAdEnabledInput(Boolean(adsenseData.enabled));
+        if (adsenseData.testMode !== undefined) setAdTestModeInput(Boolean(adsenseData.testMode));
+        if (adsenseData.autoAdsEnabled !== undefined) setAdAutoAdsInput(Boolean(adsenseData.autoAdsEnabled));
+        if (adsenseData.slots) {
+          setAdSlotsInput({
+            topBannerSlot: adsenseData.slots.topBannerSlot || '8849201938',
+            bottomBannerSlot: adsenseData.slots.bottomBannerSlot || '9938102948',
+            sidebarSlot: adsenseData.slots.sidebarSlot || '7748192031',
+            channelListSlot: adsenseData.slots.channelListSlot || '6638192042',
+            playerOverlaySlot: adsenseData.slots.playerOverlaySlot || '5529102831'
+          });
+        }
+      }
 
       if (Array.isArray(usersData)) {
         setUsers(usersData.map((u: any) => ({
@@ -214,6 +254,35 @@ export default function SystemAdminConsole() {
   const showNotification = (msg: string) => {
     setActionSuccess(msg);
     setTimeout(() => setActionSuccess(null), 3500);
+  };
+
+  const handleSaveAdSense = async () => {
+    setIsSavingAdSense(true);
+    try {
+      const res = await fetchWithAuth('/api/admin/adsense', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          clientId: adClientInput,
+          enabled: adEnabledInput,
+          testMode: adTestModeInput,
+          autoAdsEnabled: adAutoAdsInput,
+          slots: adSlotsInput
+        })
+      });
+
+      if (res && res.success && res.config) {
+        setAdConfig(res.config);
+        showNotification('Google AdSense configuration successfully saved and deployed across designated areas.');
+        useAdSenseStore.getState().fetchConfig();
+      } else {
+        throw new Error(res?.error || 'Failed to save AdSense settings');
+      }
+    } catch (err: any) {
+      showNotification(`Error saving AdSense settings: ${err.message}`);
+    } finally {
+      setIsSavingAdSense(false);
+    }
   };
 
   const handleToggleUserStatus = async (uid: string) => {
@@ -377,6 +446,15 @@ export default function SystemAdminConsole() {
           >
             <Radio className="w-3.5 h-3.5 text-cyan-400" />
             Feed Inventory ({channels.length} m3u8)
+          </button>
+          <button
+            onClick={() => setActiveTab('monetization')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
+              activeTab === 'monetization' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow' : 'text-neutral-400 hover:text-white'
+            }`}
+          >
+            <DollarSign className="w-3.5 h-3.5 text-amber-400" />
+            AdSense & Monetization
           </button>
           <button
             onClick={() => setActiveTab('audit')}
@@ -900,7 +978,352 @@ export default function SystemAdminConsole() {
         );
       })()}
 
-      {/* 5. AUDIT LOGS TAB */}
+      {/* 5. MONETIZATION & GOOGLE ADSENSE TAB */}
+      {activeTab === 'monetization' && (
+        <div className="space-y-6 animate-fade-in">
+          {/* Status Header Banner */}
+          <div className="p-5 rounded-2xl bg-[#14151a] border border-white/10 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xl">
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider border flex items-center gap-1.5 ${
+                  !adEnabledInput
+                    ? 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                    : adTestModeInput
+                    ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                    : 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                }`}>
+                  <span className={`w-2 h-2 rounded-full ${
+                    !adEnabledInput ? 'bg-zinc-500' : adTestModeInput ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400 animate-ping'
+                  }`} />
+                  {!adEnabledInput ? 'AdSense Disabled' : adTestModeInput ? 'Test Mode Active' : 'AdSense Live & Serving'}
+                </span>
+                {adConfig?.updatedAt && (
+                  <span className="text-[11px] text-zinc-400 font-mono">
+                    Last deployed: {new Date(adConfig.updatedAt).toLocaleString()}
+                  </span>
+                )}
+              </div>
+              <h3 className="text-base font-bold text-white leading-snug">
+                Google AdSense Monetization Engine
+              </h3>
+              <p className="text-xs text-zinc-400 max-w-2xl mt-1 leading-relaxed">
+                Configure your Google AdSense Publisher Client ID and assign designated ad unit slots across the workspace, EPG guide, and video players.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2.5 flex-shrink-0">
+              <button
+                onClick={fetchAllAdminData}
+                disabled={isLoading}
+                className="px-3.5 py-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-xs font-semibold text-zinc-300 border border-white/10 flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+                <span>Sync</span>
+              </button>
+              <button
+                onClick={handleSaveAdSense}
+                disabled={isSavingAdSense}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black text-xs font-bold flex items-center gap-2 shadow-lg shadow-amber-500/20 transition-all cursor-pointer disabled:opacity-50"
+              >
+                {isSavingAdSense ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Save className="w-3.5 h-3.5" />
+                )}
+                <span>Save & Deploy Placements</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Primary Configuration Cards */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            {/* Left Card: Publisher Credentials & Global Switches */}
+            <div className="lg:col-span-6 bg-[#14151a] border border-white/10 rounded-2xl p-5 space-y-5 shadow-lg">
+              <div className="flex items-center gap-2 pb-3 border-b border-white/10">
+                <ShieldCheck className="w-4 h-4 text-amber-400" />
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                  Publisher Identity & Controls
+                </h4>
+              </div>
+
+              {/* Publisher Client ID */}
+              <div>
+                <label className="block text-xs font-bold text-zinc-200 mb-1.5">
+                  Google AdSense Publisher ID
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={adClientInput}
+                    onChange={(e) => setAdClientInput(e.target.value)}
+                    placeholder="ca-pub-1578853238313624"
+                    className="w-full bg-black/60 border border-white/10 focus:border-amber-500 rounded-xl px-3.5 py-2.5 text-xs text-white font-mono placeholder-zinc-600 outline-none transition-colors"
+                  />
+                  {adClientInput.startsWith('ca-pub-') && adClientInput.length > 15 && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 text-[10px] text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                      <Check className="w-3 h-3" /> Valid Format
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-zinc-400 mt-1.5 leading-relaxed">
+                  Located in your Google AdSense dashboard under <strong className="text-zinc-300">Account &gt; Settings &gt; Account Information</strong>.
+                </p>
+              </div>
+
+              {/* Global Switches */}
+              <div className="space-y-3 pt-2">
+                {/* Enable / Disable switch */}
+                <div className="flex items-center justify-between p-3 rounded-xl bg-black/40 border border-white/5">
+                  <div>
+                    <span className="text-xs font-bold text-white block">Global Ad Delivery</span>
+                    <span className="text-[11px] text-zinc-400 block">
+                      Toggle active rendering across all designated areas.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAdEnabledInput(!adEnabledInput)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${
+                      adEnabledInput ? 'bg-amber-500' : 'bg-zinc-700'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        adEnabledInput ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Test Mode switch */}
+                <div className="flex items-center justify-between p-3 rounded-xl bg-black/40 border border-white/5">
+                  <div>
+                    <span className="text-xs font-bold text-white block">Simulation / Test Mode</span>
+                    <span className="text-[11px] text-zinc-400 block">
+                      Shows visual mock banners with Slot IDs, ideal for staging.
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAdTestModeInput(!adTestModeInput)}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors cursor-pointer ${
+                      adTestModeInput ? 'bg-amber-500' : 'bg-zinc-700'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        adTestModeInput ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+
+              {/* AdSense Verification Code Snippet Box */}
+              <div className="pt-2 border-t border-white/10">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-bold text-zinc-300">Site Verification Tag</span>
+                  <button
+                    onClick={() => {
+                      const tag = `<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adClientInput}" crossorigin="anonymous"></script>`;
+                      navigator.clipboard.writeText(tag);
+                      setCopiedSnippet(true);
+                      setTimeout(() => setCopiedSnippet(false), 2500);
+                    }}
+                    className="text-[10px] text-amber-400 hover:text-amber-300 flex items-center gap-1 font-semibold cursor-pointer"
+                  >
+                    {copiedSnippet ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                    <span>{copiedSnippet ? 'Copied Tag' : 'Copy HTML Script'}</span>
+                  </button>
+                </div>
+                <div className="bg-black/80 rounded-xl p-2.5 border border-white/5 font-mono text-[10px] text-zinc-400 overflow-x-auto select-all">
+                  {`<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adClientInput}" crossorigin="anonymous"></script>`}
+                </div>
+              </div>
+            </div>
+
+            {/* Right Card: Designated Placement Zones */}
+            <div className="lg:col-span-6 bg-[#14151a] border border-white/10 rounded-2xl p-5 space-y-4 shadow-lg flex flex-col justify-between">
+              <div>
+                <div className="flex items-center gap-2 pb-3 border-b border-white/10 mb-4">
+                  <LayoutTemplate className="w-4 h-4 text-cyan-400" />
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                    Designated Placement Slot IDs
+                  </h4>
+                </div>
+
+                <div className="space-y-3.5">
+                  {/* Slot 1: Top Banner */}
+                  <div className="p-3 rounded-xl bg-black/40 border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-white">Workspace Top Banner</span>
+                        <span className="text-[9px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 px-1.5 py-0.2 rounded font-mono uppercase">
+                          App.tsx #1
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-zinc-400 block mt-0.5">
+                        Prominently placed directly above active workspace screens.
+                      </span>
+                    </div>
+                    <input
+                      type="text"
+                      value={adSlotsInput.topBannerSlot}
+                      onChange={(e) => setAdSlotsInput({ ...adSlotsInput, topBannerSlot: e.target.value })}
+                      placeholder="8849201938"
+                      className="w-full sm:w-36 bg-black/70 border border-white/10 focus:border-cyan-500 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono text-center outline-none"
+                    />
+                  </div>
+
+                  {/* Slot 2: Bottom Banner */}
+                  <div className="p-3 rounded-xl bg-black/40 border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-white">Workspace Bottom Leaderboard</span>
+                        <span className="text-[9px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 px-1.5 py-0.2 rounded font-mono uppercase">
+                          App.tsx #2
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-zinc-400 block mt-0.5">
+                        Horizontal leaderboard placed below workspace screens.
+                      </span>
+                    </div>
+                    <input
+                      type="text"
+                      value={adSlotsInput.bottomBannerSlot}
+                      onChange={(e) => setAdSlotsInput({ ...adSlotsInput, bottomBannerSlot: e.target.value })}
+                      placeholder="9938102948"
+                      className="w-full sm:w-36 bg-black/70 border border-white/10 focus:border-cyan-500 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono text-center outline-none"
+                    />
+                  </div>
+
+                  {/* Slot 3: Sidebar & EPG Inspector */}
+                  <div className="p-3 rounded-xl bg-black/40 border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-white">EPG Guide & Sidebar Inspector</span>
+                        <span className="text-[9px] bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 px-1.5 py-0.2 rounded font-mono uppercase">
+                          DesktopEpg.tsx
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-zinc-400 block mt-0.5">
+                        Companion ad unit inside the program timetable sidebar.
+                      </span>
+                    </div>
+                    <input
+                      type="text"
+                      value={adSlotsInput.sidebarSlot || ''}
+                      onChange={(e) => setAdSlotsInput({ ...adSlotsInput, sidebarSlot: e.target.value })}
+                      placeholder="7748192031"
+                      className="w-full sm:w-36 bg-black/70 border border-white/10 focus:border-cyan-500 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono text-center outline-none"
+                    />
+                  </div>
+
+                  {/* Slot 4: Channel List In-Feed */}
+                  <div className="p-3 rounded-xl bg-black/40 border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-white">Channel List In-Feed</span>
+                        <span className="text-[9px] bg-zinc-800 text-zinc-400 border border-zinc-700 px-1.5 py-0.2 rounded font-mono uppercase">
+                          In-Feed
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-zinc-400 block mt-0.5">
+                        Native sponsor unit embedded between channel feed rows.
+                      </span>
+                    </div>
+                    <input
+                      type="text"
+                      value={adSlotsInput.channelListSlot || ''}
+                      onChange={(e) => setAdSlotsInput({ ...adSlotsInput, channelListSlot: e.target.value })}
+                      placeholder="6638192042"
+                      className="w-full sm:w-36 bg-black/70 border border-white/10 focus:border-cyan-500 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono text-center outline-none"
+                    />
+                  </div>
+
+                  {/* Slot 5: Player Overlay */}
+                  <div className="p-3 rounded-xl bg-black/40 border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-white">Stream Player & Simulator Overlay</span>
+                        <span className="text-[9px] bg-zinc-800 text-zinc-400 border border-zinc-700 px-1.5 py-0.2 rounded font-mono uppercase">
+                          Player
+                        </span>
+                      </div>
+                      <span className="text-[11px] text-zinc-400 block mt-0.5">
+                        Overlay companion ad unit for stream viewer and mobile frame.
+                      </span>
+                    </div>
+                    <input
+                      type="text"
+                      value={adSlotsInput.playerOverlaySlot || ''}
+                      onChange={(e) => setAdSlotsInput({ ...adSlotsInput, playerOverlaySlot: e.target.value })}
+                      placeholder="5529102831"
+                      className="w-full sm:w-36 bg-black/70 border border-white/10 focus:border-cyan-500 rounded-lg px-2.5 py-1.5 text-xs text-white font-mono text-center outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-white/10 flex items-center justify-end">
+                <button
+                  onClick={handleSaveAdSense}
+                  disabled={isSavingAdSense}
+                  className="w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-black text-xs font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>Update Designated Placements</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Live Preview Card */}
+          <div className="p-5 rounded-2xl bg-[#14151a] border border-white/10 space-y-4 shadow-xl">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <Eye className="w-4 h-4 text-emerald-400" />
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                  Live Placement Simulation (Designated Area: Top Banner)
+                </h4>
+              </div>
+              <span className="text-[10px] text-zinc-400 font-mono">
+                Client: {adClientInput} • Slot: #{adSlotsInput.topBannerSlot}
+              </span>
+            </div>
+
+            <div className="p-4 rounded-xl bg-black/50 border border-white/5 flex flex-col items-center justify-center min-h-[110px]">
+              {adEnabledInput ? (
+                <div className="w-full max-w-2xl text-center space-y-2">
+                  <div className="flex items-center justify-between text-[10px] text-zinc-400 uppercase tracking-widest px-2 font-mono">
+                    <span>Advertisement Preview</span>
+                    <span className="bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded font-bold">
+                      {adTestModeInput ? 'Simulated Banner' : 'Live Production Tag'}
+                    </span>
+                  </div>
+                  <div className="p-4 rounded-xl border border-dashed border-zinc-700 bg-zinc-900/60 flex flex-col sm:flex-row items-center justify-between gap-2 font-mono text-xs">
+                    <span className="text-zinc-300">
+                      data-ad-client="<span className="text-amber-400">{adClientInput}</span>"
+                    </span>
+                    <span className="text-zinc-300">
+                      data-ad-slot="<span className="text-cyan-400">{adSlotsInput.topBannerSlot}</span>"
+                    </span>
+                    <span className="text-emerald-400 font-bold text-[11px]">
+                      READY TO SERVE
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-4 text-zinc-500 text-xs font-mono">
+                  Ad Delivery is currently toggled OFF in backend settings. No ads will render.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6. AUDIT LOGS TAB */}
       {activeTab === 'audit' && (
         <div className="space-y-3">
           {auditLogs.map(log => (

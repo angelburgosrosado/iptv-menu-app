@@ -32,7 +32,9 @@ import {
   Radio,
   User,
   LogIn,
-  LogOut
+  LogOut,
+  Columns2,
+  Maximize2
 } from 'lucide-react';
 import { Stack } from 'expo-router';
 import { motion, AnimatePresence } from 'motion/react';
@@ -114,6 +116,29 @@ export default function App() {
   };
 
   const [activeMenu, setActiveMenu] = React.useState<string>('channels');
+  const [layoutMode, setLayoutMode] = React.useState<'studio' | 'full'>(() => {
+    try {
+      const saved = localStorage.getItem('iptv_layout_mode');
+      if (saved === 'studio' || saved === 'full') return saved;
+    } catch {}
+    return 'studio';
+  });
+
+  const toggleLayoutMode = (mode?: 'studio' | 'full') => {
+    const next = mode || (layoutMode === 'studio' ? 'full' : 'studio');
+    setLayoutMode(next);
+    try {
+      localStorage.setItem('iptv_layout_mode', next);
+    } catch {}
+  };
+
+  const handleSelectMenu = (menuId: string) => {
+    setActiveMenu(menuId);
+    if ((menuId === 'epg' || menuId === 'multiscreen') && layoutMode === 'studio') {
+      setLayoutMode('full');
+    }
+  };
+
   const [selectedFileIdx, setSelectedFileIdx] = React.useState(1); // Default to src/types/iptv.ts
   const [copied, setCopied] = React.useState(false);
 
@@ -1404,85 +1429,120 @@ export default function App() {
 
         {/* RIGHT AREA: HORIZONTAL NAVIGATION BAR & WORKSPACE CONTENT GRID */}
         <div className="flex-1 flex flex-col gap-6 min-w-0">
-          {/* Quick Screen Navigation Tabs with Clear Labels */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none border-b border-white/10">
-            {SIDEBAR_ITEMS.map((item) => {
-              const Icon = item.icon;
-              const isActive = activeMenu === item.id;
-              return (
-                <button
-                  key={item.id}
-                  onClick={() => setActiveMenu(item.id)}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
-                    isActive
-                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 border border-blue-400/30'
-                      : 'bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/5'
-                  }`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
+          {/* Quick Screen Navigation Tabs & Layout Mode Switcher */}
+          <div className="flex items-center justify-between gap-4 pb-2 border-b border-white/10 flex-wrap lg:flex-nowrap">
+            <div className="flex items-center gap-2 overflow-x-auto scrollbar-none py-1 min-w-0 flex-1">
+              {SIDEBAR_ITEMS.map((item) => {
+                const Icon = item.icon;
+                const isActive = activeMenu === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => handleSelectMenu(item.id)}
+                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 border border-blue-400/30'
+                        : 'bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/5'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Layout Mode Segmented Control */}
+            <div className="flex items-center gap-1 bg-black/60 p-1 rounded-2xl border border-white/10 shrink-0 self-start sm:self-center shadow-lg">
+              <button
+                type="button"
+                onClick={() => toggleLayoutMode('studio')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  layoutMode === 'studio'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20'
+                    : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                }`}
+                title="Studio View (Simulator on Left, Workspace on Right)"
+              >
+                <Columns2 className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Studio Split</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => toggleLayoutMode('full')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  layoutMode === 'full'
+                    ? 'bg-cyan-600 text-white shadow-md shadow-cyan-500/20'
+                    : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                }`}
+                title="Full Width Workspace (Maximized Guide & Multi-Screen Space)"
+              >
+                <Maximize2 className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Full Width</span>
+              </button>
+            </div>
           </div>
 
           {/* WORKSPACE CONTENT GRID */}
           <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-stretch">
           
-          {/* LEFT COLUMN: INTERACTIVE DEVICE SIMULATOR FRAME */}
-          <section id="simulator-section" className="col-span-1 lg:col-span-5 flex flex-col items-center justify-start lg:sticky lg:top-[100px] h-fit w-full">
-            <div className="w-full max-w-full sm:max-w-[390px] relative px-2 sm:px-0">
-              
-              {/* Premium Glow for Phone Simulator */}
-              <div className="absolute -inset-4 bg-gradient-to-tr from-blue-500/10 to-indigo-500/10 rounded-[28px] sm:rounded-[54px] blur-3xl opacity-80 pointer-events-none" />
-
-              {/* Apple iPhone Glass-édition Simulator Container - Responsive border-radius and width */}
-              <div className="w-full aspect-[9/19] rounded-[24px] sm:rounded-[48px] bg-black/85 backdrop-blur-2xl p-2.5 sm:p-3.5 shadow-[0_25px_80px_-15px_rgba(59,130,246,0.25)] border-[4px] sm:border-[6px] border-white/10 relative z-10 overflow-hidden ring-1 ring-white/15 flex flex-col">
+          {/* LEFT COLUMN: INTERACTIVE DEVICE SIMULATOR FRAME (Studio Split Mode) */}
+          {layoutMode === 'studio' && (
+            <section id="simulator-section" className="col-span-1 lg:col-span-5 flex flex-col items-center justify-start lg:sticky lg:top-[100px] h-fit w-full">
+              <div className="w-full max-w-full sm:max-w-[390px] relative px-2 sm:px-0">
                 
-                {/* Dynamic Island Notch */}
-                <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-20 sm:w-24 h-4 sm:h-5 bg-black rounded-full z-40 flex items-center justify-between px-3">
-                  <div className="w-1.5 h-1.5 rounded-full bg-zinc-900" />
-                  <div className="w-2.5 sm:w-3 h-1 bg-zinc-900 rounded-full" />
-                </div>
+                {/* Premium Glow for Phone Simulator */}
+                <div className="absolute -inset-4 bg-gradient-to-tr from-blue-500/10 to-indigo-500/10 rounded-[28px] sm:rounded-[54px] blur-3xl opacity-80 pointer-events-none" />
 
-                {/* Status Bar simulation */}
-                <div className="h-6 sm:h-8 pt-0.5 px-4 sm:px-6 flex items-center justify-between text-[10px] sm:text-[11px] font-semibold text-zinc-300 select-none z-30">
-                  <span>9:41</span>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[8px] sm:text-[9px] text-zinc-400 font-bold uppercase tracking-wider">5G</span>
-                    <div className="w-4 sm:w-5 h-2 sm:h-2.5 rounded-[3px] border border-zinc-500 p-[1px] flex items-center">
-                      <div className="h-full w-4/5 bg-zinc-300 rounded-[1px]" />
+                {/* Apple iPhone Glass-édition Simulator Container - Responsive border-radius and width */}
+                <div className="w-full aspect-[9/19] rounded-[24px] sm:rounded-[48px] bg-black/85 backdrop-blur-2xl p-2.5 sm:p-3.5 shadow-[0_25px_80px_-15px_rgba(59,130,246,0.25)] border-[4px] sm:border-[6px] border-white/10 relative z-10 overflow-hidden ring-1 ring-white/15 flex flex-col">
+                  
+                  {/* Dynamic Island Notch */}
+                  <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-20 sm:w-24 h-4 sm:h-5 bg-black rounded-full z-40 flex items-center justify-between px-3">
+                    <div className="w-1.5 h-1.5 rounded-full bg-zinc-900" />
+                    <div className="w-2.5 sm:w-3 h-1 bg-zinc-900 rounded-full" />
+                  </div>
+
+                  {/* Status Bar simulation */}
+                  <div className="h-6 sm:h-8 pt-0.5 px-4 sm:px-6 flex items-center justify-between text-[10px] sm:text-[11px] font-semibold text-zinc-300 select-none z-30">
+                    <span>9:41</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[8px] sm:text-[9px] text-zinc-400 font-bold uppercase tracking-wider">5G</span>
+                      <div className="w-4 sm:w-5 h-2 sm:h-2.5 rounded-[3px] border border-zinc-500 p-[1px] flex items-center">
+                        <div className="h-full w-4/5 bg-zinc-300 rounded-[1px]" />
+                      </div>
                     </div>
+                  </div>
+
+                  {/* INTERACTIVE APPMOUNT INTERNALS WRAPPER */}
+                  <div className="flex-1 w-full bg-[#050505] rounded-[18px] sm:rounded-[36px] overflow-hidden relative flex flex-col ring-1 ring-white/10">
+                    <Stack>
+                      <Stack.Screen name="index" component={HomeScreen} />
+                      <Stack.Screen name="player/[id]" component={PlayerScreen} />
+                    </Stack>
+                  </div>
+
+                  {/* Home Indicator bar */}
+                  <div className="h-5 flex items-center justify-center z-30">
+                    <div className="w-28 h-1 bg-zinc-700 rounded-full" />
                   </div>
                 </div>
 
-                {/* INTERACTIVE APPMOUNT INTERNALS WRAPPER */}
-                <div className="flex-1 w-full bg-[#050505] rounded-[18px] sm:rounded-[36px] overflow-hidden relative flex flex-col ring-1 ring-white/10">
-                  <Stack>
-                    <Stack.Screen name="index" component={HomeScreen} />
-                    <Stack.Screen name="player/[id]" component={PlayerScreen} />
-                  </Stack>
-                </div>
-
-                {/* Home Indicator bar */}
-                <div className="h-5 flex items-center justify-center z-30">
-                  <div className="w-28 h-1 bg-zinc-700 rounded-full" />
+                {/* Simulated Frame Badge with glass styles */}
+                <div className="text-center mt-4">
+                  <span className="inline-flex items-center gap-1.5 px-4 py-1.5 glass rounded-full text-xs text-zinc-300 font-medium">
+                    <Smartphone className="w-3.5 h-3.5 text-blue-400 animate-pulse" />
+                    Active Device Simulator Frame
+                  </span>
                 </div>
               </div>
+            </section>
+          )}
 
-              {/* Simulated Frame Badge with glass styles */}
-              <div className="text-center mt-4">
-                <span className="inline-flex items-center gap-1.5 px-4 py-1.5 glass rounded-full text-xs text-zinc-300 font-medium">
-                  <Smartphone className="w-3.5 h-3.5 text-blue-400 animate-pulse" />
-                  Active Device Simulator Frame
-                </span>
-              </div>
-            </div>
-          </section>
-
-          {/* RIGHT COLUMN: DYNAMIC WORKSPACE COMPONENT WITH ANIMATED TRANSITIONS */}
-          <div className="col-span-1 lg:col-span-7 flex flex-col min-w-0 space-y-4">
-            <AdSenseSlot slot="8849201938" className="mb-2" />
+          {/* RIGHT COLUMN: DYNAMIC WORKSPACE COMPONENT (Expands to Full Width 12 cols when toggled) */}
+          <div className={`col-span-1 ${layoutMode === 'full' ? 'lg:col-span-12' : 'lg:col-span-7'} flex flex-col min-w-0 space-y-4 transition-all duration-300`}>
+            <AdSenseSlot designatedArea="topBanner" slot="8849201938" className="mb-2" />
             <AnimatePresence mode="wait">
               <motion.section
                 key={activeMenu}
@@ -1495,13 +1555,27 @@ export default function App() {
                 {renderActiveSection()}
               </motion.section>
             </AnimatePresence>
-            <AdSenseSlot slot="9938102948" format="horizontal" />
+            <AdSenseSlot designatedArea="bottomBanner" slot="9938102948" format="horizontal" />
           </div>
 
           </div>
         </div>
       </div>
     </div>
+
+      {/* Floating Action Pill to restore Phone Simulator when in Full-Width Mode */}
+      {layoutMode === 'full' && (
+        <div className="fixed bottom-6 left-6 z-40 animate-in fade-in slide-in-from-bottom-3 duration-300">
+          <button
+            type="button"
+            onClick={() => toggleLayoutMode('studio')}
+            className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-zinc-950/90 border border-white/20 text-white text-xs font-bold shadow-2xl backdrop-blur-xl hover:bg-blue-600 hover:border-blue-400 transition-all cursor-pointer group"
+          >
+            <Smartphone className="w-4 h-4 text-cyan-400 group-hover:text-white transition-colors" />
+            <span>Show Phone Simulator</span>
+          </button>
+        </div>
+      )}
 
       {/* Footer copyright block & Compliance Legal Links */}
       <footer className="py-8 pb-24 md:pb-8 border-t border-white/5 bg-[#0e0e10]/90 text-center text-xs text-zinc-500 font-medium relative z-10">

@@ -1,0 +1,15 @@
+{
+  "enabled": true,
+  "clientId": "ca-pub-9999888877776666",
+  "testMode": true,
+  "autoAdsEnabled": false,
+  "slots": {
+    "topBannerSlot": "1111222233",
+    "bottomBannerSlot": "4444555566",
+    "sidebarSlot": "7777888899",
+    "channelListSlot": "6638192042",
+    "playerOverlaySlot": "5529102831"
+  },
+  "updatedAt": "2026-09-10T21:17:14.086Z",
+  "updatedBy": "admin@iptv.menu"
+}
