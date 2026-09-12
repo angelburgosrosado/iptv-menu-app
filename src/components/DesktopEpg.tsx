@@ -25,7 +25,6 @@ import {
 } from 'lucide-react';
 import { Channel } from '../types/iptv';
 import { PageProtocolHeader } from './PageProtocolHeader';
-import AdSenseSlot from './ads/AdSenseSlot';
 
 interface Show {
   title: string;
@@ -579,9 +578,6 @@ export default function DesktopEpg() {
                   <Play className="w-4 h-4 fill-current" />
                   <span>Launch Stream in Simulator</span>
                 </button>
-
-                {/* Designated Area: Sidebar Ad Placement */}
-                <AdSenseSlot designatedArea="sidebar" slot="7748192031" format="rectangle" className="mt-1" />
               </div>
             ) : (
               <div className="border border-white/10 rounded-3xl p-6 h-full min-h-[300px] flex flex-col items-center justify-center text-center bg-[#121316]">

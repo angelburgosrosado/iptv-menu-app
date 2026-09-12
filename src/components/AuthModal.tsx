@@ -38,12 +38,6 @@ export default function AuthModal({ isOpen, onClose, triggerToast }: AuthModalPr
 
   if (!isOpen) return null;
 
-  const handleAdminQuickFill = () => {
-    setEmail('angelburgosrosado@gmail.com');
-    setPassword('Admin123');
-    setAuthError(null);
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) return;
@@ -117,26 +111,6 @@ export default function AuthModal({ isOpen, onClose, triggerToast }: AuthModalPr
               <p className="text-[10px] text-zinc-400 font-semibold mt-1">
                 Access your synced M3U streams, daily cleanups, and compile white-label app builds.
               </p>
-
-              {/* Admin Account Quick-Select Helper */}
-              <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1">
-                    <Crown className="w-3 h-3 text-amber-400 fill-current" />
-                    Configured Administrator Account
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleAdminQuickFill}
-                    className="px-2 py-0.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded text-[10px] font-bold transition-all cursor-pointer"
-                  >
-                    Quick-Fill
-                  </button>
-                </div>
-                <div className="text-[10px] font-mono text-zinc-300">
-                  User: <span className="text-white font-semibold">angelburgosrosado@gmail.com</span> • Pass: <span className="text-white font-semibold">Admin123</span>
-                </div>
-              </div>
 
               {/* Error Banner */}
               {authError && (
@@ -214,7 +188,7 @@ export default function AuthModal({ isOpen, onClose, triggerToast }: AuthModalPr
                     </>
                   ) : (
                     <>
-                      <span>{isSignUp ? 'Generate Account & Activate Premium' : 'Sign In & Unlock Premium'}</span>
+                      <span>{isSignUp ? 'Create Free Account' : 'Sign In to Portal'}</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </>
                   )}
@@ -239,12 +213,16 @@ export default function AuthModal({ isOpen, onClose, triggerToast }: AuthModalPr
                   setIsLoading(true);
                   try {
                     const user = await signInWithGoogle();
+                    const existing = authStore.getState();
+                    const isUserPremium = existing.email === user.email && existing.isPremium;
                     authStore.setState({
                       isLoggedIn: true,
                       email: user.email || '',
-                      isPremium: true // Elevate account directly to premium as per simulated flow
+                      displayName: user.displayName || user.email?.split('@')[0] || 'Developer',
+                      role: isUserPremium ? existing.role : 'user',
+                      isPremium: isUserPremium
                     });
-                    triggerToast(`Welcome back, ${user.displayName || 'Developer'}!`);
+                    triggerToast(`Welcome, ${user.displayName || 'Developer'}!`);
                     onClose();
                   } catch (error: any) {
                     triggerToast(`Authentication failed: ${error.message}`);

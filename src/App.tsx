@@ -56,7 +56,6 @@ import LegalModal, { LegalTab } from './components/LegalModal';
 import SystemAdminConsole from './components/admin/SystemAdminConsole';
 import XtreamConnector from './components/XtreamConnector';
 import MultiScreenMatrix from './components/MultiScreenMatrix';
-import AdSenseSlot from './components/ads/AdSenseSlot';
 import MarketingHero from './components/MarketingHero';
 import PricingSection from './components/PricingSection';
 import CertifiedDevices from './components/CertifiedDevices';
@@ -131,6 +130,34 @@ export default function App() {
       localStorage.setItem('iptv_layout_mode', next);
     } catch {}
   };
+
+  // Stripe Checkout Redirect & Session Refresh Handler
+  React.useEffect(() => {
+    try {
+      if (typeof window !== 'undefined' && window.location.search) {
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('checkout') === 'success') {
+          authStore.setState({ isPremium: true, role: 'pro' });
+          triggerToast('🎉 Payment successful! Pro capabilities are now activated.');
+          window.history.replaceState({}, document.title, window.location.pathname);
+          // Sync live profile from API
+          fetchWithAuth('/api/me').then((profile) => {
+            if (profile?.role) {
+              authStore.setState({
+                role: profile.role,
+                isPremium: profile.role !== 'user' || profile.subscriptionTier !== 'free'
+              });
+            }
+          }).catch(() => null);
+        } else if (params.get('checkout') === 'cancel') {
+          triggerToast('Checkout was cancelled. No charges were made.');
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, []);
 
   const handleSelectMenu = (menuId: string) => {
     setActiveMenu(menuId);
@@ -1278,7 +1305,7 @@ export default function App() {
             }, 100);
           }}
           onSelectPro={() => {
-            if (!auth.isPremium) {
+            if (!auth.isLoggedIn) {
               setIsAuthModalOpen(true);
             } else {
               setActiveMenu('premium');
@@ -1288,11 +1315,10 @@ export default function App() {
             }
           }}
           onSelectBuilder={() => {
-            if (!auth.isPremium) {
+            if (!auth.isLoggedIn) {
               setIsAuthModalOpen(true);
             } else {
-              setActiveMenu('expo');
-              setSubTab('builder');
+              setActiveMenu('premium');
               setTimeout(() => {
                 document.getElementById('workspace-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
               }, 100);
@@ -1542,7 +1568,6 @@ export default function App() {
 
           {/* RIGHT COLUMN: DYNAMIC WORKSPACE COMPONENT (Expands to Full Width 12 cols when toggled) */}
           <div className={`col-span-1 ${layoutMode === 'full' ? 'lg:col-span-12' : 'lg:col-span-7'} flex flex-col min-w-0 space-y-4 transition-all duration-300`}>
-            <AdSenseSlot designatedArea="topBanner" slot="8849201938" className="mb-2" />
             <AnimatePresence mode="wait">
               <motion.section
                 key={activeMenu}
@@ -1555,7 +1580,6 @@ export default function App() {
                 {renderActiveSection()}
               </motion.section>
             </AnimatePresence>
-            <AdSenseSlot designatedArea="bottomBanner" slot="9938102948" format="horizontal" />
           </div>
 
           </div>

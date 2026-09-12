@@ -43,7 +43,7 @@ const DEFAULT_SLOTS: AdSenseSlotConfig = {
 const DEFAULT_CLIENT_ID = import.meta.env.VITE_ADSENSE_CLIENT_ID || 'ca-pub-1578853238313624';
 
 export const useAdSenseStore = create<AdSenseStoreState>((set, get) => ({
-  enabled: true,
+  enabled: false,
   clientId: DEFAULT_CLIENT_ID,
   testMode: false,
   autoAdsEnabled: false,

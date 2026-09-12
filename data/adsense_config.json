@@ -1,5 +1,5 @@
 {
-  "enabled": true,
+  "enabled": false,
   "clientId": "ca-pub-9999888877776666",
   "testMode": true,
   "autoAdsEnabled": false,
@@ -10,6 +10,6 @@
     "channelListSlot": "6638192042",
     "playerOverlaySlot": "5529102831"
   },
-  "updatedAt": "2026-09-10T21:17:14.086Z",
+  "updatedAt": "2026-09-12T00:46:34.448Z",
   "updatedBy": "admin@iptv.menu"
 }

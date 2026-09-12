@@ -110,21 +110,43 @@ export const authStore = {
       email,
       name: email.split('@')[0],
       role: 'user',
-      subscriptionTier: 'pro',
+      subscriptionTier: 'free',
       accountStatus: 'active'
     };
     const token = btoa(JSON.stringify(tokenPayload));
+
+    // Preserve premium status if this user already paid
+    const existing = authStore.getState();
+    const isReturningPremium = existing.email === email && existing.isPremium;
 
     const standardState: UserState = {
       isLoggedIn: true,
       email,
       displayName: email.split('@')[0],
-      role: 'user',
-      isPremium: true,
+      role: isReturningPremium ? existing.role : 'user',
+      isPremium: isReturningPremium,
       token
     };
 
     authStore.setState(standardState);
+
+    // Sync profile & entitlement with backend
+    try {
+      fetch('/api/me', {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+        .then(res => res.json())
+        .then(profile => {
+          if (profile && profile.role) {
+            authStore.setState({
+              role: profile.role,
+              isPremium: profile.role !== 'user' || profile.subscriptionTier !== 'free'
+            });
+          }
+        })
+        .catch(() => null);
+    } catch {}
+
     return standardState;
   },
   logout() {

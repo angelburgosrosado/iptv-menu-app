@@ -278,18 +278,29 @@ export default function DesktopPremium({ onTriggerAuth }: DesktopPremiumProps) {
             </div>
           </div>
 
-          <button
-            onClick={() => handleOpenConfirm(
-              "Pro Streamer", 
-              "price_pro_subscription", 
-              `$${(9.99 * discountFactor).toFixed(2)} / month`, 
-              "pro"
-            )}
-            disabled={isProcessing}
-            className="w-full flex justify-center items-center gap-2 py-3 px-4 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-black uppercase tracking-wider mt-6 shadow-lg shadow-cyan-500/25 transition-all text-center disabled:opacity-50 cursor-pointer"
-          >
-            {isProcessing && selectedPlan === "Pro Streamer" ? <Loader2 className="w-4 h-4 animate-spin" /> : "Upgrade to Pro ($9.99)"}
-          </button>
+          {auth.role === 'pro' ? (
+            <button
+              onClick={handleOpenStripePortal}
+              disabled={isProcessing}
+              className="w-full flex justify-center items-center gap-2 py-3 px-4 rounded-xl bg-cyan-950/60 border border-cyan-500/40 text-cyan-300 text-xs font-bold uppercase tracking-wider mt-6 transition-all text-center cursor-pointer hover:bg-cyan-900/60"
+            >
+              <Check className="w-4 h-4 text-cyan-400" />
+              <span>Current Plan • Manage Billing</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => handleOpenConfirm(
+                "Pro Streamer", 
+                "price_pro_subscription", 
+                `$${(9.99 * discountFactor).toFixed(2)} / month`, 
+                "pro"
+              )}
+              disabled={isProcessing}
+              className="w-full flex justify-center items-center gap-2 py-3 px-4 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-black uppercase tracking-wider mt-6 shadow-lg shadow-cyan-500/25 transition-all text-center disabled:opacity-50 cursor-pointer"
+            >
+              {isProcessing && selectedPlan === "Pro Streamer" ? <Loader2 className="w-4 h-4 animate-spin" /> : "Upgrade to Pro ($9.99)"}
+            </button>
+          )}
         </div>
 
         {/* Tier 3: App Builder Suite ($29.99/mo) */}
@@ -332,21 +343,50 @@ export default function DesktopPremium({ onTriggerAuth }: DesktopPremiumProps) {
             </div>
           </div>
 
-          <button
-            onClick={() => handleOpenConfirm(
-              "App Builder Suite", 
-              "price_builder_subscription", 
-              `$${(29.99 * discountFactor).toFixed(2)} / month`, 
-              "builder"
-            )}
-            disabled={isProcessing}
-            className="w-full flex justify-center items-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white text-xs font-black uppercase tracking-wider mt-6 transition-all text-center disabled:opacity-50 shadow-md shadow-amber-500/20 cursor-pointer"
-          >
-            {isProcessing && selectedPlan === "App Builder Suite" ? <Loader2 className="w-4 h-4 animate-spin" /> : "Get App Builder ($29.99)"}
-          </button>
+          {auth.role === 'builder' ? (
+            <button
+              onClick={handleOpenStripePortal}
+              disabled={isProcessing}
+              className="w-full flex justify-center items-center gap-2 py-3 px-4 rounded-xl bg-amber-950/60 border border-amber-500/40 text-amber-300 text-xs font-bold uppercase tracking-wider mt-6 transition-all text-center cursor-pointer hover:bg-amber-900/60"
+            >
+              <Check className="w-4 h-4 text-amber-400" />
+              <span>Current Plan • Manage Billing</span>
+            </button>
+          ) : (
+            <button
+              onClick={() => handleOpenConfirm(
+                "App Builder Suite", 
+                "price_builder_subscription", 
+                `$${(29.99 * discountFactor).toFixed(2)} / month`, 
+                "builder"
+              )}
+              disabled={isProcessing}
+              className="w-full flex justify-center items-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-white text-xs font-black uppercase tracking-wider mt-6 transition-all text-center disabled:opacity-50 shadow-md shadow-amber-500/20 cursor-pointer"
+            >
+              {isProcessing && selectedPlan === "App Builder Suite" ? <Loader2 className="w-4 h-4 animate-spin" /> : "Get App Builder ($29.99)"}
+            </button>
+          )}
         </div>
 
       </div>
+
+      {/* Stripe Customer Portal Quick Access Bar */}
+      {auth.isPremium && (
+        <div className="flex flex-col sm:flex-row items-center justify-between p-4 rounded-2xl bg-zinc-900/60 border border-white/10 text-xs gap-3">
+          <div className="flex items-center gap-2.5 text-zinc-300">
+            <Sparkles className="w-4 h-4 text-cyan-400 flex-shrink-0" />
+            <span>Manage payment methods, view past billing receipts, or update subscription settings anytime.</span>
+          </div>
+          <button
+            onClick={handleOpenStripePortal}
+            disabled={isProcessing}
+            className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold transition-all border border-white/10 flex items-center gap-1.5 cursor-pointer flex-shrink-0"
+          >
+            <span>Stripe Customer Portal</span>
+            <ExternalLink className="w-3.5 h-3.5 text-zinc-400" />
+          </button>
+        </div>
+      )}
 
       {/* UPGRADE CONFIRMATION MODAL */}
       {confirmModalData && (
