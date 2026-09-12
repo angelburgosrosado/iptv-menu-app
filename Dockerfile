@@ -9,8 +9,9 @@ COPY tsconfig.json ./
 COPY vite.config.ts ./
 COPY index.html ./
 
-# Copy packages and source directories
+# Copy packages, apps and source directories
 COPY packages/ ./packages/
+COPY apps/ ./apps/
 COPY public/ ./public/
 COPY src/ ./src/
 
