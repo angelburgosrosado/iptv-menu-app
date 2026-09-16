@@ -4,7 +4,14 @@ import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
 const rawApiKey = import.meta.env.VITE_FIREBASE_API_KEY;
-const isPlaceholder = (val?: string) => !val || val.startsWith('__') || val.includes('...');
+const isPlaceholder = (val?: string) => 
+  !val || 
+  val.startsWith('__') || 
+  val.includes('...') || 
+  val.toLowerCase().includes('demo') || 
+  val.toLowerCase().includes('placeholder') || 
+  val.includes('123456789') ||
+  val.length < 35;
 
 const firebaseConfig = {
   apiKey: !isPlaceholder(rawApiKey) ? rawApiKey : "AIzaSy_iptv_demo_placeholder_key",
@@ -51,7 +58,7 @@ export const isGoogleAuthAvailable = () => {
 
 export const signInWithGoogle = async () => {
   if (!auth || isPlaceholder(rawApiKey)) {
-    throw new Error("Google Sign-In is not configured for this domain. Please sign in with your email and password.");
+    throw new Error("Google Sign-In is unavailable because no Firebase Web API key is configured. Since your database is on Neon, please sign in with your email and password.");
   }
 
   try {
@@ -61,6 +68,9 @@ export const signInWithGoogle = async () => {
     }
     return result.user;
   } catch (error: any) {
+    if (error.code === 'auth/api-key-not-valid' || error.message?.includes('api-key-not-valid')) {
+      throw new Error("Firebase API key is invalid. If you are using Neon DB without Firebase Auth, please sign in using your email and password.");
+    }
     if (error.code === 'auth/popup-closed-by-user') {
       throw new Error("Google sign-in window was closed before completion.");
     }
