@@ -102,14 +102,16 @@ export default function AuthModal({ isOpen, onClose, triggerToast }: AuthModalPr
               {/* Badge header */}
               <div className="inline-flex items-center gap-1 bg-blue-500/10 border border-blue-500/20 px-2.5 py-0.5 rounded-full text-[9px] font-black tracking-wider text-blue-400 uppercase mb-4 animate-pulse">
                 <Crown className="w-3 h-3 text-blue-400 fill-current" />
-                IPTV Menu Pro Identity
+                IPTV Menu Cloud Account
               </div>
 
               <h3 className="text-xl font-extrabold text-white tracking-tight">
-                {isSignUp ? 'Create Developer Account' : 'Sign In to Developer Portal'}
+                {isSignUp ? 'Create Your Account' : 'Sign In to IPTV Menu'}
               </h3>
               <p className="text-[10px] text-zinc-400 font-semibold mt-1">
-                Access your synced M3U streams, daily cleanups, and compile white-label app builds.
+                {isSignUp
+                  ? 'Sign up to synchronize your M3U playlists, custom channels, and quad multi-screen view across devices.'
+                  : 'Access your cloud-synced playlists, live channels, and streaming preferences.'}
               </p>
 
               {/* Error Banner */}
@@ -145,7 +147,7 @@ export default function AuthModal({ isOpen, onClose, triggerToast }: AuthModalPr
                       ? 'top-1 text-[9px] text-blue-400 tracking-wider uppercase font-extrabold' 
                       : 'top-4 text-xs text-zinc-500'
                   }`}>
-                    Developer Email
+                    Email Address
                   </label>
                 </div>
 
@@ -171,7 +173,7 @@ export default function AuthModal({ isOpen, onClose, triggerToast }: AuthModalPr
                       ? 'top-1 text-[9px] text-blue-400 tracking-wider uppercase font-extrabold' 
                       : 'top-4 text-xs text-zinc-500'
                   }`}>
-                    Password Key
+                    Password
                   </label>
                 </div>
 
@@ -184,11 +186,11 @@ export default function AuthModal({ isOpen, onClose, triggerToast }: AuthModalPr
                   {isLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Verifying Portal Credentials...</span>
+                      <span>{isSignUp ? 'Creating Account...' : 'Signing In...'}</span>
                     </>
                   ) : (
                     <>
-                      <span>{isSignUp ? 'Create Free Account' : 'Sign In to Portal'}</span>
+                      <span>{isSignUp ? 'Create Free Account' : 'Sign In'}</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </>
                   )}
@@ -201,7 +203,7 @@ export default function AuthModal({ isOpen, onClose, triggerToast }: AuthModalPr
                   <div className="w-full border-t border-white/5" />
                 </div>
                 <span className="relative z-10 px-3 bg-zinc-950 text-[9px] font-black uppercase text-zinc-500 tracking-widest">
-                  Secure Third Party Access
+                  Secure Sign-In
                 </span>
               </div>
 
@@ -211,6 +213,7 @@ export default function AuthModal({ isOpen, onClose, triggerToast }: AuthModalPr
                 disabled={isLoading}
                 onClick={async () => {
                   setIsLoading(true);
+                  setAuthError(null);
                   try {
                     const user = await signInWithGoogle();
                     const existing = authStore.getState();
@@ -218,22 +221,22 @@ export default function AuthModal({ isOpen, onClose, triggerToast }: AuthModalPr
                     authStore.setState({
                       isLoggedIn: true,
                       email: user.email || '',
-                      displayName: user.displayName || user.email?.split('@')[0] || 'Developer',
+                      displayName: user.displayName || user.email?.split('@')[0] || 'Member',
                       role: isUserPremium ? existing.role : 'user',
                       isPremium: isUserPremium
                     });
-                    triggerToast(`Welcome, ${user.displayName || 'Developer'}!`);
+                    triggerToast(`Welcome, ${user.displayName || user.email?.split('@')[0] || 'Member'}!`);
                     onClose();
                   } catch (error: any) {
-                    triggerToast(`Authentication failed: ${error.message}`);
+                    setAuthError(error.message || 'Failed to authenticate with Google. Please use email and password.');
                   } finally {
                     setIsLoading(false);
                   }
                 }}
-                className="w-full py-3 px-4 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded-xl text-xs font-bold transition-all duration-300 flex items-center justify-center gap-2 border border-white/10 active:scale-95 cursor-pointer select-none"
+                className="w-full py-3 px-4 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded-xl text-xs font-bold transition-all duration-300 flex items-center justify-center gap-2 border border-white/10 active:scale-95 cursor-pointer select-none disabled:opacity-50"
               >
                 <Chrome className="w-4 h-4 text-red-400" />
-                <span>Continue with Google Developer</span>
+                <span>Continue with Google</span>
               </button>
             </div>
 
@@ -242,10 +245,13 @@ export default function AuthModal({ isOpen, onClose, triggerToast }: AuthModalPr
               <button
                 type="button"
                 disabled={isLoading}
-                onClick={() => setIsSignUp(!isSignUp)}
+                onClick={() => {
+                  setIsSignUp(!isSignUp);
+                  setAuthError(null);
+                }}
                 className="text-[10px] font-bold text-zinc-400 hover:text-blue-400 transition-colors cursor-pointer"
               >
-                {isSignUp ? 'Already registered? Sign In instead' : 'Need an enterprise ID? Sign Up here'}
+                {isSignUp ? 'Already have an account? Sign In instead' : 'New to IPTV Menu? Create an account'}
               </button>
             </div>
           </div>
@@ -254,11 +260,11 @@ export default function AuthModal({ isOpen, onClose, triggerToast }: AuthModalPr
           <div className="flex-1 p-6 sm:p-8 bg-zinc-900/40 relative z-10 flex flex-col justify-between gap-6">
             <div>
               <span className="text-[9px] font-black text-amber-400 tracking-widest uppercase block mb-1">
-                MEMBERSHIP DIFFERENCE
+                STREAMING EXPERIENCE
               </span>
-              <h4 className="text-sm font-black text-white">Compare Developer Benefits</h4>
+              <h4 className="text-sm font-black text-white">Compare Streaming Features</h4>
               <p className="text-[10px] text-zinc-500 mt-1 font-semibold">
-                Gain real-time CDN synchronization, unlimited stream queries, and custom white-label compiling support.
+                Unlock cloud playlist synchronization, multi-screen matrix, and automated stream health monitoring.
               </p>
 
               {/* Table / Grid list representing comparison */}
@@ -277,30 +283,48 @@ export default function AuthModal({ isOpen, onClose, triggerToast }: AuthModalPr
                     </div>
                     <div className="flex items-center gap-1.5 text-blue-400">
                       <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Unlimited + CDN Cloud sync</span>
+                      <span>Unlimited + Cloud Sync</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Feature 2 */}
+                {/* Feature 2: Multi-Screen View */}
                 <div className="p-3 bg-zinc-950/40 border border-white/5 rounded-xl flex flex-col gap-1.5">
                   <div className="flex justify-between items-center text-[10px] font-black text-zinc-400">
-                    <span className="text-zinc-200">Auto-Clean Schedules</span>
+                    <span className="text-zinc-200">Quad Multi-Screen</span>
                     <span className="text-amber-400">Pro Benefit</span>
                   </div>
                   <div className="flex items-center gap-4 justify-between mt-0.5 text-[11px] font-bold">
                     <div className="flex items-center gap-1.5 text-zinc-500">
                       <XCircle className="w-3.5 h-3.5 text-red-500/40" />
-                      <span>Manual daily</span>
+                      <span>Single player</span>
                     </div>
                     <div className="flex items-center gap-1.5 text-blue-400">
                       <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Every 6 hours fully automated</span>
+                      <span>4 streams simultaneously</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Feature 3 */}
+                {/* Feature 3: Stream Health Checks */}
+                <div className="p-3 bg-zinc-950/40 border border-white/5 rounded-xl flex flex-col gap-1.5">
+                  <div className="flex justify-between items-center text-[10px] font-black text-zinc-400">
+                    <span className="text-zinc-200">Stream Health Checks</span>
+                    <span className="text-amber-400">Pro Benefit</span>
+                  </div>
+                  <div className="flex items-center gap-4 justify-between mt-0.5 text-[11px] font-bold">
+                    <div className="flex items-center gap-1.5 text-zinc-500">
+                      <XCircle className="w-3.5 h-3.5 text-red-500/40" />
+                      <span>Manual check</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-blue-400">
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>Continuous auto-healing</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Feature 4: Live EPG Feed */}
                 <div className="p-3 bg-zinc-950/40 border border-white/5 rounded-xl flex flex-col gap-1.5">
                   <div className="flex justify-between items-center text-[10px] font-black text-zinc-400">
                     <span className="text-zinc-200">Live XMLTV EPG Feed</span>
@@ -309,29 +333,11 @@ export default function AuthModal({ isOpen, onClose, triggerToast }: AuthModalPr
                   <div className="flex items-center gap-4 justify-between mt-0.5 text-[11px] font-bold">
                     <div className="flex items-center gap-1.5 text-zinc-500">
                       <XCircle className="w-3.5 h-3.5 text-red-500/40" />
-                      <span>None</span>
+                      <span>Basic local</span>
                     </div>
                     <div className="flex items-center gap-1.5 text-blue-400">
                       <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Integrated TV scheduling auto-sync</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Feature 4 */}
-                <div className="p-3 bg-zinc-950/40 border border-white/5 rounded-xl flex flex-col gap-1.5">
-                  <div className="flex justify-between items-center text-[10px] font-black text-zinc-400">
-                    <span className="text-zinc-200">White-Label Compiler</span>
-                    <span className="text-amber-400">Pro Benefit</span>
-                  </div>
-                  <div className="flex items-center gap-4 justify-between mt-0.5 text-[11px] font-bold">
-                    <div className="flex items-center gap-1.5 text-zinc-500">
-                      <XCircle className="w-3.5 h-3.5 text-red-500/40" />
-                      <span>Disabled</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-blue-400">
-                      <Check className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>Custom Android app binaries</span>
+                      <span>Auto-matched TV schedule</span>
                     </div>
                   </div>
                 </div>
@@ -343,7 +349,7 @@ export default function AuthModal({ isOpen, onClose, triggerToast }: AuthModalPr
             <div className="p-3 rounded-xl bg-blue-500/5 border border-blue-500/10 flex items-start gap-2">
               <Sparkles className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5 animate-pulse" />
               <p className="text-[9px] text-zinc-400 leading-normal font-semibold">
-                Sign up today to test all Pro tools fully. Free-tier developers will experience stream request latency throttling.
+                Sign in with your email to sync your streaming library across desktop and mobile devices.
               </p>
             </div>
           </div>

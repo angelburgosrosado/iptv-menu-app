@@ -59,6 +59,15 @@ export const authStore = {
       throw new Error('Please enter both email and password.');
     }
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      throw new Error('Please enter a valid email address.');
+    }
+
+    if (password.length < 6) {
+      throw new Error('Password must be at least 6 characters long.');
+    }
+
     // Direct Administrator Credentials Check
     if (email === 'angelburgosrosado@gmail.com') {
       if (password !== 'Admin123') {

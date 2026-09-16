@@ -60,6 +60,7 @@ import MarketingHero from './components/MarketingHero';
 import PricingSection from './components/PricingSection';
 import CertifiedDevices from './components/CertifiedDevices';
 import AuthModal from './components/AuthModal';
+import ProtectedRoute from './components/ProtectedRoute';
 import WorkspaceSwitcher from './components/WorkspaceSwitcher';
 import { PageProtocolHeader } from './components/PageProtocolHeader';
 import { useAuth, authStore } from './authStore';
@@ -321,8 +322,10 @@ export default function App() {
     { id: 'devices', label: 'Certified Devices', icon: ShieldCheck },
     { id: 'premium', label: 'Plans & Billing', icon: Crown },
     { id: 'settings', label: 'Settings', icon: Settings },
-    { id: 'system_admin', label: 'Platform Admin', icon: ShieldAlert },
-    { id: 'home', label: 'Code Explorer', icon: Home },
+    ...(auth.role === 'admin' ? [
+      { id: 'system_admin', label: 'Platform Admin', icon: ShieldAlert },
+      { id: 'home', label: 'Code Explorer', icon: Home },
+    ] : []),
   ];
 
   const renderActiveSection = () => {
@@ -344,7 +347,16 @@ export default function App() {
       case 'remote_apps':
         return <DesktopRemoteApps />;
       case 'system_admin':
-        return <SystemAdminConsole />;
+        return (
+          <ProtectedRoute
+            requiredTier="admin"
+            fallbackTitle="Administrator Clearance Required"
+            fallbackDescription="The Platform Admin console is strictly restricted to system administrators with verified credentials."
+            onTriggerAuth={() => setIsAuthModalOpen(true)}
+          >
+            <SystemAdminConsole />
+          </ProtectedRoute>
+        );
       case 'devices':
         return <CertifiedDevices />;
       case 'settings':
@@ -352,7 +364,9 @@ export default function App() {
       case 'premium':
         return <DesktopPremium onTriggerAuth={() => setIsAuthModalOpen(true)} />;
       case 'home':
-      default:
+        if (auth.role !== 'admin') {
+          return <DesktopChannels onSwitchToMultiScreen={() => setActiveMenu('multiscreen')} />;
+        }
         return (
           <div className="flex flex-col h-full gap-4">
             {/* Protocol Architecture Header with Subtab Switcher */}
@@ -1171,6 +1185,8 @@ export default function App() {
             )}
           </div>
         );
+      default:
+        return <DesktopChannels onSwitchToMultiScreen={() => setActiveMenu('multiscreen')} />;
     }
   };
 
@@ -1237,7 +1253,7 @@ export default function App() {
               {auth.role === 'admin' && (
                 <button
                   onClick={() => {
-                    setActiveMenu('admin');
+                    setActiveMenu('system_admin');
                     setTimeout(() => {
                       document.getElementById('workspace-section')?.scrollIntoView({ behavior: 'smooth' });
                     }, 50);

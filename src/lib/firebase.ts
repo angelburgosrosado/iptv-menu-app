@@ -45,28 +45,32 @@ export const storage = storageInstance;
 
 export const googleProvider = new GoogleAuthProvider();
 
+export const isGoogleAuthAvailable = () => {
+  return !!auth && !isPlaceholder(rawApiKey);
+};
+
 export const signInWithGoogle = async () => {
+  if (!auth || isPlaceholder(rawApiKey)) {
+    throw new Error("Google Sign-In is not configured for this domain. Please sign in with your email and password.");
+  }
+
   try {
-    if (!auth || !auth.currentUser && !rawApiKey) {
-      // Offline fallback mock user
-      return {
-        uid: 'demo_user_123',
-        email: 'developer@iptv.menu',
-        displayName: 'IPTV Pro Developer',
-        photoURL: null,
-      };
-    }
     const result = await signInWithPopup(auth, googleProvider);
+    if (!result || !result.user) {
+      throw new Error("No user returned from Google authentication.");
+    }
     return result.user;
   } catch (error: any) {
-    console.warn("Firebase Google sign-in fallback triggered:", error);
-    // If pop-up fails due to invalid key or auth domain, fallback to simulated user for smooth demo
-    return {
-      uid: 'demo_user_fallback',
-      email: 'demo@iptv.menu',
-      displayName: 'Developer (Demo Mode)',
-      photoURL: null,
-    };
+    if (error.code === 'auth/popup-closed-by-user') {
+      throw new Error("Google sign-in window was closed before completion.");
+    }
+    if (error.code === 'auth/popup-blocked') {
+      throw new Error("Sign-in popup was blocked by your browser. Please allow popups for iptv.menu.");
+    }
+    if (error.code === 'auth/cancelled-popup-request') {
+      throw new Error("Authentication request was cancelled.");
+    }
+    throw new Error(error.message || "Failed to authenticate with Google. Please use email and password.");
   }
 };
 
