@@ -7,7 +7,6 @@ import {
   Check, 
   XCircle, 
   Loader2, 
-  Chrome, 
   Sparkles, 
   ShieldAlert, 
   Crown, 
@@ -17,7 +16,6 @@ import {
   Cpu
 } from 'lucide-react';
 import { authStore } from '../authStore';
-import { signInWithGoogle } from '../lib/firebase';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -196,48 +194,6 @@ export default function AuthModal({ isOpen, onClose, triggerToast }: AuthModalPr
                   )}
                 </button>
               </form>
-
-              {/* Or separator block */}
-              <div className="relative my-5 text-center">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-white/5" />
-                </div>
-                <span className="relative z-10 px-3 bg-zinc-950 text-[9px] font-black uppercase text-zinc-500 tracking-widest">
-                  Secure Sign-In
-                </span>
-              </div>
-
-              {/* Styled Functional Google OAuth CTA */}
-              <button
-                type="button"
-                disabled={isLoading}
-                onClick={async () => {
-                  setIsLoading(true);
-                  setAuthError(null);
-                  try {
-                    const user = await signInWithGoogle();
-                    const existing = authStore.getState();
-                    const isUserPremium = existing.email === user.email && existing.isPremium;
-                    authStore.setState({
-                      isLoggedIn: true,
-                      email: user.email || '',
-                      displayName: user.displayName || user.email?.split('@')[0] || 'Member',
-                      role: isUserPremium ? existing.role : 'user',
-                      isPremium: isUserPremium
-                    });
-                    triggerToast(`Welcome, ${user.displayName || user.email?.split('@')[0] || 'Member'}!`);
-                    onClose();
-                  } catch (error: any) {
-                    setAuthError(error.message || 'Failed to authenticate with Google. Please use email and password.');
-                  } finally {
-                    setIsLoading(false);
-                  }
-                }}
-                className="w-full py-3 px-4 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 hover:text-white rounded-xl text-xs font-bold transition-all duration-300 flex items-center justify-center gap-2 border border-white/10 active:scale-95 cursor-pointer select-none disabled:opacity-50"
-              >
-                <Chrome className="w-4 h-4 text-red-400" />
-                <span>Continue with Google</span>
-              </button>
             </div>
 
             {/* Toggle Sign Up / Sign In footer */}
