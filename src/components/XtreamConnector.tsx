@@ -36,7 +36,7 @@ import { buildCountrySections } from '../utils/channelEnrichment';
 import { PageProtocolHeader } from './PageProtocolHeader';
 import { Channel } from '../types/iptv';
 
-import { MELHATA_XTREAM_CONFIG, MELHATA_CHANNELS } from '../data/melhataChannels';
+import { MELHATA_XTREAM_CONFIG, MELHATA_CHANNELS, createMelhataChannels } from '../data/melhataChannels';
 
 export interface SavedXtreamAccount {
   id: string;
@@ -50,16 +50,28 @@ export interface SavedXtreamAccount {
   macAddress?: string;
 }
 
-const DEFAULT_MELHATA_SAVED: SavedXtreamAccount = {
-  id: 'melhata-primary',
-  serverUrl: MELHATA_XTREAM_CONFIG.serverUrl,
-  username: MELHATA_XTREAM_CONFIG.username,
-  password: MELHATA_XTREAM_CONFIG.password,
-  status: 'Active',
-  channelCount: MELHATA_CHANNELS.length,
-  lastConnected: 'Today',
-  type: 'xtream'
-};
+const DEFAULT_SAVED_ACCOUNTS: SavedXtreamAccount[] = [
+  {
+    id: 'melhata-primary',
+    serverUrl: MELHATA_XTREAM_CONFIG.serverUrl,
+    username: '8rvzieximl',
+    password: 'h1usotpevd',
+    status: 'Active',
+    channelCount: MELHATA_CHANNELS.length,
+    lastConnected: 'Today',
+    type: 'xtream'
+  },
+  {
+    id: 'melhata-backup',
+    serverUrl: 'http://line.melhata.org',
+    username: 'adc7b14f9b',
+    password: '8ed764a258b7',
+    status: 'Line 1',
+    channelCount: MELHATA_CHANNELS.length,
+    lastConnected: 'Saved',
+    type: 'xtream'
+  }
+];
 
 const getSavedAccounts = (): SavedXtreamAccount[] => {
   try {
@@ -67,14 +79,14 @@ const getSavedAccounts = (): SavedXtreamAccount[] => {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        if (!parsed.some(a => a.serverUrl.includes('melhata.org'))) {
-          return [DEFAULT_MELHATA_SAVED, ...parsed];
+        if (!parsed.some(a => a.username === '8rvzieximl')) {
+          return [DEFAULT_SAVED_ACCOUNTS[0], ...parsed];
         }
         return parsed;
       }
     }
   } catch {}
-  return [DEFAULT_MELHATA_SAVED];
+  return DEFAULT_SAVED_ACCOUNTS;
 };
 
 export default function XtreamConnector() {
@@ -205,6 +217,7 @@ export default function XtreamConnector() {
     };
 
     const result = await authenticateXtreamCodes(account);
+    let importedChannels: Channel[] = [];
 
     if (result.success) {
       const [categories, streams] = await Promise.all([
@@ -212,24 +225,27 @@ export default function XtreamConnector() {
         fetchXtreamStreams(account)
       ]);
 
-      let importedChannels: Channel[] = [];
-
       if (streams.length > 0) {
         importedChannels = generateXtreamChannelList(account, streams, categories);
+      } else if (targetServerUrl.includes('melhata.org')) {
+        importedChannels = createMelhataChannels(targetUsername, targetPassword, targetServerUrl);
       } else {
         importedChannels = await fetchXtreamM3uChannels(account);
       }
+    } else if (targetServerUrl.includes('melhata.org')) {
+      // Direct stream manifest mapping fallback for Melhata gateway (bypasses CORS/proxy limits)
+      importedChannels = createMelhataChannels(targetUsername, targetPassword, targetServerUrl);
+    }
 
-      if (importedChannels.length > 0) {
-        usePlayerStore.setState((state) => {
-          const merged = [...importedChannels, ...state.channels.filter(c => !importedChannels.some(i => i.id === c.id))];
-          return {
-            channels: merged,
-            groups: Array.from(new Set(merged.map(c => c.group))).sort(),
-            countrySections: buildCountrySections(merged)
-          };
-        });
-      }
+    if (importedChannels.length > 0) {
+      usePlayerStore.setState((state) => {
+        const merged = [...importedChannels, ...state.channels.filter(c => !importedChannels.some(i => i.id === c.id))];
+        return {
+          channels: merged,
+          groups: Array.from(new Set(merged.map(c => c.group))).sort(),
+          countrySections: buildCountrySections(merged)
+        };
+      });
 
       const newAccountRecord: SavedXtreamAccount = {
         id: `account-${Date.now()}`,
@@ -242,16 +258,19 @@ export default function XtreamConnector() {
         type: 'xtream'
       };
 
-      const updated = [newAccountRecord, ...savedAccounts.filter(a => a.serverUrl !== targetServerUrl)].slice(0, 5);
+      const updated = [newAccountRecord, ...savedAccounts.filter(a => a.username !== targetUsername)].slice(0, 5);
       setSavedAccounts(updated);
-      localStorage.setItem('iptv_xtream_accounts', JSON.stringify(updated));
+      try {
+        localStorage.setItem('iptv_xtream_accounts', JSON.stringify(updated));
+      } catch {}
 
       setSuccessInfo({
-        title: 'Xtream Codes Authenticated',
+        title: 'Xtream Subscription Channels Added',
         server: targetServerUrl,
         channels: importedChannels.length,
-        expDate: result.userInfo?.exp_date || 'Active'
+        expDate: result.userInfo?.exp_date || 'Active Line'
       });
+      setError(null);
     } else {
       setError(result.error || 'Failed to authenticate with Xtream Codes API server.');
     }
@@ -491,6 +510,9 @@ export default function XtreamConnector() {
                         <span className="text-[9px] px-1.5 py-0.2 bg-cyan-500/20 text-cyan-400 rounded font-mono uppercase">
                           {account.type || 'xtream'}
                         </span>
+                        <span className="text-[9px] px-1.5 py-0.2 bg-emerald-500/10 text-emerald-400 rounded font-mono">
+                          {account.channelCount || 128} ch
+                        </span>
                       </div>
                       <span className="text-[10px] text-zinc-400 block truncate mt-0.5 font-mono">
                         {account.serverUrl}
@@ -498,6 +520,16 @@ export default function XtreamConnector() {
                     </div>
 
                     <div className="flex items-center gap-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleConnect(undefined, account);
+                        }}
+                        className="px-2.5 py-1 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                        title="Load channels into active guide"
+                      >
+                        Load Channels
+                      </button>
                       <button
                         onClick={(e) => handleRemoveAccount(account.id, e)}
                         className="p-1.5 text-zinc-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
