@@ -30,6 +30,9 @@ import {
   fetchXtreamCategories,
   fetchXtreamStreams,
   fetchXtreamM3uChannels,
+  fetchXtreamVodCategories,
+  fetchXtreamVodStreams,
+  generateXtreamVodChannelList,
   XtreamStreamItem 
 } from '../utils/xtreamClient';
 import { buildCountrySections } from '../utils/channelEnrichment';
@@ -220,9 +223,11 @@ export default function XtreamConnector() {
     let importedChannels: Channel[] = [];
 
     if (result.success) {
-      const [categories, streams] = await Promise.all([
+      const [categories, streams, vodCategories, vodStreams] = await Promise.all([
         fetchXtreamCategories(account),
-        fetchXtreamStreams(account)
+        fetchXtreamStreams(account),
+        fetchXtreamVodCategories(account),
+        fetchXtreamVodStreams(account)
       ]);
 
       if (streams.length > 0) {
@@ -231,6 +236,12 @@ export default function XtreamConnector() {
         importedChannels = createMelhataChannels(targetUsername, targetPassword, targetServerUrl);
       } else {
         importedChannels = await fetchXtreamM3uChannels(account);
+      }
+
+      // Merge VOD items if available
+      if (vodStreams.length > 0) {
+        const vodChannels = generateXtreamVodChannelList(account, vodStreams, vodCategories);
+        importedChannels = [...importedChannels, ...vodChannels];
       }
     } else if (targetServerUrl.includes('melhata.org')) {
       // Direct stream manifest mapping fallback for Melhata gateway (bypasses CORS/proxy limits)

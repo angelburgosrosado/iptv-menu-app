@@ -169,6 +169,37 @@ export interface XtreamAccount {
   maxConnections?: number;
 }
 
+export interface XtreamVodItem {
+  num: number;
+  name: string;
+  streamType: 'movie' | 'vod';
+  streamId: number;
+  streamIcon: string;
+  rating?: string;
+  rating5based?: number;
+  added?: string;
+  categoryId: string;
+  containerExtension?: string;
+  customSid?: string;
+  directSource?: string;
+}
+
+export interface XtreamSeriesItem {
+  num: number;
+  name: string;
+  seriesId: number;
+  cover: string;
+  plot?: string;
+  cast?: string;
+  director?: string;
+  genre?: string;
+  releaseDate?: string;
+  lastModified?: string;
+  rating?: string;
+  rating5based?: number;
+  categoryId: string;
+}
+
 export interface Group {
   name: string;
   channels: Channel[];

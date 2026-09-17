@@ -202,3 +202,123 @@ export function generateXtreamChannelList(
     };
   });
 }
+
+export async function fetchXtreamVodCategories(account: XtreamAccount): Promise<Record<string, string>> {
+  let baseUrl = account.serverUrl.trim().replace(/\/+$/, '');
+  if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+    baseUrl = `http://${baseUrl}`;
+  }
+  const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password)}&action=get_vod_categories`;
+  try {
+    let res: Response;
+    try {
+      res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    } catch {
+      res = await fetch(`/api/stream/proxy?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(9000) });
+    }
+    if (res.ok) {
+      const data = await res.json().catch(() => null);
+      if (Array.isArray(data)) {
+        const catMap: Record<string, string> = {};
+        data.forEach((c: any) => {
+          if (c.category_id && c.category_name) {
+            catMap[String(c.category_id)] = c.category_name;
+          }
+        });
+        return catMap;
+      }
+    }
+  } catch (e) {
+    console.warn('Could not fetch Xtream VOD categories', e);
+  }
+  return {};
+}
+
+export async function fetchXtreamVodStreams(account: XtreamAccount, categoryId?: string): Promise<any[]> {
+  let baseUrl = account.serverUrl.trim().replace(/\/+$/, '');
+  if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+    baseUrl = `http://${baseUrl}`;
+  }
+  let url = `${baseUrl}/player_api.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password)}&action=get_vod_streams`;
+  if (categoryId) {
+    url += `&category_id=${encodeURIComponent(categoryId)}`;
+  }
+  try {
+    let res: Response;
+    try {
+      res = await fetch(url, { signal: AbortSignal.timeout(20000) });
+    } catch {
+      res = await fetch(`/api/stream/proxy?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(25000) });
+    }
+    if (res.ok) {
+      const data = await res.json().catch(() => null);
+      if (Array.isArray(data)) {
+        return data;
+      }
+    }
+  } catch (e) {
+    console.warn('Could not fetch Xtream VOD streams', e);
+  }
+  return [];
+}
+
+export async function fetchXtreamSeries(account: XtreamAccount, categoryId?: string): Promise<any[]> {
+  let baseUrl = account.serverUrl.trim().replace(/\/+$/, '');
+  if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+    baseUrl = `http://${baseUrl}`;
+  }
+  let url = `${baseUrl}/player_api.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password)}&action=get_series`;
+  if (categoryId) {
+    url += `&category_id=${encodeURIComponent(categoryId)}`;
+  }
+  try {
+    let res: Response;
+    try {
+      res = await fetch(url, { signal: AbortSignal.timeout(20000) });
+    } catch {
+      res = await fetch(`/api/stream/proxy?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(25000) });
+    }
+    if (res.ok) {
+      const data = await res.json().catch(() => null);
+      if (Array.isArray(data)) {
+        return data;
+      }
+    }
+  } catch (e) {
+    console.warn('Could not fetch Xtream series', e);
+  }
+  return [];
+}
+
+export function generateXtreamVodChannelList(
+  account: XtreamAccount,
+  vodItems: any[],
+  categories: Record<string, string>
+): Channel[] {
+  let baseUrl = account.serverUrl.trim().replace(/\/+$/, '');
+  if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+    baseUrl = `http://${baseUrl}`;
+  }
+
+  return vodItems.map((item) => {
+    const ext = item.container_extension || 'mp4';
+    const group = categories[item.category_id] ? `VOD: ${categories[item.category_id]}` : 'VOD / Movies';
+    const streamUrl = `${baseUrl}/movie/${account.username}/${account.password}/${item.stream_id}.${ext}`;
+
+    return {
+      id: `xtream_vod_${item.stream_id}`,
+      name: item.name,
+      logo: item.stream_icon,
+      url: streamUrl,
+      group: group,
+      tvgId: String(item.stream_id),
+      resolution: item.rating ? `★ ${item.rating}` : '1080p',
+      bitrate: 'VOD On-Demand',
+      fps: 24,
+      codec: 'H.264 / AAC',
+      streamType: 'vod' as const,
+      directSource: 'xtream' as const
+    };
+  });
+}
+

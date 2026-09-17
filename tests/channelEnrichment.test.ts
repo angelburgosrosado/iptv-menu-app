@@ -498,6 +498,36 @@ describe('IPTV Channel Enrichment Engine', () => {
     expect(enriched[1].alternateUrls).toBeUndefined();
     expect(enriched[1].feedQuality).toBeUndefined();
   });
+
+  it('should generate VOD channel items from Xtream VOD stream payloads', async () => {
+    const { generateXtreamVodChannelList } = await import('../src/utils/xtreamClient');
+    const account = {
+      serverUrl: 'http://line.melhata.org',
+      username: '8rvzieximl',
+      password: 'h1usotpevd',
+      status: 'connected' as const
+    };
+    const mockVod = [
+      {
+        stream_id: 9988,
+        name: 'Inception (2010)',
+        stream_icon: 'https://cdn.example.com/inception.jpg',
+        category_id: '15',
+        container_extension: 'mp4',
+        rating: '8.8'
+      }
+    ];
+    const categories = { '15': 'Sci-Fi Movies' };
+
+    const vodList = generateXtreamVodChannelList(account, mockVod, categories);
+    expect(vodList).toHaveLength(1);
+    expect(vodList[0].id).toBe('xtream_vod_9988');
+    expect(vodList[0].name).toBe('Inception (2010)');
+    expect(vodList[0].group).toBe('VOD: Sci-Fi Movies');
+    expect(vodList[0].url).toBe('http://line.melhata.org/movie/8rvzieximl/h1usotpevd/9988.mp4');
+    expect(vodList[0].streamType).toBe('vod');
+    expect(vodList[0].resolution).toBe('★ 8.8');
+  });
 });
 
 
