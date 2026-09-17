@@ -209,6 +209,10 @@ export default function DesktopM3uUpload() {
         type: 'success',
         message: `Parsed ${parsed.length} channels from offline file into active session.`
       });
+
+      if (typeof window !== 'undefined' && window.dataLayer) {
+        window.dataLayer.push({ event: 'Playlist_Imported', method: 'File Upload' });
+      }
     } catch (e: any) {
       setLocalStatus({ type: 'error', message: `Parse error: ${e.message}` });
     }

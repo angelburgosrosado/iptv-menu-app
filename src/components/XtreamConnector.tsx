@@ -314,6 +314,10 @@ export default function XtreamConnector() {
         expDate: result.userInfo?.exp_date || 'Active Line'
       });
       setError(null);
+
+      if (typeof window !== 'undefined' && window.dataLayer) {
+        window.dataLayer.push({ event: 'Playlist_Imported', method: 'Xtream/Stalker' });
+      }
     } else {
       setError(result.error || 'Failed to authenticate with Xtream Codes API server.');
     }

@@ -446,6 +446,10 @@ export const usePlayerStore = create<AppState>((set, get) => ({
         parseProgress: 100,
       });
 
+      if (typeof window !== 'undefined' && window.dataLayer) {
+        window.dataLayer.push({ event: 'Playlist_Imported', method: 'URL Sync' });
+      }
+
     } catch (err: any) {
       console.error('IPTV Playlist loading failed:', err);
       // Fallback
