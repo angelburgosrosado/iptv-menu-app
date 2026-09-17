@@ -185,6 +185,7 @@ export interface AppState {
   selectedRegion: string | null;
   selectedLanguage: string | null;
   selectedTimezone: string | null;
+  selectedSubdivision: string | null;
   selectedGroup: string | null;
   searchTerm: string;
   epgSources: EpgSource[];
@@ -203,6 +204,7 @@ export interface AppState {
   setSelectedRegion: (region: string | null) => void;
   setSelectedLanguage: (lang: string | null) => void;
   setSelectedTimezone: (tz: string | null) => void;
+  setSelectedSubdivision: (sub: string | null) => void;
   setSelectedGroup: (group: string | null) => void;
   setSearchTerm: (term: string) => void;
   loadMetadataBundle: () => Promise<void>;

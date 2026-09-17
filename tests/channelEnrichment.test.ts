@@ -420,6 +420,51 @@ describe('IPTV Channel Enrichment Engine', () => {
 
     expect(enriched[2].corsProxyRecommended).toBe(true);
   });
+
+  it('should resolve regional subdivisions for countries (e.g. US states, Canadian provinces)', async () => {
+    const { getSubdivisionsForCountry, getSubdivisionName, IPTV_ORG_SUBDIVISIONS } = await import('../src/utils/channelEnrichment');
+    expect(IPTV_ORG_SUBDIVISIONS.length).toBeGreaterThan(4000);
+
+    // US subdivisions
+    const usSubs = getSubdivisionsForCountry('US');
+    expect(usSubs.length).toBeGreaterThanOrEqual(50);
+    const usCodes = usSubs.map(s => s.code);
+    expect(usCodes).toContain('US-CA');
+    expect(usCodes).toContain('US-NY');
+    expect(usCodes).toContain('US-FL');
+    expect(usCodes).toContain('US-TX');
+
+    // Canada subdivisions
+    const caSubs = getSubdivisionsForCountry('CA');
+    expect(caSubs.length).toBeGreaterThanOrEqual(10);
+    expect(caSubs.map(s => s.code)).toContain('CA-QC');
+    expect(caSubs.map(s => s.code)).toContain('CA-ON');
+
+    // Subdivision name lookup
+    expect(getSubdivisionName('US-CA')).toBe('California');
+    expect(getSubdivisionName('US-NY')).toBe('New York');
+    expect(getSubdivisionName('CA-QC')).toBe('Quebec');
+    expect(getSubdivisionName('nonexistent')).toBeUndefined();
+  });
+
+  it('should support selectedSubdivision filter and reset on country change in usePlayerStore', async () => {
+    const { usePlayerStore } = await import('../src/store/usePlayerStore');
+    const store = usePlayerStore.getState();
+
+    // Set subdivision
+    store.setSelectedSubdivision('California');
+    expect(usePlayerStore.getState().selectedSubdivision).toBe('California');
+
+    // Changing country resets selectedSubdivision
+    store.setSelectedCountry('CA');
+    expect(usePlayerStore.getState().selectedCountry).toBe('CA');
+    expect(usePlayerStore.getState().selectedSubdivision).toBeNull();
+
+    // Reset country
+    store.setSelectedCountry(null);
+    expect(usePlayerStore.getState().selectedCountry).toBeNull();
+  });
 });
+
 
 

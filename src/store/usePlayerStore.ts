@@ -76,6 +76,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   selectedRegion: null,
   selectedLanguage: null,
   selectedTimezone: null,
+  selectedSubdivision: null,
   selectedGroup: null,
   searchTerm: '',
   epgSources: [
@@ -91,10 +92,11 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   error: null,
   playlistUrl: storage.getString('playlistUrl') || DEFAULT_PLAYLIST_URL,
 
-  setSelectedCountry: (code: string | null) => set({ selectedCountry: code }),
+  setSelectedCountry: (code: string | null) => set({ selectedCountry: code, selectedSubdivision: null }),
   setSelectedRegion: (region: string | null) => set({ selectedRegion: region }),
   setSelectedLanguage: (lang: string | null) => set({ selectedLanguage: lang }),
   setSelectedTimezone: (tz: string | null) => set({ selectedTimezone: tz }),
+  setSelectedSubdivision: (sub: string | null) => set({ selectedSubdivision: sub }),
   setSelectedGroup: (group: string | null) => set({ selectedGroup: group }),
   setSearchTerm: (term: string) => set({ searchTerm: term }),
 

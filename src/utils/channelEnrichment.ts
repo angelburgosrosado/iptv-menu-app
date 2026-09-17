@@ -214,6 +214,28 @@ export function formatUtcOffset(offset: string): string {
   return offset.startsWith('+') || offset.startsWith('-') ? `UTC${offset}` : `UTC+${offset}`;
 }
 
+export const SUBDIVISIONS_BY_CODE = new Map<string, IptvOrgSubdivision>(
+  IPTV_ORG_SUBDIVISIONS.map((s) => [s.code.toUpperCase(), s])
+);
+
+export const COUNTRY_SUBDIVISIONS = new Map<string, IptvOrgSubdivision[]>();
+for (const sub of IPTV_ORG_SUBDIVISIONS) {
+  const country = sub.country.toUpperCase();
+  const current = COUNTRY_SUBDIVISIONS.get(country) || [];
+  current.push(sub);
+  COUNTRY_SUBDIVISIONS.set(country, current);
+}
+
+export function getSubdivisionsForCountry(countryCode?: string): IptvOrgSubdivision[] {
+  if (!countryCode) return [];
+  return COUNTRY_SUBDIVISIONS.get(countryCode.toUpperCase()) || [];
+}
+
+export function getSubdivisionName(subdivisionCode?: string): string | undefined {
+  if (!subdivisionCode) return undefined;
+  return SUBDIVISIONS_BY_CODE.get(subdivisionCode.toUpperCase())?.name;
+}
+
 export function normalizeCategory(groupOrCategory?: string): string {
   if (!groupOrCategory) return 'General';
   const clean = groupOrCategory.trim();

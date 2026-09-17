@@ -27,7 +27,14 @@ import { Channel } from '../types/iptv';
 import WebCinemaPlayer from './WebCinemaPlayer';
 import CountryChannelSections from './CountryChannelSections';
 import { PageProtocolHeader } from './PageProtocolHeader';
-import { getCountryFlag, normalizeCategory, POPULAR_LANGUAGES, getLanguageName } from '../utils/channelEnrichment';
+import { 
+  getCountryFlag, 
+  normalizeCategory, 
+  POPULAR_LANGUAGES, 
+  getLanguageName,
+  getSubdivisionsForCountry,
+  getSubdivisionName
+} from '../utils/channelEnrichment';
 
 interface DesktopChannelsProps {
   onSwitchToMultiScreen?: () => void;
@@ -42,7 +49,10 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
     isLoading, 
     error,
     selectedLanguage,
-    setSelectedLanguage
+    setSelectedLanguage,
+    selectedCountry,
+    selectedSubdivision,
+    setSelectedSubdivision
   } = usePlayerStore();
   const [searchQuery, setSearchQuery] = React.useState('');
   const [selectedGroup, setSelectedGroup] = React.useState<string | null>(null);
@@ -59,9 +69,26 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
     return Array.from(cats).sort();
   }, [channels]);
 
-  // Filter channels based on group/category, language, and full-text search (name, category, country, network, language)
+  // Available subdivisions for the active country (if a country is selected or derived)
+  const activeCountryCode = selectedCountry || 'US';
+  const availableSubdivisions = React.useMemo(() => {
+    return getSubdivisionsForCountry(activeCountryCode).slice(0, 25);
+  }, [activeCountryCode]);
+
+  // Filter channels based on group/category, language, subdivision, and full-text search (name, category, country, network, language)
   const filteredChannels = React.useMemo(() => {
     let list = channels;
+    if (selectedCountry) {
+      list = list.filter((c) => (c.countryCode || '').toUpperCase() === selectedCountry.toUpperCase());
+    }
+    if (selectedSubdivision) {
+      const subTarget = selectedSubdivision.toLowerCase();
+      list = list.filter((c) => {
+        const cSub = (c.subdivision || '').toLowerCase();
+        const cName = c.name.toLowerCase();
+        return cSub === subTarget || cName.includes(subTarget);
+      });
+    }
     if (selectedGroup) {
       list = list.filter((c) => {
         const cat = c.category || normalizeCategory(c.group);
@@ -87,11 +114,12 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
           (c.countryCode && c.countryCode.toLowerCase().includes(q)) ||
           (c.languageName && c.languageName.toLowerCase().includes(q)) ||
           (c.language && c.language.toLowerCase().includes(q)) ||
-          (c.tvgId && c.tvgId.toLowerCase().includes(q))
+          (c.tvgId && c.tvgId.toLowerCase().includes(q)) ||
+          (c.subdivision && c.subdivision.toLowerCase().includes(q))
       );
     }
     return list;
-  }, [channels, selectedGroup, selectedLanguage, searchQuery]);
+  }, [channels, selectedCountry, selectedSubdivision, selectedGroup, selectedLanguage, searchQuery]);
 
   const handlePlayInSimulator = (channel: Channel) => {
     simRouter.push(`/player/${channel.id}`);
@@ -303,6 +331,49 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
           })}
         </div>
       </div>
+
+      {/* Regional Subdivisions / States Filter Bar */}
+      {availableSubdivisions.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest px-1">
+              Filter by Region / State ({activeCountryCode})
+            </span>
+            <span className="text-[10px] text-zinc-500 font-mono">
+              ISO-3166-2 Subdivisions
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-white/10">
+            <button
+              onClick={() => setSelectedSubdivision(null)}
+              className={`px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border cursor-pointer ${
+                !selectedSubdivision
+                  ? 'bg-purple-600 text-white border-purple-500 shadow-sm'
+                  : 'bg-white/5 text-zinc-400 border-transparent hover:bg-white/10 hover:text-zinc-200'
+              }`}
+            >
+              All Regions
+            </button>
+            {availableSubdivisions.map((sub) => {
+              const isSelected = selectedSubdivision === sub.name || selectedSubdivision === sub.code;
+              return (
+                <button
+                  key={sub.code}
+                  onClick={() => setSelectedSubdivision(isSelected ? null : sub.name)}
+                  className={`px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border cursor-pointer ${
+                    isSelected
+                      ? 'bg-purple-600 text-white border-purple-500 shadow-sm'
+                      : 'bg-white/5 text-zinc-400 border-transparent hover:bg-white/10 hover:text-zinc-200'
+                  }`}
+                  title={`${sub.code}: ${sub.name}`}
+                >
+                  <span>{sub.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* SKELETON LOADER STATE */}
       {isLoading ? (
