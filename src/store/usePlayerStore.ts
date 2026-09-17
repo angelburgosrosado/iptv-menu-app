@@ -226,7 +226,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
 
   // M3U Feed Subscriptions & Auto-Sync Engine
   subscriptions: readJsonFromStorage<PlaylistSubscription[]>('iptv_playlist_subscriptions', DEFAULT_SUBSCRIPTIONS),
-  activeSubscriptionId: storage.getString('iptv_active_subscription_id') || 'sub-default-us',
+  activeSubscriptionId: storage.getString('iptv_active_subscription_id') || 'sub-fast-us-pluto',
   
   // Sleep Timer & Playback Automation Engine
   sleepTimer: DEFAULT_SLEEP_TIMER,

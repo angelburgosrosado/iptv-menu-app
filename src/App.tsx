@@ -141,7 +141,15 @@ export default function App() {
   };
 
   // Global Sleep Timer ticker across all views and playback routes
-  const { sleepTimer, tickSleepTimer } = usePlayerStore();
+  const { sleepTimer, tickSleepTimer, activeSubscriptionId, channels, activateSubscription } = usePlayerStore();
+  
+  React.useEffect(() => {
+    // Auto-load the active subscription on first app boot if we are still showing only fallback channels
+    if (activeSubscriptionId && channels.length <= 30) {
+      activateSubscription(activeSubscriptionId).catch(console.error);
+    }
+  }, []);
+
   React.useEffect(() => {
     if (!sleepTimer.isActive) return;
     const interval = setInterval(() => {
