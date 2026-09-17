@@ -23,15 +23,18 @@ export default defineConfig(() => {
       rollupOptions: {
         output: {
           manualChunks(id) {
-            if (id.includes('src/data/iptv-org') || id.includes('data/iptv-org') || id.includes('src/data/melhataChannels')) {
+            if (id.includes('src/data/') || id.includes('data/iptv-org')) {
               return 'iptv-datasets';
             }
             if (id.includes('node_modules')) {
-              if (id.includes('react') || id.includes('react-dom') || id.includes('scheduler')) {
-                return 'react-vendor';
-              }
               if (id.includes('lucide-react')) {
                 return 'ui-icons';
+              }
+              if (id.includes('/react/') || id.includes('/react-dom/') || id.includes('react/') || id.includes('react-dom/') || id.includes('scheduler')) {
+                return 'react-vendor';
+              }
+              if (id.includes('hls.js')) {
+                return 'video-player';
               }
               if (id.includes('firebase')) {
                 return 'firebase-vendor';

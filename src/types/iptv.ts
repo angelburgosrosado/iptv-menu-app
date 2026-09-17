@@ -280,6 +280,31 @@ export interface AppState {
   closePiP: () => void;
   setPiPSize: (size: 'compact' | 'normal' | 'large') => void;
   togglePiPMute: () => void;
+
+  // M3U Feed Subscriptions & Auto-Sync Engine
+  subscriptions: PlaylistSubscription[];
+  activeSubscriptionId: string | null;
+
+  addSubscription: (sub: Omit<PlaylistSubscription, 'id' | 'lastSyncTime' | 'status' | 'channelCount'> & { channelCount?: number }) => PlaylistSubscription;
+  removeSubscription: (id: string) => void;
+  toggleAutoSync: (id: string) => void;
+  updateSubscription: (id: string, updates: Partial<PlaylistSubscription>) => void;
+  syncSubscription: (id: string) => Promise<void>;
+  syncAllSubscriptions: () => Promise<void>;
+  activateSubscription: (id: string) => Promise<void>;
+}
+
+export interface PlaylistSubscription {
+  id: string;
+  name: string;
+  url: string;
+  autoSync: boolean;
+  syncIntervalMinutes: number; // e.g. 15, 60, 360, 1440
+  lastSyncTime?: string;
+  channelCount: number;
+  status: 'synced' | 'syncing' | 'error';
+  errorMessage?: string;
+  colorTag?: string;
 }
 
 export interface DvrRecording {

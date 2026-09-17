@@ -20,60 +20,70 @@ import {
   Sparkles, 
   Sliders, 
   ExternalLink,
-  Play
+  Play,
+  Plus,
+  Clock,
+  CheckCircle2,
+  X
 } from 'lucide-react';
 import { parseM3U } from '../utils/m3uParser';
 import { authStore, useAuth } from '../authStore';
 import { fetchWithAuth, uploadFileToSignedUrl } from '../lib/apiClient';
 import { PageProtocolHeader } from './PageProtocolHeader';
 import RateLimitBanner from './RateLimitBanner';
+import { PlaylistSubscription } from '../types/iptv';
 
-interface ActivePlaylist {
-  id: string;
-  name: string;
-  url?: string;
-  channelCount: number;
-  type: 'local' | 'remote_hosted';
-  lastUpdated: string;
-  isActive: boolean;
-}
-
-const DEFAULT_PLAYLISTS: ActivePlaylist[] = [
-  {
-    id: 'pl-default-us',
-    name: 'Global High-Definition Streams',
-    url: 'https://iptv-org.github.io/iptv/countries/us.m3u',
-    channelCount: 9,
-    type: 'remote_hosted',
-    lastUpdated: 'Today at 9:30 AM',
-    isActive: true,
-  },
-  {
-    id: 'pl-latam-regional',
-    name: 'Latin America Regional Feeds',
-    url: 'https://iptv-org.github.io/iptv/regions/latam.m3u',
-    channelCount: 14,
-    type: 'remote_hosted',
-    lastUpdated: 'Yesterday at 4:15 PM',
-    isActive: false,
-  },
-  {
-    id: 'pl-europe-unified',
-    name: 'European Unified News & Cultural',
-    url: 'https://iptv-org.github.io/iptv/regions/eur.m3u',
-    channelCount: 18,
-    type: 'remote_hosted',
-    lastUpdated: 'Sep 5, 2026',
-    isActive: false,
-  },
+const QUICK_PRESETS = [
+  { name: 'US Curated Channels', url: 'https://iptv-org.github.io/iptv/countries/us.m3u', interval: 60 },
+  { name: 'Latin America Regional', url: 'https://iptv-org.github.io/iptv/regions/latam.m3u', interval: 360 },
+  { name: 'Melhata Xtream Line', url: 'http://line.melhata.org/get.php?username=8rvzieximl&password=h1usotpevd&type=m3u_plus&output=ts', interval: 15 },
+  { name: 'UK Channels', url: 'https://iptv-org.github.io/iptv/countries/uk.m3u', interval: 60 },
 ];
 
+const formatLastSync = (isoString?: string) => {
+  if (!isoString) return 'Never';
+  try {
+    const d = new Date(isoString);
+    const now = new Date();
+    const diffSec = Math.floor((now.getTime() - d.getTime()) / 1000);
+    if (diffSec < 60) return 'Just now';
+    if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`;
+    if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`;
+    return d.toLocaleDateString();
+  } catch {
+    return 'Recently';
+  }
+};
+
+
 export default function DesktopM3uUpload() {
-  const { playlistUrl, setPlaylistUrl, loadPlaylist, channels } = usePlayerStore();
+  const { 
+    playlistUrl, 
+    setPlaylistUrl, 
+    loadPlaylist, 
+    channels,
+    subscriptions,
+    activeSubscriptionId,
+    addSubscription,
+    removeSubscription,
+    toggleAutoSync,
+    updateSubscription,
+    syncSubscription,
+    syncAllSubscriptions,
+    activateSubscription
+  } = usePlayerStore();
   const auth = useAuth();
   const [urlInput, setUrlInput] = React.useState(playlistUrl);
   const [dragActive, setDragActive] = React.useState(false);
   const [localStatus, setLocalStatus] = React.useState<{ type: 'success' | 'error' | 'loading' | null; message: string }>({ type: null, message: '' });
+
+  // Subscription manager states
+  const [isSyncingAll, setIsSyncingAll] = React.useState(false);
+  const [showAddSubscription, setShowAddSubscription] = React.useState(false);
+  const [newSubName, setNewSubName] = React.useState('');
+  const [newSubUrl, setNewSubUrl] = React.useState('');
+  const [newSubInterval, setNewSubInterval] = React.useState(60);
+  const [newSubAutoSync, setNewSubAutoSync] = React.useState(true);
 
   // Auto-cleaner states
   const [isCleaning, setIsCleaning] = React.useState(false);
@@ -88,25 +98,6 @@ export default function DesktopM3uUpload() {
   });
   const maxDailyCleanups = auth.role === 'builder' ? 50 : 20;
 
-  // Active playlists state
-  const [activePlaylists, setActivePlaylists] = React.useState<ActivePlaylist[]>(() => {
-    try {
-      const stored = localStorage.getItem('iptv_active_playlists');
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-    } catch {}
-    return DEFAULT_PLAYLISTS;
-  });
-
-  const savePlaylists = (lists: ActivePlaylist[]) => {
-    setActivePlaylists(lists);
-    try {
-      localStorage.setItem('iptv_active_playlists', JSON.stringify(lists));
-    } catch {}
-  };
-
   // Handle preset clicks
   const handlePresetSync = (url: string) => {
     setUrlInput(url);
@@ -120,20 +111,55 @@ export default function DesktopM3uUpload() {
     setPlaylistUrl(urlInput);
     loadPlaylist(urlInput);
 
-    // Add to active playlists if not present
-    const exists = activePlaylists.some(p => p.url === urlInput);
-    if (!exists && activePlaylists.length < 10) {
-      const newList: ActivePlaylist = {
-        id: `pl-${Date.now()}`,
-        name: `Remote Playlist (${new URL(urlInput).hostname})`,
-        url: urlInput,
-        channelCount: channels.length,
-        type: 'remote_hosted',
-        lastUpdated: 'Just now',
-        isActive: true,
-      };
-      const updated = activePlaylists.map(p => ({ ...p, isActive: false }));
-      savePlaylists([newList, ...updated]);
+    // Also register into subscriptions ledger if not already present
+    const exists = subscriptions.some(s => s.url === urlInput.trim());
+    if (!exists) {
+      addSubscription({
+        name: `Remote Feed (${new URL(urlInput).hostname})`,
+        url: urlInput.trim(),
+        autoSync: true,
+        syncIntervalMinutes: 60,
+        colorTag: '#06b6d4',
+        channelCount: channels.length
+      });
+    }
+  };
+
+  const handleAddSubscriptionForm = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newSubName.trim() || !newSubUrl.trim()) return;
+    addSubscription({
+      name: newSubName.trim(),
+      url: newSubUrl.trim(),
+      syncIntervalMinutes: newSubInterval,
+      autoSync: newSubAutoSync,
+      colorTag: '#06b6d4'
+    });
+    setNewSubName('');
+    setNewSubUrl('');
+    setShowAddSubscription(false);
+    setLocalStatus({
+      type: 'success',
+      message: `Subscription "${newSubName}" added and ready for scheduled background sync.`
+    });
+  };
+
+  const handleSyncAllFeeds = async () => {
+    setIsSyncingAll(true);
+    setLocalStatus({ type: 'loading', message: 'Syncing all subscribed M3U feeds...' });
+    try {
+      await syncAllSubscriptions();
+      setLocalStatus({
+        type: 'success',
+        message: 'Successfully refreshed all auto-syncing playlist subscriptions.'
+      });
+    } catch (err: any) {
+      setLocalStatus({
+        type: 'error',
+        message: `Sync failed: ${err?.message || 'Unknown error'}`
+      });
+    } finally {
+      setIsSyncingAll(false);
     }
   };
 
@@ -168,17 +194,16 @@ export default function DesktopM3uUpload() {
         playlistUrl: filename || 'uploaded-local-file.m3u'
       });
 
-      // Add to active playlists
-      const newList: ActivePlaylist = {
-        id: `pl-${Date.now()}`,
+      // Register into subscriptions ledger
+      const newSub = addSubscription({
         name: filename || 'Uploaded Local Playlist',
+        url: filename || 'uploaded-local-file.m3u',
         channelCount: parsed.length,
-        type: 'local',
-        lastUpdated: 'Just now',
-        isActive: true,
-      };
-      const updated = activePlaylists.map(p => ({ ...p, isActive: false }));
-      savePlaylists([newList, ...updated.slice(0, 9)]);
+        syncIntervalMinutes: 1440,
+        autoSync: false,
+        colorTag: '#a855f7'
+      });
+      activateSubscription(newSub.id);
 
       setLocalStatus({
         type: 'success',
@@ -328,22 +353,6 @@ export default function DesktopM3uUpload() {
     });
   };
 
-  const handleSwitchPlaylist = (playlist: ActivePlaylist) => {
-    const updated = activePlaylists.map(p => ({
-      ...p,
-      isActive: p.id === playlist.id
-    }));
-    savePlaylists(updated);
-    if (playlist.url) {
-      handlePresetSync(playlist.url);
-    }
-  };
-
-  const handleDeletePlaylist = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const updated = activePlaylists.filter(p => p.id !== id);
-    savePlaylists(updated);
-  };
 
   return (
     <div className="flex flex-col h-full gap-6">
@@ -437,62 +446,294 @@ export default function DesktopM3uUpload() {
             </p>
           </form>
 
-          {/* Active Playlists Ledger (Support up to 10 playlists) */}
-          <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-5 flex flex-col gap-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-                <Layers className="w-4 h-4 text-cyan-400" />
-                Active Playlists Manager ({activePlaylists.length}/10 Active • 5 Remote Hosted)
-              </h3>
-              <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">
-                Pro Entitlement
-              </span>
+          {/* M3U Multi-Playlist Subscription Hub */}
+          <div className="bg-white/[0.02] border border-white/5 rounded-2xl p-5 flex flex-col gap-4">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
+                  <Layers className="w-4 h-4 text-cyan-400" />
+                  Playlist Subscriptions Hub ({subscriptions.length}/10 Active Feeds)
+                </h3>
+                <p className="text-[11px] text-zinc-400 mt-0.5">
+                  Automated background sync, interval-based re-fetch, and one-click active feed switching.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSyncAllFeeds}
+                  disabled={isSyncingAll}
+                  className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-semibold text-zinc-200 hover:text-white flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                  title="Sync all auto-updating subscriptions"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 text-cyan-400 ${isSyncingAll ? 'animate-spin' : ''}`} />
+                  {isSyncingAll ? 'Syncing...' : 'Sync All Feeds'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowAddSubscription(!showAddSubscription)}
+                  className="px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-xs font-bold text-white flex items-center gap-1.5 transition-all shadow-md shadow-cyan-500/10 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  {showAddSubscription ? 'Close' : 'Add Subscription'}
+                </button>
+              </div>
             </div>
 
-            <div className="flex flex-col gap-2">
-              {activePlaylists.map((pl) => (
-                <div
-                  key={pl.id}
-                  onClick={() => handleSwitchPlaylist(pl)}
-                  className={`p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between ${
-                    pl.isActive
-                      ? 'bg-cyan-500/10 border-cyan-500/30 shadow-md shadow-cyan-500/5'
-                      : 'bg-white/2 hover:bg-white/5 border-white/5 hover:border-white/10'
-                  }`}
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                      pl.isActive ? 'bg-cyan-500 text-black font-black' : 'bg-zinc-800 text-zinc-400'
-                    }`}>
-                      {pl.isActive ? <Check className="w-4 h-4" /> : <Play className="w-3.5 h-3.5 fill-current" />}
-                    </div>
-                    <div className="min-w-0">
-                      <h5 className="text-xs font-bold text-white truncate flex items-center gap-2">
-                        {pl.name}
-                        {pl.isActive && (
-                          <span className="text-[9px] bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded font-extrabold uppercase">
-                            Active
-                          </span>
-                        )}
-                      </h5>
-                      <span className="text-[10px] text-zinc-400 block truncate mt-0.5">
-                        {pl.channelCount} channels • {pl.type === 'remote_hosted' ? 'Hosted Remote' : 'Local File'} • Updated {pl.lastUpdated}
-                      </span>
-                    </div>
-                  </div>
+            {/* Quick Presets & Add Subscription Form */}
+            {showAddSubscription && (
+              <form onSubmit={handleAddSubscriptionForm} className="bg-black/50 border border-cyan-500/30 rounded-xl p-4 flex flex-col gap-3 animate-in fade-in duration-200">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-cyan-300 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                    New M3U Playlist Subscription
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddSubscription(false)}
+                    className="text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
 
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
-                    <button
-                      onClick={(e) => handleDeletePlaylist(pl.id, e)}
-                      className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
-                      title="Delete playlist"
-                      aria-label="Delete playlist"
+                {/* Quick Presets */}
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Quick Presets</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {QUICK_PRESETS.map((p) => (
+                      <button
+                        key={p.name}
+                        type="button"
+                        onClick={() => {
+                          setNewSubName(p.name);
+                          setNewSubUrl(p.url);
+                          setNewSubInterval(p.interval);
+                        }}
+                        className="px-2.5 py-1 bg-white/5 hover:bg-cyan-500/20 hover:border-cyan-500/40 border border-white/10 rounded-lg text-[11px] text-zinc-300 hover:text-cyan-200 transition-all cursor-pointer font-medium"
+                      >
+                        {p.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div>
+                    <label className="text-[10px] text-zinc-400 font-bold block mb-1">Subscription Name</label>
+                    <input
+                      type="text"
+                      value={newSubName}
+                      onChange={(e) => setNewSubName(e.target.value)}
+                      placeholder="e.g. Sports & News HD"
+                      required
+                      className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-lg text-xs text-white outline-none focus:border-cyan-500/50"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] text-zinc-400 font-bold block mb-1">Sync Interval</label>
+                    <select
+                      value={newSubInterval}
+                      onChange={(e) => setNewSubInterval(Number(e.target.value))}
+                      className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-lg text-xs text-white outline-none focus:border-cyan-500/50"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <option value={15}>Every 15 minutes</option>
+                      <option value={60}>Every 1 hour</option>
+                      <option value={360}>Every 6 hours</option>
+                      <option value={1440}>Every 24 hours</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[10px] text-zinc-400 font-bold block mb-1">M3U / M3U8 Stream URL</label>
+                  <input
+                    type="url"
+                    value={newSubUrl}
+                    onChange={(e) => setNewSubUrl(e.target.value)}
+                    placeholder="https://example.com/playlist.m3u"
+                    required
+                    className="w-full px-3 py-2 bg-black/60 border border-white/10 rounded-lg text-xs text-white font-mono outline-none focus:border-cyan-500/50"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newSubAutoSync}
+                      onChange={(e) => setNewSubAutoSync(e.target.checked)}
+                      className="rounded border-zinc-700 text-cyan-500 focus:ring-cyan-500/20 bg-zinc-900"
+                    />
+                    <span className="text-xs text-zinc-300">Enable Automated Background Sync</span>
+                  </label>
+
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddSubscription(false)}
+                      className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-xs text-zinc-300 transition-all cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold transition-all shadow-md shadow-cyan-500/20 cursor-pointer"
+                    >
+                      Save Subscription
                     </button>
                   </div>
                 </div>
-              ))}
+              </form>
+            )}
+
+            {/* Subscriptions List */}
+            <div className="flex flex-col gap-2.5">
+              {subscriptions.length === 0 ? (
+                <div className="p-6 text-center text-zinc-400 text-xs border border-dashed border-white/10 rounded-xl">
+                  No subscriptions added yet. Click &quot;Add Subscription&quot; or choose a preset above.
+                </div>
+              ) : (
+                subscriptions.map((sub) => {
+                  const isActive = sub.id === activeSubscriptionId || sub.url === playlistUrl;
+                  const isSyncing = sub.status === 'syncing';
+                  return (
+                    <div
+                      key={sub.id}
+                      className={`p-3.5 rounded-xl border transition-all flex flex-col gap-2.5 ${
+                        isActive
+                          ? 'bg-cyan-500/10 border-cyan-500/40 shadow-lg shadow-cyan-500/5'
+                          : 'bg-white/[0.02] hover:bg-white/[0.04] border-white/5 hover:border-white/10'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          {/* Activate Button */}
+                          <button
+                            type="button"
+                            onClick={() => activateSubscription(sub.id)}
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-all cursor-pointer ${
+                              isActive
+                                ? 'bg-cyan-500 text-black shadow-md shadow-cyan-500/20 font-bold'
+                                : 'bg-zinc-800/80 hover:bg-cyan-500/20 text-zinc-400 hover:text-cyan-300'
+                            }`}
+                            title={isActive ? 'Active Playlist Feed' : 'Click to Activate this Feed'}
+                            aria-label={`Activate ${sub.name}`}
+                          >
+                            {isActive ? <Check className="w-4 h-4 stroke-[3]" /> : <Play className="w-3.5 h-3.5 fill-current ml-0.5" />}
+                          </button>
+
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <h5 className="text-xs font-bold text-white truncate">
+                                {sub.name}
+                              </h5>
+                              {isActive && (
+                                <span className="text-[9px] bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded font-black tracking-wider uppercase border border-cyan-500/30">
+                                  Active Feed
+                                </span>
+                              )}
+                              {/* Status Badge */}
+                              {sub.status === 'synced' && (
+                                <span className="text-[9px] bg-emerald-500/15 text-emerald-300 px-1.5 py-0.5 rounded font-bold border border-emerald-500/30 flex items-center gap-1">
+                                  <CheckCircle2 className="w-2.5 h-2.5" />
+                                  Synced
+                                </span>
+                              )}
+                              {sub.status === 'syncing' && (
+                                <span className="text-[9px] bg-cyan-500/20 text-cyan-300 px-1.5 py-0.5 rounded font-bold border border-cyan-500/30 flex items-center gap-1">
+                                  <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                                  Syncing...
+                                </span>
+                              )}
+                              {sub.status === 'error' && (
+                                <span className="text-[9px] bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded font-bold border border-red-500/30 flex items-center gap-1" title={sub.errorMessage}>
+                                  <AlertCircle className="w-2.5 h-2.5" />
+                                  Sync Error
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-zinc-400 font-mono block truncate mt-0.5">
+                              {sub.url}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Top-right quick actions */}
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => syncSubscription(sub.id)}
+                            disabled={isSyncing}
+                            className="p-1.5 text-zinc-400 hover:text-cyan-300 hover:bg-cyan-500/10 rounded-lg transition-all cursor-pointer disabled:opacity-50"
+                            title="Sync this feed now"
+                            aria-label={`Sync ${sub.name}`}
+                          >
+                            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-cyan-400' : ''}`} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeSubscription(sub.id)}
+                            className="p-1.5 text-zinc-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all cursor-pointer"
+                            title="Remove subscription"
+                            aria-label={`Remove ${sub.name}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Details & Controls Bar */}
+                      <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-white/5 text-[10px] text-zinc-400">
+                        <div className="flex items-center gap-3">
+                          <span className="font-semibold text-zinc-300">
+                            {sub.channelCount || 0} channels
+                          </span>
+                          <span>•</span>
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-zinc-500" />
+                            {formatLastSync(sub.lastSyncTime)}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {/* Interval Selector */}
+                          <div className="flex items-center gap-1 bg-black/30 px-2 py-0.5 rounded-lg border border-white/5">
+                            <span className="text-zinc-500">Every:</span>
+                            <select
+                              value={sub.syncIntervalMinutes}
+                              onChange={(e) => updateSubscription(sub.id, { syncIntervalMinutes: Number(e.target.value) })}
+                              className="bg-transparent text-zinc-200 outline-none cursor-pointer font-medium"
+                              aria-label={`Sync interval for ${sub.name}`}
+                            >
+                              <option value={15} className="bg-zinc-900 text-white">15m</option>
+                              <option value={60} className="bg-zinc-900 text-white">1h</option>
+                              <option value={360} className="bg-zinc-900 text-white">6h</option>
+                              <option value={1440} className="bg-zinc-900 text-white">24h</option>
+                            </select>
+                          </div>
+
+                          {/* AutoSync Toggle */}
+                          <button
+                            type="button"
+                            onClick={() => toggleAutoSync(sub.id)}
+                            className={`px-2 py-0.5 rounded-lg border text-[10px] font-bold transition-all cursor-pointer ${
+                              sub.autoSync
+                                ? 'bg-cyan-500/15 border-cyan-500/30 text-cyan-300'
+                                : 'bg-white/5 border-white/10 text-zinc-500 hover:text-zinc-400'
+                            }`}
+                            title={sub.autoSync ? 'Auto-sync active' : 'Auto-sync paused'}
+                          >
+                            Auto-Sync: {sub.autoSync ? 'ON' : 'OFF'}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>
@@ -561,8 +802,8 @@ export default function DesktopM3uUpload() {
               <strong className="text-emerald-400 font-mono">{dailyCleanupsUsed} / {maxDailyCleanups}</strong>
             </div>
             <div className="flex justify-between items-center text-xs">
-              <span className="text-zinc-400">Supported Playlists Quota:</span>
-              <strong className="text-cyan-400 font-mono">{activePlaylists.length} / 10</strong>
+              <span className="text-zinc-400">Supported Feeds Quota:</span>
+              <strong className="text-cyan-400 font-mono">{subscriptions.length} / 10</strong>
             </div>
           </div>
         </div>

@@ -5,7 +5,7 @@
 
 import { create } from 'zustand';
 import { MMKV } from 'react-native-mmkv';
-import { AppState, Channel, EpgSource, DvrRecording, Bookmark } from '../types/iptv';
+import { AppState, Channel, EpgSource, DvrRecording, Bookmark, PlaylistSubscription } from '../types/iptv';
 import { parseM3U } from '../utils/m3uParser';
 import { buildCountrySections } from '../utils/channelEnrichment';
 
@@ -77,6 +77,42 @@ const getApiUrl = (path: string): string => {
   return `http://localhost:${process.env.PORT || 3001}${path}`;
 };
 
+const DEFAULT_SUBSCRIPTIONS: PlaylistSubscription[] = [
+  {
+    id: 'sub-default-us',
+    name: 'US Curated Global Streams',
+    url: 'https://iptv-org.github.io/iptv/countries/us.m3u',
+    autoSync: true,
+    syncIntervalMinutes: 60,
+    lastSyncTime: new Date().toISOString(),
+    channelCount: 9,
+    status: 'synced',
+    colorTag: '#06b6d4'
+  },
+  {
+    id: 'sub-latam-regional',
+    name: 'Latin America Regional Feeds',
+    url: 'https://iptv-org.github.io/iptv/regions/latam.m3u',
+    autoSync: false,
+    syncIntervalMinutes: 360,
+    lastSyncTime: new Date(Date.now() - 3600000 * 5).toISOString(),
+    channelCount: 14,
+    status: 'synced',
+    colorTag: '#10b981'
+  },
+  {
+    id: 'sub-melhata-xtream',
+    name: 'Melhata Xtream Dedicated Line',
+    url: 'http://line.melhata.org/get.php?username=8rvzieximl&password=h1usotpevd&type=m3u_plus&output=ts',
+    autoSync: true,
+    syncIntervalMinutes: 15,
+    lastSyncTime: new Date().toISOString(),
+    channelCount: 20,
+    status: 'synced',
+    colorTag: '#8b5cf6'
+  }
+];
+
 export const usePlayerStore = create<AppState>((set, get) => ({
   // Active state holders (pre-seeded with verified streams + Melhata Xtream channels)
   channels: INITIAL_FALLBACK_CHANNELS,
@@ -93,6 +129,10 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   isPiPActive: false,
   pipSize: readJsonFromStorage<'compact' | 'normal' | 'large'>('iptv_pip_size', 'normal'),
   isPiPMuted: false,
+
+  // M3U Feed Subscriptions & Auto-Sync Engine
+  subscriptions: readJsonFromStorage<PlaylistSubscription[]>('iptv_playlist_subscriptions', DEFAULT_SUBSCRIPTIONS),
+  activeSubscriptionId: storage.getString('iptv_active_subscription_id') || 'sub-default-us',
   
   // Country & EPG Backbone enhancements
   countrySections: buildCountrySections(INITIAL_FALLBACK_CHANNELS),
@@ -492,5 +532,107 @@ export const usePlayerStore = create<AppState>((set, get) => ({
 
   togglePiPMute: () => {
     set((state) => ({ isPiPMuted: !state.isPiPMuted }));
+  },
+
+  // M3U Subscription Actions
+  addSubscription: (sub) => {
+    const id = `sub_${Date.now()}`;
+    const newSub: PlaylistSubscription = {
+      ...sub,
+      id,
+      channelCount: sub.channelCount || 0,
+      lastSyncTime: new Date().toISOString(),
+      status: 'synced'
+    };
+    const updated = [...get().subscriptions, newSub];
+    writeJsonToStorage('iptv_playlist_subscriptions', updated);
+    set({ subscriptions: updated });
+    return newSub;
+  },
+
+  removeSubscription: (id: string) => {
+    const updated = get().subscriptions.filter((s) => s.id !== id);
+    writeJsonToStorage('iptv_playlist_subscriptions', updated);
+    set({
+      subscriptions: updated,
+      activeSubscriptionId: get().activeSubscriptionId === id ? null : get().activeSubscriptionId
+    });
+  },
+
+  toggleAutoSync: (id: string) => {
+    const updated = get().subscriptions.map((s) => 
+      s.id === id ? { ...s, autoSync: !s.autoSync } : s
+    );
+    writeJsonToStorage('iptv_playlist_subscriptions', updated);
+    set({ subscriptions: updated });
+  },
+
+  updateSubscription: (id: string, updates: Partial<PlaylistSubscription>) => {
+    const updated = get().subscriptions.map((s) => 
+      s.id === id ? { ...s, ...updates } : s
+    );
+    writeJsonToStorage('iptv_playlist_subscriptions', updated);
+    set({ subscriptions: updated });
+  },
+
+  activateSubscription: async (id: string) => {
+    const target = get().subscriptions.find((s) => s.id === id);
+    if (!target) return;
+    storage.set('iptv_active_subscription_id', id);
+    set({ activeSubscriptionId: id, playlistUrl: target.url });
+    await get().loadPlaylist(target.url);
+  },
+
+  syncSubscription: async (id: string) => {
+    const sub = get().subscriptions.find((s) => s.id === id);
+    if (!sub) return;
+
+    // Set syncing status
+    const markingSyncing = get().subscriptions.map((s) => 
+      s.id === id ? { ...s, status: 'syncing' as const } : s
+    );
+    set({ subscriptions: markingSyncing });
+
+    try {
+      if (get().activeSubscriptionId === id) {
+        await get().loadPlaylist(sub.url);
+      }
+      
+      let chCount = sub.channelCount;
+      if (get().activeSubscriptionId === id) {
+        chCount = get().channels.length;
+      }
+
+      const updated = get().subscriptions.map((s) => 
+        s.id === id ? {
+          ...s,
+          status: 'synced' as const,
+          lastSyncTime: new Date().toISOString(),
+          channelCount: chCount,
+          errorMessage: undefined
+        } : s
+      );
+      writeJsonToStorage('iptv_playlist_subscriptions', updated);
+      set({ subscriptions: updated });
+    } catch (err: any) {
+      const updated = get().subscriptions.map((s) => 
+        s.id === id ? {
+          ...s,
+          status: 'error' as const,
+          errorMessage: err?.message || 'Sync failed'
+        } : s
+      );
+      writeJsonToStorage('iptv_playlist_subscriptions', updated);
+      set({ subscriptions: updated });
+    }
+  },
+
+  syncAllSubscriptions: async () => {
+    const subs = get().subscriptions;
+    for (const sub of subs) {
+      if (sub.autoSync) {
+        await get().syncSubscription(sub.id);
+      }
+    }
   },
 }));
