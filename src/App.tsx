@@ -66,6 +66,7 @@ import { PageProtocolHeader } from './components/PageProtocolHeader';
 import FloatingPiPPlayer from './components/FloatingPiPPlayer';
 import WebCinemaPlayer from './components/WebCinemaPlayer';
 import { Channel } from './types/iptv';
+import { usePlayerStore } from './store/usePlayerStore';
 import { useAuth, authStore } from './authStore';
 import { fetchWithAuth } from './lib/apiClient';
 import {
@@ -135,6 +136,16 @@ export default function App() {
       localStorage.setItem('iptv_layout_mode', next);
     } catch {}
   };
+
+  // Global Sleep Timer ticker across all views and playback routes
+  const { sleepTimer, tickSleepTimer } = usePlayerStore();
+  React.useEffect(() => {
+    if (!sleepTimer.isActive) return;
+    const interval = setInterval(() => {
+      tickSleepTimer();
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [sleepTimer.isActive, tickSleepTimer]);
 
   // Stripe Checkout Redirect & Session Refresh Handler
   React.useEffect(() => {

@@ -5,12 +5,23 @@
 
 import { create } from 'zustand';
 import { MMKV } from 'react-native-mmkv';
-import { AppState, Channel, EpgSource, DvrRecording, Bookmark, PlaylistSubscription } from '../types/iptv';
+import { AppState, Channel, EpgSource, DvrRecording, Bookmark, PlaylistSubscription, SleepTimerState } from '../types/iptv';
 import { parseM3U } from '../utils/m3uParser';
 import { buildCountrySections } from '../utils/channelEnrichment';
 
 // Initialize react-native-mmkv storage container
 const storage = new MMKV({ id: 'iptv_user_storage_v1' });
+
+const DEFAULT_SLEEP_TIMER: SleepTimerState = {
+  isActive: false,
+  durationMinutes: 0,
+  remainingSeconds: 0,
+  audioFadeOut: true,
+  bedtimeDimming: true,
+  endAction: 'pause',
+  audioDuckRatio: 1.0,
+  dimRatio: 0.0,
+};
 
 // Pre-provided high-definition royalty-free & public IPTV streams fallback
 // Keeps the app fully operational instantly on first launch with CORS-friendly streams
@@ -134,6 +145,9 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   subscriptions: readJsonFromStorage<PlaylistSubscription[]>('iptv_playlist_subscriptions', DEFAULT_SUBSCRIPTIONS),
   activeSubscriptionId: storage.getString('iptv_active_subscription_id') || 'sub-default-us',
   
+  // Sleep Timer & Playback Automation Engine
+  sleepTimer: DEFAULT_SLEEP_TIMER,
+
   // Country & EPG Backbone enhancements
   countrySections: buildCountrySections(INITIAL_FALLBACK_CHANNELS),
   selectedCountry: null,
@@ -634,5 +648,97 @@ export const usePlayerStore = create<AppState>((set, get) => ({
         await get().syncSubscription(sub.id);
       }
     }
+  },
+
+  // Sleep Timer & Playback Automation Actions
+  setSleepTimer: (minutes: number, options?: Partial<Pick<SleepTimerState, 'audioFadeOut' | 'bedtimeDimming' | 'endAction'>>) => {
+    const totalSeconds = Math.max(1, Math.round(minutes * 60));
+    set({
+      sleepTimer: {
+        isActive: true,
+        durationMinutes: minutes,
+        remainingSeconds: totalSeconds,
+        audioFadeOut: options?.audioFadeOut ?? get().sleepTimer.audioFadeOut,
+        bedtimeDimming: options?.bedtimeDimming ?? get().sleepTimer.bedtimeDimming,
+        endAction: options?.endAction ?? get().sleepTimer.endAction,
+        audioDuckRatio: 1.0,
+        dimRatio: 0.0,
+      }
+    });
+  },
+
+  cancelSleepTimer: () => {
+    set({
+      sleepTimer: {
+        ...get().sleepTimer,
+        isActive: false,
+        durationMinutes: 0,
+        remainingSeconds: 0,
+        audioDuckRatio: 1.0,
+        dimRatio: 0.0,
+      }
+    });
+  },
+
+  extendSleepTimer: (additionalMinutes: number) => {
+    const current = get().sleepTimer;
+    if (!current.isActive) {
+      get().setSleepTimer(additionalMinutes);
+      return;
+    }
+    const addedSec = Math.round(additionalMinutes * 60);
+    const newRemaining = current.remainingSeconds + addedSec;
+    const newDuration = current.durationMinutes + additionalMinutes;
+    set({
+      sleepTimer: {
+        ...current,
+        durationMinutes: newDuration,
+        remainingSeconds: newRemaining,
+        audioDuckRatio: (current.audioFadeOut && newRemaining <= 60) ? Math.max(0, newRemaining / 60) : 1.0,
+        dimRatio: (current.bedtimeDimming && newRemaining <= 120) ? Math.min(0.88, (120 - newRemaining) / 120 * 0.88) : 0.0,
+      }
+    });
+  },
+
+  tickSleepTimer: () => {
+    const current = get().sleepTimer;
+    if (!current.isActive) return;
+
+    if (current.remainingSeconds <= 1) {
+      const action = current.endAction;
+      set({
+        sleepTimer: {
+          ...current,
+          isActive: false,
+          remainingSeconds: 0,
+          audioDuckRatio: 0.0,
+          dimRatio: current.bedtimeDimming ? 0.9 : 0.0,
+        }
+      });
+      if (action === 'close') {
+        get().closePiP();
+      }
+      return;
+    }
+
+    const nextSec = current.remainingSeconds - 1;
+    let duck = 1.0;
+    if (current.audioFadeOut && nextSec <= 60) {
+      duck = Math.max(0, nextSec / 60);
+    }
+
+    let dim = 0.0;
+    if (current.bedtimeDimming && nextSec <= 120) {
+      dim = Math.min(0.88, (120 - nextSec) / 120 * 0.88);
+    }
+
+    set({
+      sleepTimer: {
+        ...current,
+        remainingSeconds: nextSec,
+        audioDuckRatio: duck,
+        dimRatio: dim,
+      }
+    });
   },
 }));

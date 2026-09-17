@@ -292,6 +292,24 @@ export interface AppState {
   syncSubscription: (id: string) => Promise<void>;
   syncAllSubscriptions: () => Promise<void>;
   activateSubscription: (id: string) => Promise<void>;
+
+  // Sleep Timer & Playback Automation Engine
+  sleepTimer: SleepTimerState;
+  setSleepTimer: (minutes: number, options?: Partial<Pick<SleepTimerState, 'audioFadeOut' | 'bedtimeDimming' | 'endAction'>>) => void;
+  cancelSleepTimer: () => void;
+  extendSleepTimer: (additionalMinutes: number) => void;
+  tickSleepTimer: () => void;
+}
+
+export interface SleepTimerState {
+  isActive: boolean;
+  durationMinutes: number;
+  remainingSeconds: number;
+  audioFadeOut: boolean;
+  bedtimeDimming: boolean;
+  endAction: 'pause' | 'close' | 'mute';
+  audioDuckRatio: number;
+  dimRatio: number;
 }
 
 export interface PlaylistSubscription {

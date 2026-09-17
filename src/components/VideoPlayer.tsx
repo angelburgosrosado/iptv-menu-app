@@ -28,10 +28,12 @@ import {
   Check,
   Film,
   Bookmark as BookmarkIcon,
-  Activity
+  Activity,
+  Moon
 } from 'lucide-react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { DiagnosticsHUD } from './DiagnosticsHUD';
+import SleepTimerModal from './SleepTimerModal';
 
 interface VideoPlayerProps {
   streamUrl: string;
@@ -94,8 +96,9 @@ export function VideoPlayer({
   const [channelHudText, setChannelHudText] = React.useState<string | null>(null);
   const [showTrackModal, setShowTrackModal] = React.useState<'audio' | 'subtitle' | null>(null);
   const [showDiagnostics, setShowDiagnostics] = React.useState(false);
+  const [showSleepTimer, setShowSleepTimer] = React.useState(false);
 
-  const { addBookmark, removeBookmark, isChannelBookmarked, scheduleRecording } = usePlayerStore();
+  const { addBookmark, removeBookmark, isChannelBookmarked, scheduleRecording, sleepTimer } = usePlayerStore();
   const isBookmarked = isChannelBookmarked(channelName.toLowerCase().replace(/[^a-z0-9]/g, '-')) || isChannelBookmarked(channelName);
 
   const containerRef = React.useRef<any>(null);
@@ -107,6 +110,27 @@ export function VideoPlayer({
   const player = useVideoPlayer({ uri: activeEffectiveUrl }, (playerRef) => {
     playerRef.play();
   });
+
+  // Dynamic audio ducking during Sleep Timer fade-out (last 60s)
+  React.useEffect(() => {
+    if (player && player.setVolume) {
+      const effectiveVol = isMuted ? 0 : volume * (sleepTimer.isActive && sleepTimer.audioFadeOut ? sleepTimer.audioDuckRatio : 1.0);
+      player.setVolume(effectiveVol);
+    }
+  }, [sleepTimer.isActive, sleepTimer.audioFadeOut, sleepTimer.audioDuckRatio, volume, isMuted, player]);
+
+  // Sleep Timer expiration handler (pause / mute)
+  React.useEffect(() => {
+    if (!sleepTimer.isActive && sleepTimer.remainingSeconds === 0 && sleepTimer.durationMinutes > 0) {
+      if (sleepTimer.endAction === 'pause' && isPlaying) {
+        player.pause();
+        setIsPlaying(false);
+      } else if (sleepTimer.endAction === 'mute' && !isMuted) {
+        setIsMuted(true);
+        if (player.setVolume) player.setVolume(0);
+      }
+    }
+  }, [sleepTimer.isActive, sleepTimer.remainingSeconds, sleepTimer.durationMinutes, sleepTimer.endAction, isPlaying, isMuted, player]);
 
   // Automatically fade out controls after 4 seconds of inactivity
   const resetControlsTimer = () => {
@@ -350,6 +374,10 @@ export function VideoPlayer({
         case 'KeyD':
           e.preventDefault();
           setShowDiagnostics((prev) => !prev);
+          break;
+        case 'KeyZ':
+          e.preventDefault();
+          setShowSleepTimer((prev) => !prev);
           break;
         default:
           break;
@@ -697,6 +725,28 @@ export function VideoPlayer({
               <Text style={[styles.hudTrackBadgeText, showDiagnostics ? { color: '#22d3ee' } : {}]}>HUD</Text>
             </TouchableOpacity>
 
+            {/* Sleep Timer Automation Button */}
+            <TouchableOpacity
+              onPress={() => {
+                resetControlsTimer();
+                setShowSleepTimer((prev) => !prev);
+              }}
+              style={[
+                styles.hudIconBtn,
+                sleepTimer.isActive
+                  ? { backgroundColor: 'rgba(99, 102, 241, 0.2)', borderWidth: 1, borderColor: 'rgba(99, 102, 241, 0.4)' }
+                  : { backgroundColor: 'rgba(255, 255, 255, 0.05)' }
+              ]}
+              title="Sleep Timer (Z)"
+            >
+              <Moon size={14} color={sleepTimer.isActive ? "#a5b4fc" : "#94a3b8"} />
+              {sleepTimer.isActive && (
+                <Text style={[styles.hudTrackBadgeText, { color: '#a5b4fc' }]}>
+                  {Math.ceil(sleepTimer.remainingSeconds / 60)}m
+                </Text>
+              )}
+            </TouchableOpacity>
+
             <View style={styles.spacer} />
 
             {/* Picture-in-Picture Button */}
@@ -799,6 +849,12 @@ export function VideoPlayer({
           onClose={() => setShowDiagnostics(false)}
         />
       )}
+
+      {/* 7. Sleep Timer Configuration & Playback Automation Modal */}
+      <SleepTimerModal
+        isOpen={showSleepTimer}
+        onClose={() => setShowSleepTimer(false)}
+      />
     </View>
   );
 }

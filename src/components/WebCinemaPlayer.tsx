@@ -19,11 +19,13 @@ import {
   Zap, 
   Radio, 
   Layers,
-  Sparkles
+  Sparkles,
+  Moon
 } from 'lucide-react';
 import { Channel } from '../types/iptv';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { VideoPlayer } from './VideoPlayer';
+import SleepTimerModal from './SleepTimerModal';
 
 interface WebCinemaPlayerProps {
   initialChannel: Channel;
@@ -36,9 +38,10 @@ export default function WebCinemaPlayer({
   onClose,
   onSwitchToMultiScreen
 }: WebCinemaPlayerProps) {
-  const { channels, favorites, toggleFavorite, addToHistory, openPiP } = usePlayerStore();
+  const { channels, favorites, toggleFavorite, addToHistory, openPiP, sleepTimer } = usePlayerStore();
   const [currentChannel, setCurrentChannel] = React.useState<Channel>(initialChannel);
   const [showChannelDrawer, setShowChannelDrawer] = React.useState(false);
+  const [showSleepTimer, setShowSleepTimer] = React.useState(false);
   const [drawerSearch, setDrawerSearch] = React.useState('');
   const [selectedGroup, setSelectedGroup] = React.useState<string | null>(null);
 
@@ -76,11 +79,20 @@ export default function WebCinemaPlayer({
     onClose();
   };
 
-  // Close on Escape key or minimize on P
+  // Auto-close cinema player if sleep timer expires with 'close' action
+  React.useEffect(() => {
+    if (!sleepTimer.isActive && sleepTimer.remainingSeconds === 0 && sleepTimer.durationMinutes > 0 && sleepTimer.endAction === 'close') {
+      onClose();
+    }
+  }, [sleepTimer.isActive, sleepTimer.remainingSeconds, sleepTimer.durationMinutes, sleepTimer.endAction, onClose]);
+
+  // Close on Escape key, toggle guide on E, minimize on P, sleep timer on Z
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (showChannelDrawer) {
+        if (showSleepTimer) {
+          setShowSleepTimer(false);
+        } else if (showChannelDrawer) {
           setShowChannelDrawer(false);
         } else {
           onClose();
@@ -92,10 +104,13 @@ export default function WebCinemaPlayer({
       if ((e.key === 'p' || e.key === 'P') && !(e.target instanceof HTMLInputElement)) {
         handleMinimizeToPiP();
       }
+      if ((e.key === 'z' || e.key === 'Z') && !(e.target instanceof HTMLInputElement)) {
+        setShowSleepTimer((prev) => !prev);
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, showChannelDrawer, currentChannel, openPiP]);
+  }, [onClose, showChannelDrawer, showSleepTimer, currentChannel, openPiP]);
 
   // Filtered channels for drawer
   const filteredDrawerChannels = React.useMemo(() => {
@@ -211,6 +226,23 @@ export default function WebCinemaPlayer({
             title={isFav ? 'Remove Favorite' : 'Save Favorite'}
           >
             <Heart className={`w-4 h-4 ${isFav ? 'fill-current' : ''}`} />
+          </button>
+
+          {/* Sleep Timer Button */}
+          <button
+            onClick={() => setShowSleepTimer(true)}
+            className={`p-2 rounded-xl border transition-all flex items-center gap-1.5 cursor-pointer ${
+              sleepTimer.isActive
+                ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500/40 shadow-md shadow-indigo-500/10'
+                : 'bg-white/5 hover:bg-white/10 text-zinc-300 border-white/10 hover:text-white'
+            }`}
+            title="Set Sleep Timer (Z)"
+            aria-label="Set Sleep Timer"
+          >
+            <Moon className={`w-4 h-4 ${sleepTimer.isActive ? 'fill-current text-indigo-400 animate-pulse' : 'text-zinc-400'}`} />
+            <span className="text-xs font-bold hidden sm:inline">
+              {sleepTimer.isActive ? `${Math.ceil(sleepTimer.remainingSeconds / 60)}m` : 'Sleep'}
+            </span>
           </button>
 
           {/* Minimize to PiP Button */}
@@ -373,6 +405,25 @@ export default function WebCinemaPlayer({
             </div>
           </aside>
         )}
+
+        {/* Bedtime Dimming Scrim Overlay (smooth progressive opacity over final 120s) */}
+        {sleepTimer.isActive && sleepTimer.bedtimeDimming && sleepTimer.dimRatio > 0 && (
+          <div 
+            style={{ backgroundColor: `rgba(0, 0, 0, ${sleepTimer.dimRatio})` }}
+            onClick={() => setShowSleepTimer(true)}
+            className="absolute inset-0 z-30 pointer-events-auto cursor-pointer transition-all duration-1000 flex items-center justify-center"
+          >
+            {sleepTimer.remainingSeconds <= 30 && (
+              <div className="bg-black/90 border border-white/10 rounded-2xl p-4 flex items-center gap-3 shadow-2xl backdrop-blur-md animate-pulse">
+                <Moon className="w-5 h-5 text-indigo-400 fill-current" />
+                <div>
+                  <h4 className="text-xs font-bold text-white">Bedtime Mode • Closing Soon</h4>
+                  <p className="text-[10px] text-zinc-400">Tap anywhere to extend or cancel timer</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Bottom Status Bar */}
@@ -382,18 +433,29 @@ export default function WebCinemaPlayer({
             <ShieldCheck className="w-3.5 h-3.5" />
             Dual-Engine MSE Engine Active
           </span>
-          <span className="hidden sm:inline">•</span>
-          <span className="hidden sm:inline text-zinc-400">
-            Auto CORS / Mixed-Content Relay Armed
-          </span>
+          {sleepTimer.isActive && (
+            <>
+              <span className="hidden sm:inline">•</span>
+              <button
+                onClick={() => setShowSleepTimer(true)}
+                className="flex items-center gap-1 text-indigo-300 hover:text-indigo-200 font-bold cursor-pointer"
+              >
+                <Moon className="w-3.5 h-3.5 fill-current animate-pulse" />
+                <span>Sleep Timer: {Math.ceil(sleepTimer.remainingSeconds / 60)}m left</span>
+              </button>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-4">
           <span className="hidden md:inline">
-            Shortcuts: <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">Space</kbd> Pause • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">F</kbd> Fullscreen • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">P</kbd> PiP • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">E</kbd> Guide
+            Shortcuts: <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">Space</kbd> Pause • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">F</kbd> Fullscreen • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">P</kbd> PiP • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">Z</kbd> Sleep • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">E</kbd> Guide
           </span>
           <span className="text-blue-400 font-mono text-[10px] font-bold">10-FOOT LEANBACK TV READY</span>
         </div>
       </footer>
+
+      {/* Sleep Timer Configuration & Automation Modal */}
+      <SleepTimerModal isOpen={showSleepTimer} onClose={() => setShowSleepTimer(false)} />
     </div>
   );
 }

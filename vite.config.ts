@@ -26,6 +26,9 @@ export default defineConfig(() => {
             if (id.includes('src/data/') || id.includes('data/iptv-org')) {
               return 'iptv-datasets';
             }
+            if (id.includes('src/components/admin') || id.includes('DesktopApkBuilder')) {
+              return 'admin-builder-suite';
+            }
             if (id.includes('node_modules')) {
               if (id.includes('lucide-react')) {
                 return 'ui-icons';
