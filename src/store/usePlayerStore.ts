@@ -85,6 +85,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   history: readArrayFromStorage('history'),
   dvrRecordings: readJsonFromStorage<DvrRecording[]>('iptv_dvr_recordings', []),
   bookmarks: readJsonFromStorage<Bookmark[]>('iptv_bookmarks', []),
+  customTags: readJsonFromStorage<Record<string, string[]>>('iptv_custom_channel_tags', {}),
   
   // Country & EPG Backbone enhancements
   countrySections: buildCountrySections(INITIAL_FALLBACK_CHANNELS),
@@ -352,7 +353,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
 
   clearCache: () => {
     storage.clearAll();
-    set({ favorites: [], history: [], dvrRecordings: [], bookmarks: [] });
+    set({ favorites: [], history: [], dvrRecordings: [], bookmarks: [], customTags: {} });
   },
 
   scheduleRecording: (recordingData: Omit<DvrRecording, 'id' | 'recordedAt'>) => {
@@ -414,5 +415,48 @@ export const usePlayerStore = create<AppState>((set, get) => ({
 
   isChannelBookmarked: (channelId: string) => {
     return get().bookmarks.some((b) => b.channelId === channelId);
+  },
+
+  addChannelTag: (channelId: string, rawTag: string) => {
+    const tag = rawTag.trim();
+    if (!tag) return;
+    const currentTags = get().customTags;
+    const existingForChannel = currentTags[channelId] || [];
+    if (existingForChannel.some((t) => t.toLowerCase() === tag.toLowerCase())) return;
+
+    const updated = {
+      ...currentTags,
+      [channelId]: [...existingForChannel, tag]
+    };
+    writeJsonToStorage('iptv_custom_channel_tags', updated);
+    set({ customTags: updated });
+  },
+
+  removeChannelTag: (channelId: string, rawTag: string) => {
+    const tag = rawTag.trim();
+    const currentTags = get().customTags;
+    const existingForChannel = currentTags[channelId] || [];
+    const filtered = existingForChannel.filter((t) => t.toLowerCase() !== tag.toLowerCase());
+
+    const updated = {
+      ...currentTags,
+      [channelId]: filtered
+    };
+    writeJsonToStorage('iptv_custom_channel_tags', updated);
+    set({ customTags: updated });
+  },
+
+  getChannelTags: (channelId: string) => {
+    return get().customTags[channelId] || [];
+  },
+
+  getAllUniqueCustomTags: () => {
+    const allTags = new Set<string>();
+    Object.values(get().customTags).forEach((tags) => {
+      if (Array.isArray(tags)) {
+        tags.forEach((t) => allTags.add(t));
+      }
+    });
+    return Array.from(allTags).sort();
   },
 }));

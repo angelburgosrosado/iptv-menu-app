@@ -23,7 +23,7 @@ export default defineConfig(() => {
       rollupOptions: {
         output: {
           manualChunks(id) {
-            if (id.includes('src/data/iptv-org') || id.includes('data/iptv-org')) {
+            if (id.includes('src/data/iptv-org') || id.includes('data/iptv-org') || id.includes('src/data/melhataChannels')) {
               return 'iptv-datasets';
             }
             if (id.includes('node_modules')) {

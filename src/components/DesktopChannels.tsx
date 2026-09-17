@@ -22,13 +22,16 @@ import {
   RotateCcw,
   Sparkles,
   LayoutGrid,
-  Download
+  Download,
+  Tag,
+  ArrowUpDown
 } from 'lucide-react';
 import { Channel } from '../types/iptv';
 import WebCinemaPlayer from './WebCinemaPlayer';
 import CountryChannelSections from './CountryChannelSections';
 import { PageProtocolHeader } from './PageProtocolHeader';
 import { downloadM3UFile } from '../utils/m3uParser';
+import { ChannelTagModal } from './ChannelTagModal';
 import { 
   getCountryFlag, 
   normalizeCategory, 
@@ -55,12 +58,21 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
     setSelectedLanguage,
     selectedCountry,
     selectedSubdivision,
-    setSelectedSubdivision
+    setSelectedSubdivision,
+    customTags,
+    getAllUniqueCustomTags
   } = usePlayerStore();
   const [searchQuery, setSearchQuery] = React.useState('');
   const [selectedGroup, setSelectedGroup] = React.useState<string | null>(null);
   const [viewMode, setViewMode] = React.useState<'grid' | 'list' | 'country'>('grid');
   const [cinemaChannel, setCinemaChannel] = React.useState<Channel | null>(null);
+  const [sortMode, setSortMode] = React.useState<'default' | 'name-asc' | 'name-desc' | 'health' | 'country'>('default');
+  const [selectedCustomTag, setSelectedCustomTag] = React.useState<string | null>(null);
+  const [taggingChannel, setTaggingChannel] = React.useState<Channel | null>(null);
+
+  const allCustomTags = React.useMemo(() => {
+    return getAllUniqueCustomTags();
+  }, [customTags, getAllUniqueCustomTags]);
 
   // Derive standardized categories from loaded channels
   const availableCategories = React.useMemo(() => {
@@ -78,7 +90,7 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
     return getSubdivisionsForCountry(activeCountryCode).slice(0, 25);
   }, [activeCountryCode]);
 
-  // Filter channels based on group/category, language, subdivision, and full-text search (name, category, country, network, language)
+  // Filter & sort channels based on group/category, language, subdivision, custom tags, and sortMode
   const filteredChannels = React.useMemo(() => {
     let list = channels;
     if (selectedCountry) {
@@ -106,6 +118,13 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
         return lang === target || lang.startsWith(target) || target.startsWith(lang) || langName.includes(target);
       });
     }
+    if (selectedCustomTag) {
+      const targetTag = selectedCustomTag.toLowerCase();
+      list = list.filter((c) => {
+        const tags = customTags[c.id] || [];
+        return tags.some((t) => t.toLowerCase() === targetTag);
+      });
+    }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       list = list.filter(
@@ -118,11 +137,29 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
           (c.languageName && c.languageName.toLowerCase().includes(q)) ||
           (c.language && c.language.toLowerCase().includes(q)) ||
           (c.tvgId && c.tvgId.toLowerCase().includes(q)) ||
-          (c.subdivision && c.subdivision.toLowerCase().includes(q))
+          (c.subdivision && c.subdivision.toLowerCase().includes(q)) ||
+          (customTags[c.id] && customTags[c.id].some((t) => t.toLowerCase().includes(q)))
       );
     }
+
+    // Apply Sorting Mode
+    if (sortMode === 'name-asc') {
+      list = [...list].sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sortMode === 'name-desc') {
+      list = [...list].sort((a, b) => b.name.localeCompare(a.name));
+    } else if (sortMode === 'health') {
+      const statusPriority: Record<string, number> = { online: 0, degraded: 1, blocked: 2, offline: 3 };
+      list = [...list].sort((a, b) => {
+        const pa = a.healthStatus ? statusPriority[a.healthStatus] ?? 1 : 1;
+        const pb = b.healthStatus ? statusPriority[b.healthStatus] ?? 1 : 1;
+        return pa - pb;
+      });
+    } else if (sortMode === 'country') {
+      list = [...list].sort((a, b) => (a.countryCode || 'ZZ').localeCompare(b.countryCode || 'ZZ'));
+    }
+
     return list;
-  }, [channels, selectedCountry, selectedSubdivision, selectedGroup, selectedLanguage, searchQuery]);
+  }, [channels, selectedCountry, selectedSubdivision, selectedGroup, selectedLanguage, selectedCustomTag, searchQuery, sortMode, customTags]);
 
   const handlePlayInSimulator = (channel: Channel) => {
     simRouter.push(`/player/${channel.id}`);
@@ -136,6 +173,8 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
     setSearchQuery('');
     setSelectedGroup(null);
     setSelectedLanguage(null);
+    setSelectedCustomTag(null);
+    setSortMode('default');
   };
 
   return (
@@ -152,7 +191,24 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
         icon={Tv}
         badgeColor="cyan"
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Sorting Dropdown */}
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs text-zinc-300">
+            <ArrowUpDown className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
+            <select
+              value={sortMode}
+              onChange={(e) => setSortMode(e.target.value as any)}
+              className="bg-transparent text-xs text-white outline-none cursor-pointer font-sans"
+              aria-label="Sort channels"
+            >
+              <option value="default" className="bg-zinc-900 text-white">Default Order</option>
+              <option value="name-asc" className="bg-zinc-900 text-white">Name (A → Z)</option>
+              <option value="name-desc" className="bg-zinc-900 text-white">Name (Z → A)</option>
+              <option value="health" className="bg-zinc-900 text-white">Health (Online First)</option>
+              <option value="country" className="bg-zinc-900 text-white">Country Code (A → Z)</option>
+            </select>
+          </div>
+
           {onSwitchToMultiScreen && (
             <button
               onClick={onSwitchToMultiScreen}
@@ -387,6 +443,49 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
         </div>
       )}
 
+      {/* Custom User Tags Filter Bar */}
+      {allCustomTags.length > 0 && (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest px-1 flex items-center gap-1.5">
+              <Tag className="w-3 h-3 text-cyan-400" />
+              Filter by Custom Tag
+            </span>
+            <span className="text-[10px] text-zinc-500 font-mono">
+              User Tagging Engine
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-white/10">
+            <button
+              onClick={() => setSelectedCustomTag(null)}
+              className={`px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border cursor-pointer ${
+                !selectedCustomTag
+                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-sm'
+                  : 'bg-white/5 text-zinc-400 border-transparent hover:bg-white/10 hover:text-zinc-200'
+              }`}
+            >
+              All Tags ({allCustomTags.length})
+            </button>
+            {allCustomTags.map((tag) => {
+              const isSelected = selectedCustomTag === tag;
+              return (
+                <button
+                  key={tag}
+                  onClick={() => setSelectedCustomTag(isSelected ? null : tag)}
+                  className={`px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border cursor-pointer ${
+                    isSelected
+                      ? 'bg-cyan-600 text-white border-cyan-500 shadow-sm'
+                      : 'bg-white/5 text-zinc-400 border-transparent hover:bg-white/10 hover:text-zinc-200'
+                  }`}
+                >
+                  #{tag}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* SKELETON LOADER STATE */}
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -494,11 +593,29 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
                           {c.alternateUrls.length + 1} FEEDS
                         </span>
                       )}
+                      {customTags[c.id]?.map((tag) => (
+                        <span key={tag} className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-semibold" title={`Custom tag: #${tag}`}>
+                          #{tag}
+                        </span>
+                      ))}
                     </div>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setTaggingChannel(c)}
+                    className={`p-2 rounded-xl border transition-all cursor-pointer ${
+                      customTags[c.id]?.length > 0
+                        ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30 hover:bg-cyan-500/20'
+                        : 'bg-white/5 text-zinc-400 border-transparent hover:bg-white/10 hover:text-white'
+                    }`}
+                    title={customTags[c.id]?.length > 0 ? `Tags: ${customTags[c.id].join(', ')}` : "Manage Custom Tags"}
+                    aria-label="Manage Custom Tags"
+                  >
+                    <Tag className="w-3.5 h-3.5" />
+                  </button>
+
                   <button
                     onClick={() => toggleFavorite(c.id)}
                     className={`p-2 rounded-xl border transition-all cursor-pointer ${
@@ -604,6 +721,18 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
 
                 <div className="col-span-3 md:col-span-2 flex items-center justify-end gap-1.5">
                   <button
+                    onClick={() => setTaggingChannel(c)}
+                    className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                      customTags[c.id]?.length > 0
+                        ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30 hover:bg-cyan-500/20'
+                        : 'bg-white/5 text-zinc-400 border-transparent hover:bg-white/10 hover:text-white'
+                    }`}
+                    title={customTags[c.id]?.length > 0 ? `Tags: ${customTags[c.id].join(', ')}` : "Manage Custom Tags"}
+                  >
+                    <Tag className="w-3 h-3" />
+                  </button>
+
+                  <button
                     onClick={() => toggleFavorite(c.id)}
                     className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
                       isFav
@@ -648,6 +777,13 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
           onSwitchToMultiScreen={onSwitchToMultiScreen}
         />
       )}
+
+      {/* Custom Channel Tagging Modal */}
+      <ChannelTagModal
+        channel={taggingChannel}
+        isOpen={!!taggingChannel}
+        onClose={() => setTaggingChannel(null)}
+      />
     </div>
   );
 }

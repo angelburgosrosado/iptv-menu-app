@@ -234,6 +234,9 @@ export interface AppState {
   dvrRecordings: DvrRecording[];
   bookmarks: Bookmark[];
 
+  // Custom Channel Tags System
+  customTags: Record<string, string[]>;
+
   // Actions
   setPlaylistUrl: (url: string) => void;
   loadPlaylist: (url?: string) => Promise<void>;
@@ -258,6 +261,12 @@ export interface AppState {
   addBookmark: (bookmark: Omit<Bookmark, 'id' | 'savedAt'>) => Bookmark;
   removeBookmark: (id: string) => void;
   isChannelBookmarked: (channelId: string) => boolean;
+
+  // Custom Tag Actions
+  addChannelTag: (channelId: string, tag: string) => void;
+  removeChannelTag: (channelId: string, tag: string) => void;
+  getChannelTags: (channelId: string) => string[];
+  getAllUniqueCustomTags: () => string[];
 }
 
 export interface DvrRecording {
