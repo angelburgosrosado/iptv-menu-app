@@ -322,3 +322,112 @@ export function generateXtreamVodChannelList(
   });
 }
 
+export interface XtreamEpgListing {
+  id: string;
+  ep_id?: string;
+  title: string;
+  lang?: string;
+  start: string;
+  end: string;
+  description: string;
+  channel_id?: string;
+  start_timestamp: string | number;
+  stop_timestamp: string | number;
+  now_playing?: number;
+  has_archive?: number;
+}
+
+/**
+ * Fetches short EPG listings (Now / Next) for an active Xtream live stream
+ */
+export async function fetchXtreamShortEpg(
+  account: XtreamAccount,
+  streamId: number | string,
+  limit = 10
+): Promise<XtreamEpgListing[]> {
+  let baseUrl = account.serverUrl.trim().replace(/\/+$/, '');
+  if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+    baseUrl = `http://${baseUrl}`;
+  }
+  const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password)}&action=get_short_epg&stream_id=${encodeURIComponent(streamId)}&limit=${limit}`;
+
+  try {
+    let res: Response;
+    try {
+      res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    } catch {
+      res = await fetch(`/api/stream/proxy?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(8000) });
+    }
+    if (res.ok) {
+      const data = await res.json().catch(() => null);
+      if (data && Array.isArray(data.epg_listings)) {
+        return data.epg_listings;
+      }
+      if (Array.isArray(data)) {
+        return data;
+      }
+    }
+  } catch (e) {
+    console.warn(`Could not fetch short EPG for stream ${streamId}`, e);
+  }
+  return [];
+}
+
+/**
+ * Fetches full table EPG schedule for an active Xtream live stream
+ */
+export async function fetchXtreamFullEpg(
+  account: XtreamAccount,
+  streamId: number | string
+): Promise<XtreamEpgListing[]> {
+  let baseUrl = account.serverUrl.trim().replace(/\/+$/, '');
+  if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+    baseUrl = `http://${baseUrl}`;
+  }
+  const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password)}&action=get_simple_data_table&stream_id=${encodeURIComponent(streamId)}`;
+
+  try {
+    let res: Response;
+    try {
+      res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    } catch {
+      res = await fetch(`/api/stream/proxy?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(10000) });
+    }
+    if (res.ok) {
+      const data = await res.json().catch(() => null);
+      if (data && Array.isArray(data.epg_listings)) {
+        return data.epg_listings;
+      }
+      if (Array.isArray(data)) {
+        return data;
+      }
+    }
+  } catch (e) {
+    console.warn(`Could not fetch full EPG for stream ${streamId}`, e);
+  }
+  return [];
+}
+
+/**
+ * Generates an Xtream Timeshift (Catchup) stream URL for recorded broadcasts
+ */
+export function generateXtreamCatchupUrl(
+  account: XtreamAccount,
+  streamId: number | string,
+  startTimestamp: number,
+  durationMinutes = 60
+): string {
+  let baseUrl = account.serverUrl.trim().replace(/\/+$/, '');
+  if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+    baseUrl = `http://${baseUrl}`;
+  }
+
+  // Format start time into YYYY-MM-DD:HH-mm
+  const date = new Date(startTimestamp * 1000);
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const formattedStart = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}:${pad(date.getHours())}-${pad(date.getMinutes())}`;
+
+  return `${baseUrl}/timeshift/${encodeURIComponent(account.username)}/${encodeURIComponent(account.password)}/${durationMinutes}/${formattedStart}/${streamId}.m3u8`;
+}
+
+

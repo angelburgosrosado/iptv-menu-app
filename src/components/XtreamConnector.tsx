@@ -21,7 +21,9 @@ import {
   ExternalLink, 
   Layers,
   Sparkles,
-  Network
+  Network,
+  CalendarRange,
+  Clock
 } from 'lucide-react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { 
@@ -33,7 +35,9 @@ import {
   fetchXtreamVodCategories,
   fetchXtreamVodStreams,
   generateXtreamVodChannelList,
-  XtreamStreamItem 
+  fetchXtreamShortEpg,
+  XtreamStreamItem,
+  XtreamEpgListing
 } from '../utils/xtreamClient';
 import { buildCountrySections } from '../utils/channelEnrichment';
 import { PageProtocolHeader } from './PageProtocolHeader';
@@ -109,6 +113,34 @@ export default function XtreamConnector() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [successInfo, setSuccessInfo] = React.useState<any | null>(null);
+
+  const [epgPreviewAccount, setEpgPreviewAccount] = React.useState<SavedXtreamAccount | null>(null);
+  const [epgListings, setEpgListings] = React.useState<XtreamEpgListing[]>([]);
+  const [isFetchingEpg, setIsFetchingEpg] = React.useState(false);
+
+  const handlePreviewEpg = async (account: SavedXtreamAccount, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEpgPreviewAccount(account);
+    setIsFetchingEpg(true);
+    setEpgListings([]);
+    try {
+      const listings = await fetchXtreamShortEpg(
+        {
+          serverUrl: account.serverUrl,
+          username: account.username,
+          password: account.password || '',
+          status: 'connected'
+        },
+        101073,
+        10
+      );
+      setEpgListings(listings);
+    } catch (err) {
+      console.warn('Could not preview Xtream EPG', err);
+    } finally {
+      setIsFetchingEpg(false);
+    }
+  };
 
   const { channels } = usePlayerStore();
 
@@ -532,6 +564,14 @@ export default function XtreamConnector() {
 
                     <div className="flex items-center gap-2">
                       <button
+                        onClick={(e) => handlePreviewEpg(account, e)}
+                        className="px-2 py-1 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded-lg text-[10px] font-bold transition-all cursor-pointer flex items-center gap-1"
+                        title="Inspect live EPG guide from Xtream server"
+                      >
+                        <CalendarRange className="w-3 h-3" />
+                        <span>EPG</span>
+                      </button>
+                      <button
                         onClick={(e) => {
                           e.stopPropagation();
                           handleConnect(undefined, account);
@@ -557,6 +597,63 @@ export default function XtreamConnector() {
           </div>
         </div>
       </div>
+
+      {/* Xtream Live EPG Preview Modal */}
+      {epgPreviewAccount && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#121216] border border-white/10 rounded-2xl w-full max-w-lg p-5 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2">
+                <CalendarRange className="w-4 h-4 text-cyan-400" />
+                <h3 className="text-sm font-black text-white">Live Xtream EPG Schedule</h3>
+              </div>
+              <button
+                onClick={() => setEpgPreviewAccount(null)}
+                className="text-xs text-zinc-400 hover:text-white p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="text-xs text-zinc-400 font-mono">
+              Server: <strong className="text-white">{epgPreviewAccount.serverUrl}</strong> ({epgPreviewAccount.username})
+            </div>
+
+            {isFetchingEpg ? (
+              <div className="py-8 text-center text-zinc-400 text-xs flex items-center justify-center gap-2">
+                <RefreshCw className="w-4 h-4 animate-spin text-cyan-400" />
+                <span>Syncing live EPG data from server...</span>
+              </div>
+            ) : epgListings.length === 0 ? (
+              <div className="py-6 text-center text-zinc-400 text-xs">
+                <span>No program data returned for this stream. The channel may have no active XMLTV mapping on this server.</span>
+              </div>
+            ) : (
+              <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
+                {epgListings.map((item, idx) => (
+                  <div key={item.id || idx} className="p-2.5 rounded-xl bg-white/5 border border-white/5 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-white">{item.title}</span>
+                      {item.now_playing === 1 && (
+                        <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[9px] font-black uppercase">
+                          NOW PLAYING
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 text-[10px] text-zinc-400">
+                      <Clock className="w-3 h-3 text-cyan-400" />
+                      <span>{item.start} - {item.end}</span>
+                    </div>
+                    {item.description && (
+                      <p className="text-[11px] text-zinc-400 line-clamp-2">{item.description}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

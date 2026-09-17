@@ -36,7 +36,7 @@ import {
 } from '@iptv-menu/jobs';
 import { UserProfile, Playlist, EpgFeed, BuildRequest, AdminAction, UserRole, Workspace, AppConfig } from '@iptv-menu/types';
 import { attachWorkspaceContext, checkWorkspaceQuota } from './middleware/workspaceGuard';
-import { handleStreamProxy } from './services/streamProxyService';
+import { handleStreamProxy, isSafeTargetUrl } from './services/streamProxyService';
 import { channelMetadataService } from './services/channelMetadataService';
 import { epgService } from './services/epgService';
 import { adsenseService } from './services/adsenseService';
@@ -422,6 +422,66 @@ app.post('/api/export/playlist.m3u', (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// ==========================================
+// XTREAM CODES LIVE EPG & CATCHUP PROXY API (PHASE 12)
+// ==========================================
+app.use('/api/xtream', cors({ origin: '*' }));
+
+app.get('/api/xtream/epg', async (req, res) => {
+  try {
+    const serverUrl = (req.query.serverUrl as string) || '';
+    const username = (req.query.username as string) || '';
+    const password = (req.query.password as string) || '';
+    const streamId = (req.query.streamId as string) || '';
+    const action = (req.query.action as string) === 'get_simple_data_table' 
+      ? 'get_simple_data_table' 
+      : 'get_short_epg';
+    const limit = parseInt(req.query.limit as string, 10) || 10;
+
+    if (!serverUrl || !username || !password || !streamId) {
+      return res.status(400).json({ 
+        error: 'Missing required parameters: serverUrl, username, password, and streamId are required.' 
+      });
+    }
+
+    let baseUrl = serverUrl.trim().replace(/\/+$/, '');
+    if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+      baseUrl = `http://${baseUrl}`;
+    }
+
+    const { safe, reason } = isSafeTargetUrl(baseUrl);
+    if (!safe) {
+      return res.status(403).json({ error: reason || 'Access to private or loopback addresses is prohibited.' });
+    }
+
+    const targetUrl = `${baseUrl}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=${action}&stream_id=${encodeURIComponent(streamId)}${action === 'get_short_epg' ? `&limit=${limit}` : ''}`;
+
+    const upstreamRes = await fetch(targetUrl, { signal: AbortSignal.timeout(8000) });
+    if (!upstreamRes.ok) {
+      return res.status(upstreamRes.status).json({ 
+        error: `Upstream Xtream server returned HTTP ${upstreamRes.status}` 
+      });
+    }
+
+    const data: any = await upstreamRes.json().catch(() => null);
+    const listings = (data && Array.isArray(data.epg_listings)) 
+      ? data.epg_listings 
+      : (Array.isArray(data) ? data : []);
+
+    res.json({
+      success: true,
+      streamId,
+      action,
+      totalListings: listings.length,
+      listings
+    });
+  } catch (error: any) {
+    logger.error('Error proxying Xtream EPG request', error);
+    res.status(500).json({ error: error.message || 'Internal server error while fetching Xtream EPG' });
+  }
+});
+
 
 // ==========================================
 // PUBLIC EPG GUIDE & SCHEDULE API

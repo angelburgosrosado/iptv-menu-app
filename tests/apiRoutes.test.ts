@@ -367,5 +367,26 @@ describe('apps/api - REST API Endpoints & Public Services', () => {
       expect(response.body).toHaveProperty('error');
     });
   });
+
+  describe('Xtream Codes Live EPG & Catchup Proxy API', () => {
+    it('should return 400 when required parameters are missing', async () => {
+      const response = await request(app)
+        .get('/api/xtream/epg?serverUrl=http://line.melhata.org');
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error');
+      expect(response.body.error).toContain('Missing required parameters');
+    });
+
+    it('should block SSRF attempts to private or metadata IP addresses with 403', async () => {
+      const response = await request(app)
+        .get('/api/xtream/epg?serverUrl=http://169.254.169.254&username=admin&password=pass&streamId=123');
+
+      expect(response.status).toBe(403);
+      expect(response.body).toHaveProperty('error');
+      expect(response.body.error).toContain('prohibited');
+    });
+  });
 });
+
 

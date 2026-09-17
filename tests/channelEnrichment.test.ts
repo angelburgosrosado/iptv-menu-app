@@ -528,6 +528,23 @@ describe('IPTV Channel Enrichment Engine', () => {
     expect(vodList[0].streamType).toBe('vod');
     expect(vodList[0].resolution).toBe('★ 8.8');
   });
+
+  it('should generate standard Xtream Timeshift catchup stream URLs', async () => {
+    const { generateXtreamCatchupUrl } = await import('../src/utils/xtreamClient');
+    const account = {
+      serverUrl: 'http://line.melhata.org',
+      username: '8rvzieximl',
+      password: 'h1usotpevd',
+      status: 'connected' as const
+    };
+
+    // 2026-09-17 14:30:00 UTC timestamp: 1789655400
+    const startTimestamp = 1789655400;
+    const catchupUrl = generateXtreamCatchupUrl(account, 101073, startTimestamp, 60);
+
+    expect(catchupUrl).toContain('http://line.melhata.org/timeshift/8rvzieximl/h1usotpevd/60/');
+    expect(catchupUrl).toContain('/101073.m3u8');
+  });
 });
 
 
