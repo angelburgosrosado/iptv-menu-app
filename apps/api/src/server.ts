@@ -41,6 +41,7 @@ import { channelMetadataService } from './services/channelMetadataService';
 import { epgService } from './services/epgService';
 import { adsenseService } from './services/adsenseService';
 import { streamHealthProber } from './services/streamHealthProber';
+import { fetchAndCacheLogo, generateLogoSvg } from './services/logoService';
 
 const logger = new Logger('api-server');
 
@@ -347,6 +348,43 @@ app.get('/api/channels/metadata/stats', async (req, res) => {
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
+});
+
+// GET /api/channels/logo - Proxy & Cache Remote Logo
+app.get('/api/channels/logo', async (req, res) => {
+  const url = (req.query.url as string) || '';
+  const name = (req.query.name as string) || '';
+  
+  if (!url) {
+    // Generate immediate fallback SVG if no URL provided
+    const svg = generateLogoSvg(name || 'TV');
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    return res.send(svg);
+  }
+
+  const cached = await fetchAndCacheLogo(url);
+  if (cached) {
+    res.setHeader('Content-Type', cached.contentType);
+    res.setHeader('Cache-Control', 'public, max-age=43200'); // 12h
+    return res.send(cached.buffer);
+  }
+
+  // Graceful fallback to deterministic initials SVG avatar if remote image is unreachable
+  const svg = generateLogoSvg(name || 'TV');
+  res.setHeader('Content-Type', 'image/svg+xml');
+  res.setHeader('Cache-Control', 'public, max-age=3600');
+  res.send(svg);
+});
+
+// GET /api/channels/avatar - Deterministic Gradient SVG Generator
+app.get('/api/channels/avatar', (req, res) => {
+  const name = (req.query.name as string) || 'TV';
+  const size = Math.min(512, Math.max(32, parseInt(req.query.size as string, 10) || 120));
+  const svg = generateLogoSvg(name, size);
+  res.setHeader('Content-Type', 'image/svg+xml');
+  res.setHeader('Cache-Control', 'public, max-age=604800'); // 7 days
+  res.send(svg);
 });
 
 // ==========================================

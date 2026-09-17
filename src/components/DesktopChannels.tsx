@@ -33,7 +33,8 @@ import {
   POPULAR_LANGUAGES, 
   getLanguageName,
   getSubdivisionsForCountry,
-  getSubdivisionName
+  getSubdivisionName,
+  getChannelAvatarDataUri
 } from '../utils/channelEnrichment';
 
 interface DesktopChannelsProps {
@@ -431,10 +432,10 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
                 <div className="flex items-center gap-3.5 min-w-0">
                   <div className="w-12 h-12 rounded-xl bg-black/60 border border-white/5 flex items-center justify-center p-2.5 overflow-hidden flex-shrink-0 relative">
                     <img
-                      src={c.logo || 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=120&auto=format&fit=crop&q=60'}
+                      src={c.logo || getChannelAvatarDataUri(c.name)}
                       alt={c.name}
                       onError={(e) => {
-                        (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=120&auto=format&fit=crop&q=60';
+                        (e.target as HTMLImageElement).src = getChannelAvatarDataUri(c.name);
                       }}
                       className="w-full h-full object-contain"
                     />
@@ -541,10 +542,10 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
                 <div className="col-span-6 md:col-span-8 flex items-center gap-3 min-w-0">
                   <div className="w-8 h-8 rounded-lg bg-black/60 border border-white/5 flex items-center justify-center p-1.5 overflow-hidden flex-shrink-0 relative">
                     <img
-                      src={c.logo || 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=120&auto=format&fit=crop&q=60'}
+                      src={c.logo || getChannelAvatarDataUri(c.name, 64)}
                       alt={c.name}
                       onError={(e) => {
-                        (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=120&auto=format&fit=crop&q=60';
+                        (e.target as HTMLImageElement).src = getChannelAvatarDataUri(c.name, 64);
                       }}
                       className="w-full h-full object-contain"
                     />

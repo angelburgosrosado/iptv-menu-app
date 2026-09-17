@@ -576,3 +576,47 @@ export function CountryChannelSections() {
 }
 `;
 }
+
+/**
+ * Generates an SVG Data URI fallback with high-resolution initials and colors
+ */
+export function getChannelAvatarDataUri(name: string, size = 120): string {
+  const PALETTES = [
+    ['#3b82f6', '#1d4ed8'],
+    ['#8b5cf6', '#6d28d9'],
+    ['#ec4899', '#be185d'],
+    ['#06b6d4', '#0e7490'],
+    ['#10b981', '#047857'],
+    ['#f59e0b', '#b45309'],
+    ['#6366f1', '#4338ca'],
+    ['#14b8a6', '#0f766e'],
+    ['#f43f5e', '#be123c'],
+  ];
+
+  let hash = 0;
+  for (let i = 0; i < (name || '').length; i++) {
+    hash = (hash << 5) - hash + name.charCodeAt(i);
+    hash |= 0;
+  }
+  const [startColor, endColor] = PALETTES[Math.abs(hash) % PALETTES.length];
+  
+  const clean = (name || 'TV').replace(/[^\w\s]/gi, ' ').trim();
+  const words = clean.split(/\s+/).filter(Boolean);
+  const initials = (words.length > 1 ? words[0][0] + words[1][0] : clean.slice(0, 3)).toUpperCase() || 'TV';
+  const fontSize = Math.round(size * 0.38);
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}"><defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="${startColor}"/><stop offset="100%" stop-color="${endColor}"/></linearGradient></defs><rect width="${size}" height="${size}" rx="${Math.round(size * 0.22)}" fill="url(#g)"/><text x="50%" y="54%" font-family="system-ui,sans-serif" font-size="${fontSize}" font-weight="900" fill="#ffffff" text-anchor="middle" dominant-baseline="middle">${initials}</text></svg>`;
+
+  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+}
+
+/**
+ * Resolves optimal logo URL with local fallback data URI
+ */
+export function getChannelLogoUrl(logo?: string, name = 'TV'): string {
+  if (logo && logo.trim()) {
+    // If backend proxy is desired or http mixed-content, can route through /api/channels/logo
+    return logo.trim();
+  }
+  return getChannelAvatarDataUri(name);
+}

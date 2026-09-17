@@ -289,4 +289,38 @@ describe('apps/api - REST API Endpoints & Public Services', () => {
       expect(response.body.results['ftp://invalid.protocol/stream.ts'].isOnline).toBe(false);
     });
   });
+
+  describe('Cloud Logo Proxy & SVG Fallback Avatar Generator', () => {
+    it('should generate high-resolution SVG fallback avatar via /api/channels/avatar', async () => {
+      const response = await request(app)
+        .get('/api/channels/avatar?name=CNN%20News&size=120')
+        .buffer();
+      expect(response.status).toBe(200);
+      expect(response.headers['content-type']).toContain('image/svg+xml');
+      const bodyText = response.text || response.body.toString();
+      expect(bodyText).toContain('<svg');
+      expect(bodyText).toContain('CN'); // Initials for CNN News
+      expect(bodyText).toContain('linearGradient');
+    });
+
+    it('should return SVG fallback on /api/channels/logo when no url is supplied', async () => {
+      const response = await request(app)
+        .get('/api/channels/logo?name=ESPN%20Sports')
+        .buffer();
+      expect(response.status).toBe(200);
+      expect(response.headers['content-type']).toContain('image/svg+xml');
+      const bodyText = response.text || response.body.toString();
+      expect(bodyText).toContain('ES');
+    });
+
+    it('should block SSRF attempts on /api/channels/logo and fall back to SVG avatar', async () => {
+      const response = await request(app)
+        .get('/api/channels/logo?url=http://169.254.169.254/metadata&name=Locked%20Channel')
+        .buffer();
+      expect(response.status).toBe(200);
+      expect(response.headers['content-type']).toContain('image/svg+xml');
+      const bodyText = response.text || response.body.toString();
+      expect(bodyText).toContain('LC');
+    });
+  });
 });

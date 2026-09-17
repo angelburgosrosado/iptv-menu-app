@@ -13,7 +13,8 @@ import {
   getCountryFlag, 
   getCountriesByRegion, 
   COUNTRIES_BY_CODE,
-  normalizeCategory
+  normalizeCategory,
+  getChannelAvatarDataUri
 } from '../utils/channelEnrichment';
 import { Play, Heart, Smartphone, Globe, Search, Tv, MapPin } from 'lucide-react';
 import { ScrollView as RNScrollView, Text as RNText, View as RNView, Image as RNImage } from 'react-native';
@@ -223,13 +224,12 @@ export function DesktopCountryChannelSections({
                       <div className="flex items-center gap-3 min-w-0 flex-1 mr-2">
                         <div className="w-10 h-10 rounded-xl bg-black/50 border border-white/5 flex items-center justify-center p-1.5 overflow-hidden flex-shrink-0 relative">
                           <img
-                            src={channel.logo || 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=120&auto=format&fit=crop&q=60'}
+                            src={channel.logo || getChannelAvatarDataUri(channel.name, 80)}
                             alt={`${channel.name} logo`}
                             loading="lazy"
                             className="w-full h-full object-contain"
                             onError={(e) => {
-                              (e.target as HTMLImageElement).src =
-                                'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=120&auto=format&fit=crop&q=60';
+                              (e.target as HTMLImageElement).src = getChannelAvatarDataUri(channel.name, 80);
                             }}
                           />
                         </div>
