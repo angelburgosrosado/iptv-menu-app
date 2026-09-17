@@ -27,14 +27,23 @@ import { Channel } from '../types/iptv';
 import WebCinemaPlayer from './WebCinemaPlayer';
 import CountryChannelSections from './CountryChannelSections';
 import { PageProtocolHeader } from './PageProtocolHeader';
-import { getCountryFlag, normalizeCategory } from '../utils/channelEnrichment';
+import { getCountryFlag, normalizeCategory, POPULAR_LANGUAGES, getLanguageName } from '../utils/channelEnrichment';
 
 interface DesktopChannelsProps {
   onSwitchToMultiScreen?: () => void;
 }
 
 export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChannelsProps = {}) {
-  const { channels, groups, favorites, toggleFavorite, isLoading, error } = usePlayerStore();
+  const { 
+    channels, 
+    groups, 
+    favorites, 
+    toggleFavorite, 
+    isLoading, 
+    error,
+    selectedLanguage,
+    setSelectedLanguage
+  } = usePlayerStore();
   const [searchQuery, setSearchQuery] = React.useState('');
   const [selectedGroup, setSelectedGroup] = React.useState<string | null>(null);
   const [viewMode, setViewMode] = React.useState<'grid' | 'list' | 'country'>('grid');
@@ -50,13 +59,21 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
     return Array.from(cats).sort();
   }, [channels]);
 
-  // Filter channels based on group/category and full-text search (name, category, country, network)
+  // Filter channels based on group/category, language, and full-text search (name, category, country, network, language)
   const filteredChannels = React.useMemo(() => {
     let list = channels;
     if (selectedGroup) {
       list = list.filter((c) => {
         const cat = c.category || normalizeCategory(c.group);
         return c.group === selectedGroup || cat === selectedGroup;
+      });
+    }
+    if (selectedLanguage && selectedLanguage !== 'ALL') {
+      const target = selectedLanguage.toLowerCase();
+      list = list.filter((c) => {
+        const lang = (c.language || '').toLowerCase();
+        const langName = (c.languageName || '').toLowerCase();
+        return lang === target || lang.startsWith(target) || target.startsWith(lang) || langName.includes(target);
       });
     }
     if (searchQuery.trim()) {
@@ -68,11 +85,13 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
           (c.category && c.category.toLowerCase().includes(q)) ||
           (c.countryName && c.countryName.toLowerCase().includes(q)) ||
           (c.countryCode && c.countryCode.toLowerCase().includes(q)) ||
+          (c.languageName && c.languageName.toLowerCase().includes(q)) ||
+          (c.language && c.language.toLowerCase().includes(q)) ||
           (c.tvgId && c.tvgId.toLowerCase().includes(q))
       );
     }
     return list;
-  }, [channels, selectedGroup, searchQuery]);
+  }, [channels, selectedGroup, selectedLanguage, searchQuery]);
 
   const handlePlayInSimulator = (channel: Channel) => {
     simRouter.push(`/player/${channel.id}`);
@@ -85,6 +104,7 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
   const handleResetFilters = () => {
     setSearchQuery('');
     setSelectedGroup(null);
+    setSelectedLanguage(null);
   };
 
   return (
@@ -253,6 +273,37 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
         </div>
       </div>
 
+      {/* Language Quick Filter Bar */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest px-1">
+            Filter by Broadcast Language
+          </span>
+          <span className="text-[10px] text-zinc-500 font-mono">
+            ISO-639 Multilingual Engine
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-white/10">
+          {POPULAR_LANGUAGES.map((lang) => {
+            const isSelected = (!selectedLanguage && lang.code === 'ALL') || selectedLanguage === lang.code;
+            return (
+              <button
+                key={lang.code}
+                onClick={() => setSelectedLanguage(lang.code === 'ALL' ? null : lang.code)}
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border cursor-pointer ${
+                  isSelected
+                    ? 'bg-cyan-600 text-white border-cyan-500 shadow-sm'
+                    : 'bg-white/5 text-zinc-400 border-transparent hover:bg-white/10 hover:text-zinc-200'
+                }`}
+              >
+                <span className="text-xs">{lang.icon}</span>
+                <span>{lang.name}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* SKELETON LOADER STATE */}
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -334,6 +385,11 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
                           {c.countryCode}
                         </span>
                       )}
+                      {(c.languageName || c.language) && (
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-white/5 text-zinc-400 border border-white/5 font-medium truncate max-w-[100px]" title={`Language: ${c.languageName || getLanguageName(c.language)}`}>
+                          {c.languageName || getLanguageName(c.language)}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -410,10 +466,15 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
                   </div>
                 </div>
 
-                <div className="col-span-3 md:col-span-2 min-w-0">
+                <div className="col-span-3 md:col-span-2 min-w-0 flex items-center gap-2">
                   <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block truncate">
                     {c.category || c.group}
                   </span>
+                  {(c.languageName || c.language) && (
+                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-white/5 text-zinc-400 border border-white/5 font-medium hidden sm:inline-block truncate" title={`Language: ${c.languageName || getLanguageName(c.language)}`}>
+                      {c.languageName || getLanguageName(c.language)}
+                    </span>
+                  )}
                 </div>
 
                 <div className="col-span-3 md:col-span-2 flex items-center justify-end gap-1.5">

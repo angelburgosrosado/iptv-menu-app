@@ -10,17 +10,26 @@ import {
   UpgradeAppConfig,
   IptvOrgCountry,
   IptvOrgCategory,
-  IptvOrgRegion
+  IptvOrgRegion,
+  IptvOrgLanguage,
+  IptvOrgTimezone,
+  IptvOrgSubdivision
 } from '../types/iptv';
 import countriesData from '../data/iptv-org/countries.json';
 import categoriesData from '../data/iptv-org/categories.json';
 import regionsData from '../data/iptv-org/regions.json';
+import languagesData from '../data/iptv-org/languages.json';
+import timezonesData from '../data/iptv-org/timezones.json';
+import subdivisionsData from '../data/iptv-org/subdivisions.json';
 
 export type Json = Record<string, any>;
 
 export const IPTV_ORG_COUNTRIES: IptvOrgCountry[] = countriesData as IptvOrgCountry[];
 export const IPTV_ORG_CATEGORIES: IptvOrgCategory[] = categoriesData as IptvOrgCategory[];
 export const IPTV_ORG_REGIONS: IptvOrgRegion[] = regionsData as IptvOrgRegion[];
+export const IPTV_ORG_LANGUAGES: IptvOrgLanguage[] = languagesData as IptvOrgLanguage[];
+export const IPTV_ORG_TIMEZONES: IptvOrgTimezone[] = timezonesData as IptvOrgTimezone[];
+export const IPTV_ORG_SUBDIVISIONS: IptvOrgSubdivision[] = subdivisionsData as IptvOrgSubdivision[];
 
 export const COUNTRIES_BY_CODE = new Map<string, IptvOrgCountry>(
   IPTV_ORG_COUNTRIES.map((c) => [c.code.toUpperCase(), c])
@@ -101,6 +110,93 @@ export function getCountriesByRegion(regionCode: string): string[] {
     list.push('GB');
   }
   return list;
+}
+
+export const LANGUAGES_BY_CODE = new Map<string, string>();
+for (const lang of IPTV_ORG_LANGUAGES) {
+  LANGUAGES_BY_CODE.set(lang.code.toLowerCase(), lang.name);
+}
+
+export const ISO_639_1_ALIASES: Record<string, string> = {
+  en: 'English',
+  es: 'Spanish',
+  fr: 'French',
+  de: 'German',
+  pt: 'Portuguese',
+  it: 'Italian',
+  ar: 'Arabic',
+  ru: 'Russian',
+  zh: 'Chinese',
+  ja: 'Japanese',
+  hi: 'Hindi',
+  ko: 'Korean',
+  tr: 'Turkish',
+  nl: 'Dutch',
+  pl: 'Polish',
+  el: 'Greek',
+  sv: 'Swedish',
+  vi: 'Vietnamese',
+  th: 'Thai',
+  he: 'Hebrew',
+  uk: 'Ukrainian',
+  ro: 'Romanian',
+  cs: 'Czech',
+  hu: 'Hungarian',
+  id: 'Indonesian',
+  fa: 'Persian',
+  ur: 'Urdu',
+  bn: 'Bengali'
+};
+
+export function getLanguageName(code?: string): string {
+  if (!code) return 'Unknown';
+  const c = code.trim().toLowerCase();
+  if (ISO_639_1_ALIASES[c]) return ISO_639_1_ALIASES[c];
+  if (LANGUAGES_BY_CODE.has(c)) return LANGUAGES_BY_CODE.get(c)!;
+  return code.toUpperCase();
+}
+
+export const POPULAR_LANGUAGES = [
+  { code: 'ALL', name: 'All Languages', icon: '🌐' },
+  { code: 'en', name: 'English', icon: '🇺🇸' },
+  { code: 'es', name: 'Spanish / Español', icon: '🇪🇸' },
+  { code: 'fr', name: 'French / Français', icon: '🇫🇷' },
+  { code: 'de', name: 'German / Deutsch', icon: '🇩🇪' },
+  { code: 'pt', name: 'Portuguese / Português', icon: '🇧🇷' },
+  { code: 'it', name: 'Italian / Italiano', icon: '🇮🇹' },
+  { code: 'ar', name: 'Arabic / العربية', icon: '🇸🇦' },
+  { code: 'hi', name: 'Hindi / हिन्दी', icon: '🇮🇳' },
+  { code: 'zh', name: 'Chinese / 中文', icon: '🇨🇳' },
+  { code: 'ja', name: 'Japanese / 日本語', icon: '🇯🇵' },
+  { code: 'ko', name: 'Korean / 한국어', icon: '🇰🇷' },
+  { code: 'ru', name: 'Russian / Русский', icon: '🇷🇺' }
+];
+
+export const TIMEZONES_BY_ID = new Map<string, IptvOrgTimezone>(
+  IPTV_ORG_TIMEZONES.map((tz) => [tz.id, tz])
+);
+
+export const COUNTRY_TIMEZONES = new Map<string, IptvOrgTimezone[]>();
+for (const tz of IPTV_ORG_TIMEZONES) {
+  for (const c of tz.countries) {
+    const code = c.toUpperCase();
+    const current = COUNTRY_TIMEZONES.get(code) || [];
+    current.push(tz);
+    COUNTRY_TIMEZONES.set(code, current);
+  }
+}
+
+export function getTimezonesForCountry(countryCode?: string): IptvOrgTimezone[] {
+  if (!countryCode) return [{ id: 'UTC', utc_offset: '+00:00', countries: [] }];
+  const list = COUNTRY_TIMEZONES.get(countryCode.toUpperCase());
+  return list && list.length > 0
+    ? list
+    : [{ id: 'UTC', utc_offset: '+00:00', countries: [countryCode.toUpperCase()] }];
+}
+
+export function formatUtcOffset(offset: string): string {
+  if (!offset) return 'UTC+00:00';
+  return offset.startsWith('+') || offset.startsWith('-') ? `UTC${offset}` : `UTC+${offset}`;
 }
 
 export function normalizeCategory(groupOrCategory?: string): string {
@@ -203,6 +299,9 @@ export function enrichChannels(
     const resolvedCountryCode = match ? String(match.country || countryCode || 'UN').toUpperCase() : (countryCode || 'UN');
     const flag = getCountryFlag(resolvedCountryCode);
     const countryName = getCountryName(resolvedCountryCode);
+    const lang = channel.language || (match ? match.lang : '');
+    const langName = getLanguageName(lang);
+    const tz = channel.timezone || getTimezonesForCountry(resolvedCountryCode)[0]?.id;
 
     if (!match) {
       return {
@@ -211,6 +310,9 @@ export function enrichChannels(
         countryName: channel.countryName || countryName,
         countryFlag: channel.countryFlag || flag,
         category: channel.category || normalizeCategory(channel.group),
+        language: lang,
+        languageName: channel.languageName || langName,
+        timezone: tz,
         metadataSource: channel.metadataSource || 'playlist'
       };
     }
@@ -227,7 +329,9 @@ export function enrichChannels(
       countryCode: resolvedCountryCode,
       countryName: channel.countryName || countryName,
       countryFlag: flag,
-      language: channel.language || match.lang,
+      language: lang,
+      languageName: channel.languageName || langName,
+      timezone: tz,
       metadataSource: 'iptv-org' as const
     };
   });
@@ -245,10 +349,14 @@ export function buildCountrySections(
     const code = (channel.countryCode || channel.tvgCountry || 'UN').toUpperCase();
     const resolvedCountryName = names.get(code) || COUNTRY_NAMES[code] || code;
     const resolvedFlag = flags.get(code) || COUNTRY_FLAGS[code] || '🌐';
+    const cObj = COUNTRIES_BY_CODE.get(code);
+    const resolvedLang = channel.language || (cObj?.languages ? cObj.languages[0] : '');
 
     channel.countryCode = code;
     channel.countryName = channel.countryName || resolvedCountryName;
     channel.countryFlag = channel.countryFlag || resolvedFlag;
+    channel.languageName = channel.languageName || getLanguageName(resolvedLang);
+    channel.timezone = channel.timezone || getTimezonesForCountry(code)[0]?.id;
     if (!channel.category) {
       channel.category = normalizeCategory(channel.group);
     }

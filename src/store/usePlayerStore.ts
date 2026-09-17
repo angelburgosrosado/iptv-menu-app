@@ -74,6 +74,8 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   countrySections: buildCountrySections(INITIAL_FALLBACK_CHANNELS),
   selectedCountry: null,
   selectedRegion: null,
+  selectedLanguage: null,
+  selectedTimezone: null,
   selectedGroup: null,
   searchTerm: '',
   epgSources: [
@@ -91,6 +93,8 @@ export const usePlayerStore = create<AppState>((set, get) => ({
 
   setSelectedCountry: (code: string | null) => set({ selectedCountry: code }),
   setSelectedRegion: (region: string | null) => set({ selectedRegion: region }),
+  setSelectedLanguage: (lang: string | null) => set({ selectedLanguage: lang }),
+  setSelectedTimezone: (tz: string | null) => set({ selectedTimezone: tz }),
   setSelectedGroup: (group: string | null) => set({ selectedGroup: group }),
   setSearchTerm: (term: string) => set({ searchTerm: term }),
 

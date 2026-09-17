@@ -297,5 +297,72 @@ describe('IPTV Channel Enrichment Engine', () => {
     store.setSelectedRegion(null);
     expect(usePlayerStore.getState().selectedRegion).toBeNull();
   });
+
+  it('should resolve language names from ISO 639-1 and ISO 639-3 codes', async () => {
+    const { getLanguageName, POPULAR_LANGUAGES, IPTV_ORG_LANGUAGES } = await import('../src/utils/channelEnrichment');
+    expect(IPTV_ORG_LANGUAGES.length).toBeGreaterThan(7000);
+    expect(POPULAR_LANGUAGES.length).toBe(13); // 'ALL' + 12 languages
+
+    // 2-letter ISO 639-1 aliases
+    expect(getLanguageName('es')).toBe('Spanish');
+    expect(getLanguageName('en')).toBe('English');
+    expect(getLanguageName('fr')).toBe('French');
+    expect(getLanguageName('de')).toBe('German');
+    expect(getLanguageName('ja')).toBe('Japanese');
+    expect(getLanguageName('zh')).toBe('Chinese');
+
+    // 3-letter ISO 639-3 codes from iptv-org dataset
+    expect(getLanguageName('spa')).toBe('Spanish');
+    expect(getLanguageName('eng')).toBe('English');
+    expect(getLanguageName('fra')).toBe('French');
+
+    // Fallback for unknown codes
+    expect(getLanguageName('xyz')).toBe('XYZ');
+    expect(getLanguageName('')).toBe('Unknown');
+  });
+
+  it('should resolve global timezones and formats for countries', async () => {
+    const { getTimezonesForCountry, formatUtcOffset, IPTV_ORG_TIMEZONES } = await import('../src/utils/channelEnrichment');
+    expect(IPTV_ORG_TIMEZONES.length).toBeGreaterThan(100);
+
+    // Puerto Rico timezone
+    const prTz = getTimezonesForCountry('PR');
+    expect(prTz.length).toBeGreaterThanOrEqual(1);
+    expect(prTz[0].id).toBe('America/Puerto_Rico');
+
+    // US timezones
+    const usTz = getTimezonesForCountry('US');
+    expect(usTz.length).toBeGreaterThanOrEqual(4);
+    const tzIds = usTz.map(t => t.id);
+    expect(tzIds).toContain('America/New_York');
+    expect(tzIds).toContain('America/Chicago');
+    expect(tzIds).toContain('America/Los_Angeles');
+
+    // Spain timezones
+    const esTz = getTimezonesForCountry('ES');
+    expect(esTz.map(t => t.id)).toContain('Europe/Madrid');
+
+    // Format UTC offset
+    expect(formatUtcOffset('-04:00')).toBe('UTC-04:00');
+    expect(formatUtcOffset('+00:00')).toBe('UTC+00:00');
+    expect(formatUtcOffset('+02:00')).toBe('UTC+02:00');
+  });
+
+  it('should support selectedLanguage and selectedTimezone in usePlayerStore', async () => {
+    const { usePlayerStore } = await import('../src/store/usePlayerStore');
+    const store = usePlayerStore.getState();
+
+    // Language filter
+    store.setSelectedLanguage('spa');
+    expect(usePlayerStore.getState().selectedLanguage).toBe('spa');
+    store.setSelectedLanguage(null);
+    expect(usePlayerStore.getState().selectedLanguage).toBeNull();
+
+    // Timezone filter
+    store.setSelectedTimezone('America/Puerto_Rico');
+    expect(usePlayerStore.getState().selectedTimezone).toBe('America/Puerto_Rico');
+    store.setSelectedTimezone(null);
+    expect(usePlayerStore.getState().selectedTimezone).toBeNull();
+  });
 });
 

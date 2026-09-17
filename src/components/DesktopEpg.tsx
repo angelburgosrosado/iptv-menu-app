@@ -21,10 +21,13 @@ import {
   Radio,
   ChevronRight,
   Layers,
-  Flame
+  Flame,
+  Globe,
+  MapPin
 } from 'lucide-react';
 import { Channel } from '../types/iptv';
 import { PageProtocolHeader } from './PageProtocolHeader';
+import { getCountryFlag, getLanguageName, formatUtcOffset } from '../utils/channelEnrichment';
 
 interface Show {
   title: string;
@@ -36,7 +39,7 @@ interface Show {
 }
 
 export default function DesktopEpg() {
-  const { channels, epgByChannel, isLoading, loadEpgBundle } = usePlayerStore();
+  const { channels, epgByChannel, isLoading, loadEpgBundle, selectedTimezone, setSelectedTimezone } = usePlayerStore();
   const [selectedShow, setSelectedShow] = React.useState<Show | null>(null);
   const [selectedChannel, setSelectedChannel] = React.useState<Channel | null>(null);
   const [isSyncing, setIsSyncing] = React.useState(false);
@@ -68,7 +71,18 @@ export default function DesktopEpg() {
   };
 
   const now = new Date();
-  const currentHour = now.getHours();
+  const currentHour = React.useMemo(() => {
+    if (!selectedTimezone || selectedTimezone === 'local') {
+      return now.getHours();
+    }
+    try {
+      const str = now.toLocaleTimeString('en-US', { timeZone: selectedTimezone, hour12: false, hour: 'numeric' });
+      return parseInt(str, 10) || now.getHours();
+    } catch {
+      return now.getHours();
+    }
+  }, [now, selectedTimezone]);
+
   const slot1Label = `Now (${formatHour(currentHour)})`;
   const slot2Label = formatHour(currentHour + 1);
   const slot3Label = formatHour(currentHour + 2);
@@ -97,7 +111,8 @@ export default function DesktopEpg() {
         try {
           const s = new Date(startStr);
           const e = stopStr ? new Date(stopStr) : new Date(s.getTime() + 3600000);
-          return `${s.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${e.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+          const tzOpt = selectedTimezone && selectedTimezone !== 'local' ? { timeZone: selectedTimezone } : {};
+          return `${s.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', ...tzOpt })} - ${e.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', ...tzOpt })}`;
         } catch {
           return fallback;
         }
@@ -281,6 +296,30 @@ export default function DesktopEpg() {
         badgeColor="cyan"
       >
         <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-zinc-300 transition-all">
+            <Globe className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
+            <select
+              value={selectedTimezone || 'local'}
+              onChange={(e) => setSelectedTimezone(e.target.value === 'local' ? null : e.target.value)}
+              className="bg-transparent text-xs text-white outline-none cursor-pointer font-sans"
+              aria-label="EPG Broadcast Timezone"
+            >
+              <option value="local" className="bg-zinc-900 text-white">Local Time ({Intl.DateTimeFormat().resolvedOptions().timeZone})</option>
+              <option value="UTC" className="bg-zinc-900 text-white">UTC (+00:00)</option>
+              <option value="America/New_York" className="bg-zinc-900 text-white">US Eastern (America/New_York)</option>
+              <option value="America/Chicago" className="bg-zinc-900 text-white">US Central (America/Chicago)</option>
+              <option value="America/Denver" className="bg-zinc-900 text-white">US Mountain (America/Denver)</option>
+              <option value="America/Los_Angeles" className="bg-zinc-900 text-white">US Pacific (America/Los_Angeles)</option>
+              <option value="America/Puerto_Rico" className="bg-zinc-900 text-white">Puerto Rico (America/Puerto_Rico)</option>
+              <option value="America/Santo_Domingo" className="bg-zinc-900 text-white">Dominican Rep (America/Santo_Domingo)</option>
+              <option value="America/Mexico_City" className="bg-zinc-900 text-white">Mexico City (America/Mexico_City)</option>
+              <option value="Europe/London" className="bg-zinc-900 text-white">London (Europe/London)</option>
+              <option value="Europe/Madrid" className="bg-zinc-900 text-white">Madrid (Europe/Madrid)</option>
+              <option value="Europe/Paris" className="bg-zinc-900 text-white">Paris (Europe/Paris)</option>
+              <option value="Asia/Tokyo" className="bg-zinc-900 text-white">Tokyo (Asia/Tokyo)</option>
+            </select>
+          </div>
+
           <button
             onClick={handleRefreshXmltvFeed}
             disabled={isSyncing}
@@ -520,6 +559,26 @@ export default function DesktopEpg() {
                     <h3 className="text-base font-bold text-white leading-tight truncate">
                       {selectedChannel.name}
                     </h3>
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      {selectedChannel.countryCode && (
+                        <span className="inline-flex items-center gap-1 text-[10px] text-zinc-300 bg-white/5 border border-white/10 px-2 py-0.5 rounded-full">
+                          <span>{selectedChannel.countryFlag || getCountryFlag(selectedChannel.countryCode)}</span>
+                          <span>{selectedChannel.countryName || selectedChannel.countryCode}</span>
+                        </span>
+                      )}
+                      {selectedChannel.language && (
+                        <span className="inline-flex items-center gap-1 text-[10px] text-cyan-300 bg-cyan-500/10 border border-cyan-500/20 px-2 py-0.5 rounded-full font-medium">
+                          <Globe className="w-2.5 h-2.5" />
+                          <span>{selectedChannel.languageName || getLanguageName(selectedChannel.language)}</span>
+                        </span>
+                      )}
+                      {(selectedChannel.timezone || selectedTimezone) && (
+                        <span className="inline-flex items-center gap-1 text-[10px] text-purple-300 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-full font-mono">
+                          <MapPin className="w-2.5 h-2.5" />
+                          <span>{selectedChannel.timezone || selectedTimezone}</span>
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -528,6 +587,9 @@ export default function DesktopEpg() {
                   <div className="flex items-center gap-2 text-xs font-semibold text-zinc-300">
                     <Clock className="w-4 h-4 text-cyan-400 flex-shrink-0" />
                     <span>{selectedShow.time} ({selectedShow.duration} min)</span>
+                    <span className="text-[10px] text-zinc-500 font-mono">
+                      [{selectedTimezone ? selectedTimezone.split('/').pop()?.replace(/_/g, ' ') : 'Local'}]
+                    </span>
                   </div>
 
                   {selectedShow.isLive ? (
