@@ -5,12 +5,13 @@
 
 import { create } from 'zustand';
 import { MMKV } from 'react-native-mmkv';
-import { AppState, Channel, EpgSource, DvrRecording, Bookmark, PlaylistSubscription, SleepTimerState, AudioDspConfig, AudioDspPreset, AudioDspBands, ParentalControlsConfig, ActiveRecordingState, TvNavigationConfig, SpatialFocusZone } from '../types/iptv';
+import { AppState, Channel, EpgSource, DvrRecording, Bookmark, PlaylistSubscription, SleepTimerState, AudioDspConfig, AudioDspPreset, AudioDspBands, ParentalControlsConfig, ActiveRecordingState, TvNavigationConfig, SpatialFocusZone, SubtitleConfig, SubtitlePreset } from '../types/iptv';
 import { parseM3U } from '../utils/m3uParser';
 import { buildCountrySections } from '../utils/channelEnrichment';
 import { DEFAULT_DSP_CONFIG, DSP_PRESETS, audioDspEngine } from '../utils/audioDspEngine';
 import { hashPin, verifyPin, DEFAULT_LOCKED_CATEGORIES } from '../utils/parentalSecurity';
 import { formatBytes } from '../utils/streamRecorderEngine';
+import { DEFAULT_SUBTITLE_CONFIG, SUBTITLE_PRESETS, clampSyncOffset, applySubtitleStylesToDom } from '../utils/subtitleEngine';
 
 // Initialize react-native-mmkv storage container
 const storage = new MMKV({ id: 'iptv_user_storage_v1' });
@@ -211,6 +212,9 @@ export const usePlayerStore = create<AppState>((set, get) => ({
 
   // 10-Foot Leanback TV Spatial Remote Navigation Engine
   tvNavigation: DEFAULT_TV_NAVIGATION,
+
+  // Multi-Language Subtitle & Closed Caption Customization Engine
+  subtitleConfig: readJsonFromStorage<SubtitleConfig>('iptv_subtitle_config', DEFAULT_SUBTITLE_CONFIG),
 
   // Country & EPG Backbone enhancements
   countrySections: buildCountrySections(INITIAL_FALLBACK_CHANNELS),
@@ -1180,5 +1184,53 @@ export const usePlayerStore = create<AppState>((set, get) => ({
         highContrastFocusRing: !current.highContrastFocusRing,
       }
     });
+  },
+
+  // Multi-Language Subtitle & Closed Caption Actions
+  setSubtitleConfig: (updates: Partial<SubtitleConfig>) => {
+    const updated: SubtitleConfig = {
+      ...get().subtitleConfig,
+      ...updates,
+      preset: updates.preset || (updates.fontSize || updates.textColor || updates.bgOpacity || updates.edgeStyle ? 'custom' : get().subtitleConfig.preset)
+    };
+    writeJsonToStorage('iptv_subtitle_config', updated);
+    applySubtitleStylesToDom(updated);
+    set({ subtitleConfig: updated });
+  },
+
+  setSubtitlePreset: (preset: SubtitlePreset) => {
+    if (preset === 'custom') {
+      const updated: SubtitleConfig = { ...get().subtitleConfig, preset: 'custom' };
+      writeJsonToStorage('iptv_subtitle_config', updated);
+      set({ subtitleConfig: updated });
+      return;
+    }
+    const presetValues = SUBTITLE_PRESETS[preset];
+    if (!presetValues) return;
+    const updated: SubtitleConfig = {
+      ...get().subtitleConfig,
+      ...presetValues,
+      preset
+    };
+    writeJsonToStorage('iptv_subtitle_config', updated);
+    applySubtitleStylesToDom(updated);
+    set({ subtitleConfig: updated });
+  },
+
+  setSubtitleSyncOffset: (offsetMs: number) => {
+    const clamped = clampSyncOffset(offsetMs);
+    const updated: SubtitleConfig = {
+      ...get().subtitleConfig,
+      syncOffsetMs: clamped
+    };
+    writeJsonToStorage('iptv_subtitle_config', updated);
+    set({ subtitleConfig: updated });
+  },
+
+  resetSubtitleConfig: () => {
+    const reset = { ...DEFAULT_SUBTITLE_CONFIG };
+    writeJsonToStorage('iptv_subtitle_config', reset);
+    applySubtitleStylesToDom(reset);
+    set({ subtitleConfig: reset });
   },
 }));

@@ -335,6 +335,31 @@ export interface AppState {
   setTvNavigationEnabled: (enabled: boolean) => void;
   setTvFocus: (focusId: string | null, zone?: SpatialFocusZone) => void;
   toggleHighContrastFocusRing: () => void;
+
+  // Multi-Language Subtitle & Closed Caption Customization Engine
+  subtitleConfig: SubtitleConfig;
+  setSubtitleConfig: (updates: Partial<SubtitleConfig>) => void;
+  setSubtitlePreset: (preset: SubtitlePreset) => void;
+  setSubtitleSyncOffset: (offsetMs: number) => void;
+  resetSubtitleConfig: () => void;
+}
+
+export type SubtitleFontSize = 'small' | 'medium' | 'large' | 'xlarge';
+export type SubtitleTextColor = 'white' | 'yellow' | 'cyan' | 'green';
+export type SubtitleBgOpacity = 0 | 25 | 50 | 75 | 100;
+export type SubtitleEdgeStyle = 'none' | 'dropshadow' | 'raised' | 'outline';
+export type SubtitleFontFamily = 'sans' | 'serif' | 'mono';
+export type SubtitlePreset = 'broadcast' | 'cinema' | 'teletext' | 'minimal' | 'custom';
+
+export interface SubtitleConfig {
+  isEnabled: boolean;
+  preset: SubtitlePreset;
+  fontSize: SubtitleFontSize;
+  textColor: SubtitleTextColor;
+  bgOpacity: SubtitleBgOpacity;
+  edgeStyle: SubtitleEdgeStyle;
+  fontFamily: SubtitleFontFamily;
+  syncOffsetMs: number; // -5000 to +5000 in ms
 }
 
 export type SpatialFocusZone = 'nav' | 'sidebar' | 'channels' | 'player' | 'modal' | 'custom';

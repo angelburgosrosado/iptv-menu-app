@@ -40,7 +40,9 @@ import { DiagnosticsHUD } from './DiagnosticsHUD';
 import SleepTimerModal from './SleepTimerModal';
 import AudioEqualizerModal from './AudioEqualizerModal';
 import { ParentalPinModal } from './ParentalPinModal';
+import { SubtitleSettingsModal } from './SubtitleSettingsModal';
 import { audioDspEngine } from '../utils/audioDspEngine';
+import { applySubtitleStylesToDom } from '../utils/subtitleEngine';
 
 interface VideoPlayerProps {
   streamUrl: string;
@@ -106,6 +108,7 @@ export function VideoPlayer({
   const [showSleepTimer, setShowSleepTimer] = React.useState(false);
   const [showEqualizer, setShowEqualizer] = React.useState(false);
   const [showParentalModal, setShowParentalModal] = React.useState(false);
+  const [showSubtitleSettings, setShowSubtitleSettings] = React.useState(false);
 
   const { 
     addBookmark, 
@@ -121,7 +124,8 @@ export function VideoPlayer({
     startActiveRecording,
     updateActiveRecordingProgress,
     stopActiveRecording,
-    cancelActiveRecording
+    cancelActiveRecording,
+    subtitleConfig
   } = usePlayerStore();
   const isBookmarked = isChannelBookmarked(channelName.toLowerCase().replace(/[^a-z0-9]/g, '-')) || isChannelBookmarked(channelName);
   const isLocked = isChannelLocked({ id: channelName, name: channelName, group: groupTitle });
@@ -154,6 +158,11 @@ export function VideoPlayer({
   React.useEffect(() => {
     audioDspEngine.applyConfig(audioDsp);
   }, [audioDsp]);
+
+  // Sync real-time Closed Caption & Subtitle appearance styling to DOM
+  React.useEffect(() => {
+    applySubtitleStylesToDom(subtitleConfig);
+  }, [subtitleConfig]);
 
   // Parental Controls Enforcement (Mute & Pause stream if locked and session is not unlocked)
   React.useEffect(() => {
@@ -496,6 +505,10 @@ export function VideoPlayer({
         case 'KeyR':
           e.preventDefault();
           handleToggleRecording();
+          break;
+        case 'KeyC':
+          e.preventDefault();
+          setShowSubtitleSettings((prev) => !prev);
           break;
         default:
           break;
@@ -1033,6 +1046,33 @@ export function VideoPlayer({
                     </TouchableOpacity>
                   );
                 })}
+
+                {showTrackModal === 'subtitle' && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setShowTrackModal(null);
+                      setShowSubtitleSettings(true);
+                    }}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                      paddingVertical: 10,
+                      paddingHorizontal: 12,
+                      marginTop: 8,
+                      borderTopWidth: 1,
+                      borderTopColor: '#334155',
+                      backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                      borderRadius: 6,
+                    }}
+                  >
+                    <Sliders size={13} color="#38bdf8" />
+                    <Text style={{ color: '#38bdf8', fontSize: 11, fontWeight: '700' }}>
+                      Customize CC Styles & Timing
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
           )}
@@ -1070,6 +1110,12 @@ export function VideoPlayer({
         onClose={() => setShowParentalModal(false)}
         channelName={channelName}
         initialMode={parentalControls.pinHash ? (isLocked ? 'unlock' : 'settings') : 'setup'}
+      />
+
+      {/* 10. Multi-Language Subtitle & Closed Caption Customization Modal */}
+      <SubtitleSettingsModal
+        isOpen={showSubtitleSettings}
+        onClose={() => setShowSubtitleSettings(false)}
       />
     </View>
   );
