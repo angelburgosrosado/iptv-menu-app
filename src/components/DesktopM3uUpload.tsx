@@ -34,10 +34,13 @@ import RateLimitBanner from './RateLimitBanner';
 import { PlaylistSubscription } from '../types/iptv';
 
 const QUICK_PRESETS = [
-  { name: 'US Curated Channels', url: 'https://iptv-org.github.io/iptv/countries/us.m3u', interval: 60 },
+  { name: 'US Pluto TV (FAST)', url: 'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_pluto.m3u', interval: 60 },
+  { name: 'US Samsung TV Plus (FAST)', url: 'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_samsung.m3u', interval: 60 },
+  { name: 'UK Pluto TV (FAST)', url: 'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/uk_pluto.m3u', interval: 60 },
+  { name: 'US Local & Regional', url: 'https://iptv-org.github.io/iptv/countries/us.m3u', interval: 60 },
+  { name: 'UK Local & Regional', url: 'https://iptv-org.github.io/iptv/countries/uk.m3u', interval: 60 },
   { name: 'Latin America Regional', url: 'https://iptv-org.github.io/iptv/regions/latam.m3u', interval: 360 },
   { name: 'Melhata Xtream Line', url: 'http://line.melhata.org/get.php?username=8rvzieximl&password=h1usotpevd&type=m3u_plus&output=ts', interval: 15 },
-  { name: 'UK Channels', url: 'https://iptv-org.github.io/iptv/countries/uk.m3u', interval: 60 },
 ];
 
 const formatLastSync = (isoString?: string) => {

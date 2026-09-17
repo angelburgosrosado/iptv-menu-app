@@ -151,8 +151,30 @@ const getApiUrl = (path: string): string => {
 
 const DEFAULT_SUBSCRIPTIONS: PlaylistSubscription[] = [
   {
+    id: 'sub-fast-us-pluto',
+    name: 'US Pluto TV (FAST)',
+    url: 'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_pluto.m3u',
+    autoSync: true,
+    syncIntervalMinutes: 60,
+    lastSyncTime: new Date().toISOString(),
+    channelCount: 350,
+    status: 'synced',
+    colorTag: '#f59e0b' // Yellow/Orange for Pluto
+  },
+  {
+    id: 'sub-fast-us-samsung',
+    name: 'US Samsung TV Plus (FAST)',
+    url: 'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_samsung.m3u',
+    autoSync: true,
+    syncIntervalMinutes: 60,
+    lastSyncTime: new Date().toISOString(),
+    channelCount: 200,
+    status: 'synced',
+    colorTag: '#3b82f6' // Blue for Samsung
+  },
+  {
     id: 'sub-default-us',
-    name: 'US Curated Global Streams',
+    name: 'US Local & Regional',
     url: 'https://iptv-org.github.io/iptv/countries/us.m3u',
     autoSync: true,
     syncIntervalMinutes: 60,
@@ -163,7 +185,7 @@ const DEFAULT_SUBSCRIPTIONS: PlaylistSubscription[] = [
   },
   {
     id: 'sub-latam-regional',
-    name: 'Latin America Regional Feeds',
+    name: 'Latin America Regional',
     url: 'https://iptv-org.github.io/iptv/regions/latam.m3u',
     autoSync: false,
     syncIntervalMinutes: 360,
