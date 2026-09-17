@@ -74,6 +74,14 @@ export default function DesktopPremium({ onTriggerAuth }: DesktopPremiumProps) {
         window.location.href = url;
       } else {
         // Mock success fallback for preview environment
+        if (typeof window !== 'undefined' && window.dataLayer) {
+          window.dataLayer.push({
+            event: 'Purchase_Pro_Builder',
+            value: planData.tier === 'pro' ? 9.99 : 29.99,
+            currency: 'USD',
+            transaction_id: `mock_tx_${Date.now()}`
+          });
+        }
         authStore.setState({ isPremium: true, role: planData.tier });
         setSelectedPlan(planData.planName);
         setShowCheckoutSuccess(true);
@@ -82,6 +90,14 @@ export default function DesktopPremium({ onTriggerAuth }: DesktopPremiumProps) {
     } catch (err: any) {
       console.warn('Checkout API fallback', err);
       // Mock success fallback for preview environment
+      if (typeof window !== 'undefined' && window.dataLayer) {
+        window.dataLayer.push({
+          event: 'Purchase_Pro_Builder',
+          value: planData.tier === 'pro' ? 9.99 : 29.99,
+          currency: 'USD',
+          transaction_id: `mock_tx_${Date.now()}`
+        });
+      }
       authStore.setState({ isPremium: true, role: planData.tier });
       setSelectedPlan(planData.planName);
       setShowCheckoutSuccess(true);

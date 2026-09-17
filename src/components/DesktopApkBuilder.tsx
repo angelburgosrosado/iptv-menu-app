@@ -558,6 +558,11 @@ export default function DesktopApkBuilder() {
                   <a
                     href={apkArtifactUrl || '#'}
                     download={`${appName.replace(/\s+/g, '_')}.apk`}
+                    onClick={() => {
+                      if (typeof window !== 'undefined' && window.dataLayer) {
+                        window.dataLayer.push({ event: 'APK_Download' });
+                      }
+                    }}
                     className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition-all"
                   >
                     <Download className="w-4 h-4" />
@@ -611,6 +616,11 @@ export default function DesktopApkBuilder() {
 
                   <a
                     href={b.downloadUrl}
+                    onClick={() => {
+                      if (typeof window !== 'undefined' && window.dataLayer) {
+                        window.dataLayer.push({ event: 'APK_Download' });
+                      }
+                    }}
                     className="p-2 text-zinc-400 hover:text-cyan-400 transition-colors"
                     title="Download APK"
                     aria-label="Download APK"
