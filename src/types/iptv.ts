@@ -237,6 +237,13 @@ export interface AppState {
   // Custom Channel Tags System
   customTags: Record<string, string[]>;
 
+  // Picture-in-Picture (PiP) Floating Mini-Player
+  pipChannel: Channel | null;
+  pipStreamUrl?: string;
+  isPiPActive: boolean;
+  pipSize: 'compact' | 'normal' | 'large';
+  isPiPMuted: boolean;
+
   // Actions
   setPlaylistUrl: (url: string) => void;
   loadPlaylist: (url?: string) => Promise<void>;
@@ -267,6 +274,12 @@ export interface AppState {
   removeChannelTag: (channelId: string, tag: string) => void;
   getChannelTags: (channelId: string) => string[];
   getAllUniqueCustomTags: () => string[];
+
+  // Picture-in-Picture (PiP) Actions
+  openPiP: (channel: Channel, streamUrl?: string) => void;
+  closePiP: () => void;
+  setPiPSize: (size: 'compact' | 'normal' | 'large') => void;
+  togglePiPMute: () => void;
 }
 
 export interface DvrRecording {

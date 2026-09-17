@@ -13,6 +13,8 @@ import {
   Search, 
   Grid, 
   Maximize2, 
+  Minimize2,
+  PictureInPicture,
   ShieldCheck, 
   Zap, 
   Radio, 
@@ -34,7 +36,7 @@ export default function WebCinemaPlayer({
   onClose,
   onSwitchToMultiScreen
 }: WebCinemaPlayerProps) {
-  const { channels, favorites, toggleFavorite, addToHistory } = usePlayerStore();
+  const { channels, favorites, toggleFavorite, addToHistory, openPiP } = usePlayerStore();
   const [currentChannel, setCurrentChannel] = React.useState<Channel>(initialChannel);
   const [showChannelDrawer, setShowChannelDrawer] = React.useState(false);
   const [drawerSearch, setDrawerSearch] = React.useState('');
@@ -69,7 +71,12 @@ export default function WebCinemaPlayer({
     setCurrentChannel(channels[prevIdx]);
   };
 
-  // Close on Escape key
+  const handleMinimizeToPiP = () => {
+    openPiP(currentChannel);
+    onClose();
+  };
+
+  // Close on Escape key or minimize on P
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -82,10 +89,13 @@ export default function WebCinemaPlayer({
       if ((e.key === 'e' || e.key === 'E') && !(e.target instanceof HTMLInputElement)) {
         setShowChannelDrawer((prev) => !prev);
       }
+      if ((e.key === 'p' || e.key === 'P') && !(e.target instanceof HTMLInputElement)) {
+        handleMinimizeToPiP();
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, showChannelDrawer]);
+  }, [onClose, showChannelDrawer, currentChannel, openPiP]);
 
   // Filtered channels for drawer
   const filteredDrawerChannels = React.useMemo(() => {
@@ -201,6 +211,17 @@ export default function WebCinemaPlayer({
             title={isFav ? 'Remove Favorite' : 'Save Favorite'}
           >
             <Heart className={`w-4 h-4 ${isFav ? 'fill-current' : ''}`} />
+          </button>
+
+          {/* Minimize to PiP Button */}
+          <button
+            onClick={handleMinimizeToPiP}
+            className="p-2 rounded-xl bg-white/5 hover:bg-blue-600/20 text-zinc-300 hover:text-cyan-300 border border-white/10 transition-all flex items-center gap-1.5"
+            title="Minimize to Floating PiP (P)"
+            aria-label="Minimize to Picture in Picture"
+          >
+            <PictureInPicture className="w-4 h-4 text-cyan-400" />
+            <span className="text-xs font-bold hidden sm:inline">PiP</span>
           </button>
 
           {/* Close Cinema Mode */}

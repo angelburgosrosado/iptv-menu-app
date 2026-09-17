@@ -86,6 +86,13 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   dvrRecordings: readJsonFromStorage<DvrRecording[]>('iptv_dvr_recordings', []),
   bookmarks: readJsonFromStorage<Bookmark[]>('iptv_bookmarks', []),
   customTags: readJsonFromStorage<Record<string, string[]>>('iptv_custom_channel_tags', {}),
+
+  // Picture-in-Picture (PiP) Floating Mini-Player
+  pipChannel: null,
+  pipStreamUrl: undefined,
+  isPiPActive: false,
+  pipSize: readJsonFromStorage<'compact' | 'normal' | 'large'>('iptv_pip_size', 'normal'),
+  isPiPMuted: false,
   
   // Country & EPG Backbone enhancements
   countrySections: buildCountrySections(INITIAL_FALLBACK_CHANNELS),
@@ -458,5 +465,32 @@ export const usePlayerStore = create<AppState>((set, get) => ({
       }
     });
     return Array.from(allTags).sort();
+  },
+
+  // Picture-in-Picture (PiP) Actions
+  openPiP: (channel: Channel, streamUrl?: string) => {
+    set({
+      pipChannel: channel,
+      pipStreamUrl: streamUrl || channel.url,
+      isPiPActive: true
+    });
+    get().addToHistory(channel.id);
+  },
+
+  closePiP: () => {
+    set({
+      isPiPActive: false,
+      pipChannel: null,
+      pipStreamUrl: undefined
+    });
+  },
+
+  setPiPSize: (size: 'compact' | 'normal' | 'large') => {
+    writeJsonToStorage('iptv_pip_size', size);
+    set({ pipSize: size });
+  },
+
+  togglePiPMute: () => {
+    set((state) => ({ isPiPMuted: !state.isPiPMuted }));
   },
 }));

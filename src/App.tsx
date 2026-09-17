@@ -63,6 +63,9 @@ import AuthModal from './components/AuthModal';
 import ProtectedRoute from './components/ProtectedRoute';
 import WorkspaceSwitcher from './components/WorkspaceSwitcher';
 import { PageProtocolHeader } from './components/PageProtocolHeader';
+import FloatingPiPPlayer from './components/FloatingPiPPlayer';
+import WebCinemaPlayer from './components/WebCinemaPlayer';
+import { Channel } from './types/iptv';
 import { useAuth, authStore } from './authStore';
 import { fetchWithAuth } from './lib/apiClient';
 import {
@@ -96,6 +99,7 @@ export default function App() {
     tab: 'privacy'
   });
   const [toastMessage, setToastMessage] = React.useState<string | null>(null);
+  const [globalCinemaChannel, setGlobalCinemaChannel] = React.useState<Channel | null>(null);
 
   const MOBILE_TAB_ITEMS = [
     { id: 'channels', label: 'Channels', icon: Tv },
@@ -1748,6 +1752,21 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Global Picture-in-Picture Floating Mini-Player (persists across all routes & menu navigation) */}
+      <FloatingPiPPlayer onMaximize={(channel) => setGlobalCinemaChannel(channel)} />
+
+      {/* Global Web Cinema Mode Player Overlay (when maximized from PiP) */}
+      {globalCinemaChannel && (
+        <WebCinemaPlayer
+          initialChannel={globalCinemaChannel}
+          onClose={() => setGlobalCinemaChannel(null)}
+          onSwitchToMultiScreen={() => {
+            setGlobalCinemaChannel(null);
+            setActiveMenu('multiscreen');
+          }}
+        />
+      )}
 
     </div>
   );

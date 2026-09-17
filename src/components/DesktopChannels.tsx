@@ -24,7 +24,8 @@ import {
   LayoutGrid,
   Download,
   Tag,
-  ArrowUpDown
+  ArrowUpDown,
+  PictureInPicture
 } from 'lucide-react';
 import { Channel } from '../types/iptv';
 import WebCinemaPlayer from './WebCinemaPlayer';
@@ -46,21 +47,24 @@ interface DesktopChannelsProps {
   onSwitchToMultiScreen?: () => void;
 }
 
-export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChannelsProps = {}) {
+export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChannelsProps) {
   const { 
     channels, 
     groups, 
     favorites, 
     toggleFavorite, 
-    isLoading, 
-    error,
+    addToHistory,
+    selectedCountry,
+    setSelectedCountry,
     selectedLanguage,
     setSelectedLanguage,
-    selectedCountry,
     selectedSubdivision,
     setSelectedSubdivision,
     customTags,
-    getAllUniqueCustomTags
+    getAllUniqueCustomTags,
+    openPiP,
+    isLoading,
+    error
   } = usePlayerStore();
   const [searchQuery, setSearchQuery] = React.useState('');
   const [selectedGroup, setSelectedGroup] = React.useState<string | null>(null);
@@ -640,6 +644,15 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
                   </button>
 
                   <button
+                    onClick={() => openPiP(c)}
+                    className="p-2 rounded-xl bg-white/5 hover:bg-cyan-500/20 text-zinc-400 hover:text-cyan-300 border border-white/10 transition-all cursor-pointer"
+                    title="Watch in Picture-in-Picture Mini-Player"
+                    aria-label="Picture-in-Picture"
+                  >
+                    <PictureInPicture className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
                     onClick={() => handlePlayInSimulator(c)}
                     className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/10 transition-all cursor-pointer"
                     title="Preview in Mobile Phone Simulator"
@@ -752,6 +765,15 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
                   >
                     <Play className="w-3 h-3 fill-current" />
                     <span>Watch</span>
+                  </button>
+
+                  <button
+                    onClick={() => openPiP(c)}
+                    className="p-1 rounded-lg bg-white/5 hover:bg-cyan-500/20 text-zinc-400 hover:text-cyan-300 border border-white/10 transition-all cursor-pointer"
+                    title="Watch in Picture-in-Picture Mini-Player"
+                    aria-label="Picture-in-Picture"
+                  >
+                    <PictureInPicture className="w-3.5 h-3.5" />
                   </button>
 
                   <button
