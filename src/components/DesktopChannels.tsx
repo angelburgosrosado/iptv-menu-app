@@ -74,6 +74,7 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
     parentalControls,
     isChannelLocked,
     toggleChannelLock,
+    tvNavigation,
     isLoading,
     error
   } = usePlayerStore();
@@ -759,7 +760,15 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
             return (
               <div
                 key={c.id}
-                className="group relative bg-[#16161a] hover:bg-[#1c1c21] border border-white/5 hover:border-cyan-500/30 rounded-2xl p-4 flex items-center justify-between transition-all hover:-translate-y-0.5 shadow-sm"
+                data-tv-focus-id={`ch-${c.id}`}
+                data-tv-zone="channels"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleOpenCinema(c);
+                  }
+                }}
+                className="group relative bg-[#16161a] hover:bg-[#1c1c21] border border-white/5 hover:border-cyan-500/30 rounded-2xl p-4 flex items-center justify-between transition-all hover:-translate-y-0.5 shadow-sm cursor-pointer"
               >
                 <div className="flex items-center gap-3.5 min-w-0">
                   <div className="w-12 h-12 rounded-xl bg-black/60 border border-white/5 flex items-center justify-center p-2.5 overflow-hidden flex-shrink-0 relative">
@@ -921,7 +930,15 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
             return (
               <div
                 key={c.id}
-                className="grid grid-cols-12 gap-4 items-center px-4 py-2.5 bg-[#16161a] hover:bg-[#1c1c21] border border-white/5 hover:border-white/10 rounded-xl transition-all"
+                data-tv-focus-id={`ch-${c.id}`}
+                data-tv-zone="channels"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleOpenCinema(c);
+                  }
+                }}
+                className="grid grid-cols-12 gap-4 items-center px-4 py-2.5 bg-[#16161a] hover:bg-[#1c1c21] border border-white/5 hover:border-white/10 rounded-xl transition-all cursor-pointer"
               >
                 <div className="col-span-6 md:col-span-8 flex items-center gap-3 min-w-0">
                   <div className="w-8 h-8 rounded-lg bg-black/60 border border-white/5 flex items-center justify-center p-1.5 overflow-hidden flex-shrink-0 relative">

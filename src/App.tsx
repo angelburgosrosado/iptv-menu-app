@@ -69,6 +69,8 @@ import { Channel } from './types/iptv';
 import { usePlayerStore } from './store/usePlayerStore';
 import { useAuth, authStore } from './authStore';
 import { fetchWithAuth } from './lib/apiClient';
+import { useSpatialNavigation } from './hooks/useSpatialNavigation';
+import './styles/tvNavigation.css';
 import {
   Palette,
   Sliders,
@@ -86,6 +88,7 @@ import {
 
 export default function App() {
   const auth = useAuth();
+  const { tvNavigation } = useSpatialNavigation();
   const [isAuthModalOpen, setIsAuthModalOpen] = React.useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = React.useState(false);
   const [isOnboardingModalOpen, setIsOnboardingModalOpen] = React.useState(() => {
@@ -1777,6 +1780,15 @@ export default function App() {
             setActiveMenu('multiscreen');
           }}
         />
+      )}
+
+      {/* 10-Foot Leanback TV Spatial Navigation Indicator Pill */}
+      {tvNavigation.isEnabled && (
+        <div className="fixed bottom-6 right-6 z-50 pointer-events-none flex items-center gap-2.5 px-3.5 py-2 rounded-2xl bg-zinc-950/90 border border-sky-500/40 shadow-2xl backdrop-blur-md animate-fade-in text-xs font-semibold text-sky-300">
+          <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping" />
+          <span>10-Foot TV Mode Active</span>
+          <span className="text-[10px] text-zinc-400 font-mono hidden sm:inline">(D-Pad / Arrows Navigate • Enter Selects)</span>
+        </div>
       )}
 
     </div>

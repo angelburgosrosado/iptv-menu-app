@@ -5,7 +5,7 @@
 
 import { create } from 'zustand';
 import { MMKV } from 'react-native-mmkv';
-import { AppState, Channel, EpgSource, DvrRecording, Bookmark, PlaylistSubscription, SleepTimerState, AudioDspConfig, AudioDspPreset, AudioDspBands, ParentalControlsConfig, ActiveRecordingState } from '../types/iptv';
+import { AppState, Channel, EpgSource, DvrRecording, Bookmark, PlaylistSubscription, SleepTimerState, AudioDspConfig, AudioDspPreset, AudioDspBands, ParentalControlsConfig, ActiveRecordingState, TvNavigationConfig, SpatialFocusZone } from '../types/iptv';
 import { parseM3U } from '../utils/m3uParser';
 import { buildCountrySections } from '../utils/channelEnrichment';
 import { DEFAULT_DSP_CONFIG, DSP_PRESETS, audioDspEngine } from '../utils/audioDspEngine';
@@ -64,6 +64,15 @@ const DEFAULT_ACTIVE_RECORDING: ActiveRecordingState = {
   bytesRecorded: 0,
   mimeType: 'video/webm',
   maxDurationSeconds: 3600,
+};
+
+const DEFAULT_TV_NAVIGATION: TvNavigationConfig = {
+  isEnabled: false,
+  activeFocusId: null,
+  activeZone: 'channels',
+  highContrastFocusRing: true,
+  soundFeedback: false,
+  debugOverlay: false,
 };
 
 // Pre-provided high-definition royalty-free & public IPTV streams fallback
@@ -199,6 +208,9 @@ export const usePlayerStore = create<AppState>((set, get) => ({
 
   // Live Stream Recording Engine & Local DVR Exporter
   activeRecording: DEFAULT_ACTIVE_RECORDING,
+
+  // 10-Foot Leanback TV Spatial Remote Navigation Engine
+  tvNavigation: DEFAULT_TV_NAVIGATION,
 
   // Country & EPG Backbone enhancements
   countrySections: buildCountrySections(INITIAL_FALLBACK_CHANNELS),
@@ -1134,6 +1146,38 @@ export const usePlayerStore = create<AppState>((set, get) => ({
         status: errorMessage ? 'error' : 'idle',
         isRecording: false,
         error: errorMessage,
+      }
+    });
+  },
+
+  // 10-Foot Leanback TV Spatial Remote Navigation Actions
+  setTvNavigationEnabled: (enabled: boolean) => {
+    set({
+      tvNavigation: {
+        ...get().tvNavigation,
+        isEnabled: enabled,
+      }
+    });
+  },
+
+  setTvFocus: (focusId: string | null, zone?: SpatialFocusZone) => {
+    const current = get().tvNavigation;
+    set({
+      tvNavigation: {
+        ...current,
+        isEnabled: true,
+        activeFocusId: focusId,
+        activeZone: zone || current.activeZone,
+      }
+    });
+  },
+
+  toggleHighContrastFocusRing: () => {
+    const current = get().tvNavigation;
+    set({
+      tvNavigation: {
+        ...current,
+        highContrastFocusRing: !current.highContrastFocusRing,
       }
     });
   },

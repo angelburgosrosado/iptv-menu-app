@@ -329,6 +329,24 @@ export interface AppState {
   updateActiveRecordingProgress: (elapsedSeconds: number, bytesRecorded: number) => void;
   stopActiveRecording: (result?: { blobUrl?: string; downloadFilename?: string; bytesRecorded?: number; elapsedSeconds?: number }) => DvrRecording | null;
   cancelActiveRecording: (errorMessage?: string) => void;
+
+  // 10-Foot Leanback TV Spatial Remote Navigation Engine
+  tvNavigation: TvNavigationConfig;
+  setTvNavigationEnabled: (enabled: boolean) => void;
+  setTvFocus: (focusId: string | null, zone?: SpatialFocusZone) => void;
+  toggleHighContrastFocusRing: () => void;
+}
+
+export type SpatialFocusZone = 'nav' | 'sidebar' | 'channels' | 'player' | 'modal' | 'custom';
+export type SpatialDirection = 'up' | 'down' | 'left' | 'right';
+
+export interface TvNavigationConfig {
+  isEnabled: boolean;
+  activeFocusId: string | null;
+  activeZone: SpatialFocusZone;
+  highContrastFocusRing: boolean;
+  soundFeedback: boolean;
+  debugOverlay: boolean;
 }
 
 export type StreamRecorderStatus = 'idle' | 'recording' | 'stopping' | 'error';
