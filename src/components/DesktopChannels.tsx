@@ -27,6 +27,7 @@ import { Channel } from '../types/iptv';
 import WebCinemaPlayer from './WebCinemaPlayer';
 import CountryChannelSections from './CountryChannelSections';
 import { PageProtocolHeader } from './PageProtocolHeader';
+import { getCountryFlag, normalizeCategory } from '../utils/channelEnrichment';
 
 interface DesktopChannelsProps {
   onSwitchToMultiScreen?: () => void;
@@ -39,11 +40,24 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
   const [viewMode, setViewMode] = React.useState<'grid' | 'list' | 'country'>('grid');
   const [cinemaChannel, setCinemaChannel] = React.useState<Channel | null>(null);
 
-  // Filter channels based on group and full-text search (name, sport, network)
+  // Derive standardized categories from loaded channels
+  const availableCategories = React.useMemo(() => {
+    const cats = new Set<string>();
+    for (const ch of channels) {
+      const norm = ch.category || normalizeCategory(ch.group);
+      if (norm) cats.add(norm);
+    }
+    return Array.from(cats).sort();
+  }, [channels]);
+
+  // Filter channels based on group/category and full-text search (name, category, country, network)
   const filteredChannels = React.useMemo(() => {
     let list = channels;
     if (selectedGroup) {
-      list = list.filter((c) => c.group === selectedGroup);
+      list = list.filter((c) => {
+        const cat = c.category || normalizeCategory(c.group);
+        return c.group === selectedGroup || cat === selectedGroup;
+      });
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -51,6 +65,9 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
         (c) => 
           c.name.toLowerCase().includes(q) || 
           c.group.toLowerCase().includes(q) ||
+          (c.category && c.category.toLowerCase().includes(q)) ||
+          (c.countryName && c.countryName.toLowerCase().includes(q)) ||
+          (c.countryCode && c.countryCode.toLowerCase().includes(q)) ||
           (c.tvgId && c.tvgId.toLowerCase().includes(q))
       );
     }
@@ -196,11 +213,16 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
         </div>
       </div>
 
-      {/* Group Quick Filter Bar */}
+      {/* Group & Genre Quick Filter Bar */}
       <div className="flex flex-col gap-2">
-        <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest px-1">
-          Filter by Group Category
-        </span>
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest px-1">
+            Filter by Genre & Category
+          </span>
+          <span className="text-[10px] text-zinc-500 font-mono">
+            IPTV-Org Standardized Taxonomy
+          </span>
+        </div>
         <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-white/10">
           <button
             onClick={() => setSelectedGroup(null)}
@@ -210,9 +232,9 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
                 : 'bg-white/5 text-zinc-400 border-transparent hover:bg-white/10 hover:text-zinc-200'
             }`}
           >
-            All Categories ({channels.length})
+            All Genres ({channels.length})
           </button>
-          {groups.map((g) => {
+          {availableCategories.map((g) => {
             const isActive = selectedGroup === g;
             return (
               <button
@@ -297,12 +319,22 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
                     <div className="absolute bottom-1 right-1 w-2 h-2 rounded-full bg-emerald-400 health-badge-live" title="Verified Live Stream" />
                   </div>
                   <div className="min-w-0">
-                    <h4 className="text-xs font-bold text-white truncate leading-tight group-hover:text-cyan-400 transition-colors">
-                      {c.name}
+                    <h4 className="text-xs font-bold text-white truncate leading-tight group-hover:text-cyan-400 transition-colors flex items-center gap-1.5">
+                      <span className="text-xs flex-shrink-0" title={`Country: ${c.countryName || c.countryCode || 'International'}`}>
+                        {c.countryFlag || getCountryFlag(c.countryCode)}
+                      </span>
+                      <span className="truncate">{c.name}</span>
                     </h4>
-                    <span className="inline-block text-[9px] px-2 py-0.5 bg-white/5 border border-white/10 rounded-full font-semibold text-zinc-400 mt-1 uppercase tracking-wider">
-                      {c.group}
-                    </span>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className="inline-block text-[9px] px-2 py-0.5 bg-white/5 border border-white/10 rounded-full font-semibold text-zinc-400 uppercase tracking-wider">
+                        {c.category || c.group}
+                      </span>
+                      {c.countryCode && c.countryCode !== 'UN' && (
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-mono font-bold">
+                          {c.countryCode}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -370,12 +402,17 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
                     />
                     <div className="absolute bottom-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400 health-badge-live" />
                   </div>
-                  <h4 className="text-xs font-bold text-white truncate">{c.name}</h4>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-sm flex-shrink-0" title={c.countryName || c.countryCode || 'International'}>
+                      {c.countryFlag || getCountryFlag(c.countryCode)}
+                    </span>
+                    <h4 className="text-xs font-bold text-white truncate">{c.name}</h4>
+                  </div>
                 </div>
 
                 <div className="col-span-3 md:col-span-2 min-w-0">
                   <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block truncate">
-                    {c.group}
+                    {c.category || c.group}
                   </span>
                 </div>
 

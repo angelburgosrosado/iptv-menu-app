@@ -73,6 +73,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   // Country & EPG Backbone enhancements
   countrySections: buildCountrySections(INITIAL_FALLBACK_CHANNELS),
   selectedCountry: null,
+  selectedRegion: null,
   selectedGroup: null,
   searchTerm: '',
   epgSources: [
@@ -89,6 +90,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   playlistUrl: storage.getString('playlistUrl') || DEFAULT_PLAYLIST_URL,
 
   setSelectedCountry: (code: string | null) => set({ selectedCountry: code }),
+  setSelectedRegion: (region: string | null) => set({ selectedRegion: region }),
   setSelectedGroup: (group: string | null) => set({ selectedGroup: group }),
   setSearchTerm: (term: string) => set({ searchTerm: term }),
 

@@ -92,7 +92,7 @@ export default function DesktopEpg() {
       const p2 = storePrograms[1];
       const p3 = storePrograms[2];
 
-      const formatTimeRange = (startStr?: string, stopStr?: string, fallback: string) => {
+      const formatTimeRange = (startStr?: string, stopStr?: string, fallback: string = 'LIVE') => {
         if (!startStr) return fallback;
         try {
           const s = new Date(startStr);

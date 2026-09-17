@@ -7,7 +7,15 @@ import {
   generateCountryMarkup,
   slugify,
   normalize,
-  COUNTRY_NAMES
+  COUNTRY_NAMES,
+  IPTV_ORG_COUNTRIES,
+  IPTV_ORG_CATEGORIES,
+  IPTV_ORG_REGIONS,
+  getCountryFlag,
+  getCountryName,
+  normalizeCategory,
+  getCountriesByRegion,
+  MAJOR_REGIONS
 } from '../src/utils/channelEnrichment';
 import { PlaylistChannel, XmltvProgramme } from '../src/types/iptv';
 
@@ -233,4 +241,61 @@ describe('IPTV Channel Enrichment Engine', () => {
     expect(html).toContain('<h2>United States</h2>');
     expect(html).toContain('PBS News');
   });
+
+  it('should provide complete 250-country dataset with ISO codes and emoji flags', () => {
+    expect(IPTV_ORG_COUNTRIES.length).toBe(250);
+    expect(getCountryFlag('US')).toBe('🇺🇸');
+    expect(getCountryFlag('DO')).toBe('🇩🇴');
+    expect(getCountryFlag('PR')).toBe('🇵🇷');
+    expect(getCountryFlag('MX')).toBe('🇲🇽');
+    expect(getCountryFlag('ES')).toBe('🇪🇸');
+    expect(getCountryFlag('UN')).toBe('🌐');
+    expect(getCountryFlag('nonexistent')).toBe('🌐');
+
+    expect(getCountryName('US')).toBe('United States');
+    expect(getCountryName('DO')).toBe('Dominican Republic');
+    expect(getCountryName('PR')).toBe('Puerto Rico');
+  });
+
+  it('should categorize channels using iptv-org 30 standardized genres', () => {
+    expect(IPTV_ORG_CATEGORIES.length).toBe(30);
+    expect(normalizeCategory('news & politics')).toBe('News');
+    expect(normalizeCategory('LIVE SPORTS HD')).toBe('Sports');
+    expect(normalizeCategory('Cinema Classic Movies')).toBe('Movies');
+    expect(normalizeCategory('kids & cartoons')).toBe('Kids');
+    expect(normalizeCategory('music hits')).toBe('Music');
+    expect(normalizeCategory('documentaries')).toBe('Documentary');
+    expect(normalizeCategory('series hd')).toBe('Series');
+    expect(normalizeCategory('cooking & food')).toBe('Lifestyle');
+    expect(normalizeCategory('unknown tag')).toBe('Unknown tag');
+  });
+
+  it('should resolve regional groupings and filter country codes by region', () => {
+    expect(IPTV_ORG_REGIONS.length).toBeGreaterThanOrEqual(40);
+    expect(MAJOR_REGIONS.length).toBe(8);
+
+    const amerCountries = getCountriesByRegion('AMER');
+    expect(amerCountries).toContain('US');
+    expect(amerCountries).toContain('CA');
+    expect(amerCountries).toContain('MX');
+    expect(amerCountries).toContain('DO');
+
+    const eurCountries = getCountriesByRegion('EUR');
+    expect(eurCountries).toContain('GB');
+    expect(eurCountries).toContain('FR');
+    expect(eurCountries).toContain('DE');
+    expect(eurCountries).toContain('ES');
+  });
+
+  it('should support selectedRegion filter in usePlayerStore', async () => {
+    const { usePlayerStore } = await import('../src/store/usePlayerStore');
+    const store = usePlayerStore.getState();
+
+    store.setSelectedRegion('AMER');
+    expect(usePlayerStore.getState().selectedRegion).toBe('AMER');
+
+    store.setSelectedRegion(null);
+    expect(usePlayerStore.getState().selectedRegion).toBeNull();
+  });
 });
+

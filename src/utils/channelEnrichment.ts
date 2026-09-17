@@ -7,33 +7,132 @@ import {
   PlaylistChannel, 
   CountrySection, 
   XmltvProgramme, 
-  UpgradeAppConfig 
+  UpgradeAppConfig,
+  IptvOrgCountry,
+  IptvOrgCategory,
+  IptvOrgRegion
 } from '../types/iptv';
+import countriesData from '../data/iptv-org/countries.json';
+import categoriesData from '../data/iptv-org/categories.json';
+import regionsData from '../data/iptv-org/regions.json';
 
 export type Json = Record<string, any>;
 
+export const IPTV_ORG_COUNTRIES: IptvOrgCountry[] = countriesData as IptvOrgCountry[];
+export const IPTV_ORG_CATEGORIES: IptvOrgCategory[] = categoriesData as IptvOrgCategory[];
+export const IPTV_ORG_REGIONS: IptvOrgRegion[] = regionsData as IptvOrgRegion[];
+
+export const COUNTRIES_BY_CODE = new Map<string, IptvOrgCountry>(
+  IPTV_ORG_COUNTRIES.map((c) => [c.code.toUpperCase(), c])
+);
+
+export const COUNTRY_FLAGS: Record<string, string> = {};
 export const COUNTRY_NAMES: Record<string, string> = {
-  US: 'United States',
-  CA: 'Canada',
-  MX: 'Mexico',
-  GB: 'United Kingdom',
-  FR: 'France',
-  DE: 'Germany',
-  ES: 'Spain',
-  IT: 'Italy',
-  BR: 'Brazil',
-  IN: 'India',
-  PH: 'Philippines',
-  DO: 'Dominican Republic',
-  PR: 'Puerto Rico',
-  AU: 'Australia',
-  JP: 'Japan',
-  KR: 'South Korea',
-  AR: 'Argentina',
-  CO: 'Colombia',
-  CL: 'Chile',
   UN: 'International / Unknown'
 };
+export const COUNTRY_LANGUAGES: Record<string, string[]> = {};
+
+for (const c of IPTV_ORG_COUNTRIES) {
+  const code = c.code.toUpperCase();
+  COUNTRY_FLAGS[code] = c.flag;
+  COUNTRY_NAMES[code] = c.name;
+  COUNTRY_LANGUAGES[code] = c.languages;
+}
+COUNTRY_FLAGS['UN'] = '🌐';
+
+// Alias standard ISO variants (e.g. GB <-> UK)
+if (COUNTRY_FLAGS['UK'] && !COUNTRY_FLAGS['GB']) {
+  COUNTRY_FLAGS['GB'] = COUNTRY_FLAGS['UK'];
+  COUNTRY_NAMES['GB'] = COUNTRY_NAMES['UK'];
+  COUNTRY_LANGUAGES['GB'] = COUNTRY_LANGUAGES['UK'];
+}
+
+export const REGIONS_BY_CODE = new Map<string, IptvOrgRegion>(
+  IPTV_ORG_REGIONS.map((r) => [r.code.toUpperCase(), r])
+);
+
+// Map each country code to the list of region codes it belongs to
+export const COUNTRY_TO_REGIONS = new Map<string, string[]>();
+for (const region of IPTV_ORG_REGIONS) {
+  for (const countryCode of region.countries) {
+    const code = countryCode.toUpperCase();
+    const current = COUNTRY_TO_REGIONS.get(code) || [];
+    current.push(region.code);
+    COUNTRY_TO_REGIONS.set(code, current);
+    if (code === 'UK') {
+      const gbCurrent = COUNTRY_TO_REGIONS.get('GB') || [];
+      gbCurrent.push(region.code);
+      COUNTRY_TO_REGIONS.set('GB', gbCurrent);
+    }
+  }
+}
+
+export const MAJOR_REGIONS = [
+  { code: 'ALL', name: 'All Regions', icon: '🌍' },
+  { code: 'AMER', name: 'Americas', icon: '🌎' },
+  { code: 'LATAM', name: 'Latin America', icon: '🌎' },
+  { code: 'CARIB', name: 'Caribbean', icon: '🏝️' },
+  { code: 'EUR', name: 'Europe', icon: '🌍' },
+  { code: 'APAC', name: 'Asia-Pacific', icon: '🌏' },
+  { code: 'MIDEAST', name: 'Middle East', icon: '🕌' },
+  { code: 'AFR', name: 'Africa', icon: '🌍' }
+];
+
+export function getCountryFlag(code?: string): string {
+  if (!code) return '🌐';
+  const upper = code.toUpperCase();
+  return COUNTRY_FLAGS[upper] || '🌐';
+}
+
+export function getCountryName(code?: string): string {
+  if (!code) return 'International / Unknown';
+  const upper = code.toUpperCase();
+  return COUNTRY_NAMES[upper] || code;
+}
+
+export function getCountriesByRegion(regionCode: string): string[] {
+  if (!regionCode || regionCode === 'ALL') {
+    return Array.from(new Set([...IPTV_ORG_COUNTRIES.map((c) => c.code.toUpperCase()), 'GB']));
+  }
+  const reg = REGIONS_BY_CODE.get(regionCode.toUpperCase());
+  if (!reg) return [];
+  const list = reg.countries.map((c) => c.toUpperCase());
+  if (list.includes('UK') && !list.includes('GB')) {
+    list.push('GB');
+  }
+  return list;
+}
+
+export function normalizeCategory(groupOrCategory?: string): string {
+  if (!groupOrCategory) return 'General';
+  const clean = groupOrCategory.trim();
+  const lower = clean.toLowerCase();
+
+  // Check direct match in IPTV_ORG_CATEGORIES
+  const direct = IPTV_ORG_CATEGORIES.find(
+    (cat) => cat.id.toLowerCase() === lower || cat.name.toLowerCase() === lower
+  );
+  if (direct) return direct.name;
+
+  // Keyword mapping to standard iptv-org categories
+  if (lower.includes('news')) return 'News';
+  if (lower.includes('sport')) return 'Sports';
+  if (lower.includes('movie') || lower.includes('cinema') || lower.includes('film')) return 'Movies';
+  if (lower.includes('music')) return 'Music';
+  if (lower.includes('kid') || lower.includes('child') || lower.includes('cartoon') || lower.includes('animation')) return 'Kids';
+  if (lower.includes('doc')) return 'Documentary';
+  if (lower.includes('comedy')) return 'Comedy';
+  if (lower.includes('series') || lower.includes('drama')) return 'Series';
+  if (lower.includes('entertain') || lower.includes('variet')) return 'Entertainment';
+  if (lower.includes('religio') || lower.includes('faith')) return 'Religious';
+  if (lower.includes('educat') || lower.includes('science')) return 'Education';
+  if (lower.includes('lifestyle') || lower.includes('cook') || lower.includes('food')) return 'Lifestyle';
+  if (lower.includes('business') || lower.includes('finan')) return 'Business';
+  if (lower.includes('weather')) return 'Weather';
+
+  // Capitalize first letter
+  return clean.charAt(0).toUpperCase() + clean.slice(1);
+}
 
 export const slugify = (value: string): string =>
   value
@@ -101,10 +200,17 @@ export function enrichChannels(
     const keyed = iptvOrgIndex.byNameCountry.get(`${normalize(channel.name)}__${countryCode}`);
     const match = direct || keyed;
 
+    const resolvedCountryCode = match ? String(match.country || countryCode || 'UN').toUpperCase() : (countryCode || 'UN');
+    const flag = getCountryFlag(resolvedCountryCode);
+    const countryName = getCountryName(resolvedCountryCode);
+
     if (!match) {
       return {
         ...channel,
-        countryCode: countryCode || 'UN',
+        countryCode: resolvedCountryCode,
+        countryName: channel.countryName || countryName,
+        countryFlag: channel.countryFlag || flag,
+        category: channel.category || normalizeCategory(channel.group),
         metadataSource: channel.metadataSource || 'playlist'
       };
     }
@@ -115,9 +221,12 @@ export function enrichChannels(
       name: channel.name || match.name,
       logo: channel.logo || match.logo,
       group: channel.group || (Array.isArray(match.categories) ? match.categories.join(';') : match.category),
+      category: channel.category || normalizeCategory(Array.isArray(match.categories) ? match.categories[0] : match.category || channel.group),
       tvgId: channel.tvgId || String(match.id || ''),
       epgChannelId: channel.epgChannelId || String(match.id || ''),
-      countryCode: countryCode || String(match.country || 'UN').toUpperCase(),
+      countryCode: resolvedCountryCode,
+      countryName: channel.countryName || countryName,
+      countryFlag: flag,
       language: channel.language || match.lang,
       metadataSource: 'iptv-org' as const
     };
@@ -126,15 +235,24 @@ export function enrichChannels(
 
 export function buildCountrySections(
   channels: PlaylistChannel[], 
-  countries: Json[] = []
+  countries: Json[] = IPTV_ORG_COUNTRIES
 ): CountrySection[] {
   const names = new Map<string, string>(countries.map((c) => [String(c.code).toUpperCase(), c.name]));
+  const flags = new Map<string, string>(countries.map((c) => [String(c.code).toUpperCase(), c.flag || getCountryFlag(c.code)]));
   const grouped = new Map<string, PlaylistChannel[]>();
 
   for (const channel of channels) {
-    const code = (channel.countryCode || 'UN').toUpperCase();
+    const code = (channel.countryCode || channel.tvgCountry || 'UN').toUpperCase();
     const resolvedCountryName = names.get(code) || COUNTRY_NAMES[code] || code;
+    const resolvedFlag = flags.get(code) || COUNTRY_FLAGS[code] || '🌐';
+
+    channel.countryCode = code;
     channel.countryName = channel.countryName || resolvedCountryName;
+    channel.countryFlag = channel.countryFlag || resolvedFlag;
+    if (!channel.category) {
+      channel.category = normalizeCategory(channel.group);
+    }
+
     if (!grouped.has(code)) grouped.set(code, []);
     grouped.get(code)!.push(channel);
   }
@@ -142,6 +260,12 @@ export function buildCountrySections(
   return [...grouped.entries()]
     .map(([code, list]) => {
       const name = names.get(code) || COUNTRY_NAMES[code] || code;
+      const flag = flags.get(code) || COUNTRY_FLAGS[code] || '🌐';
+      const cObj = COUNTRIES_BY_CODE.get(code);
+      const languages = cObj?.languages || [];
+      const regions = COUNTRY_TO_REGIONS.get(code) || [];
+      const primaryRegion = regions[0] || 'Worldwide';
+
       const featuredLogos = list
         .map((c) => c.logo)
         .filter((logo): logo is string => Boolean(logo && logo.trim()))
@@ -150,6 +274,9 @@ export function buildCountrySections(
       return {
         code,
         name,
+        flag,
+        languages,
+        region: primaryRegion,
         channelCount: list.length,
         channels: list.sort((a, b) => a.name.localeCompare(b.name)),
         featuredLogos

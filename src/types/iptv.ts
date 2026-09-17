@@ -15,6 +15,8 @@ export interface Channel {
   language?: string;
   countryCode?: string;
   countryName?: string;
+  countryFlag?: string;
+  category?: string;
   epgChannelId?: string;
   metadataSource?: 'playlist' | 'iptv-org' | 'manual';
   resolution?: string; // 4K, 1080p, 720p, SD
@@ -34,6 +36,28 @@ export interface CountrySection {
   channelCount: number;
   channels: Channel[];
   featuredLogos: string[];
+  flag?: string;
+  languages?: string[];
+  region?: string;
+}
+
+export interface IptvOrgCountry {
+  name: string;
+  code: string;
+  languages: string[];
+  flag: string;
+}
+
+export interface IptvOrgCategory {
+  id: string;
+  name: string;
+  description: string;
+}
+
+export interface IptvOrgRegion {
+  code: string;
+  name: string;
+  countries: string[];
 }
 
 export interface EpgSource {
@@ -115,6 +139,7 @@ export interface AppState {
   // Country & EPG Backbone enhancements
   countrySections: CountrySection[];
   selectedCountry: string | null;
+  selectedRegion: string | null;
   selectedGroup: string | null;
   searchTerm: string;
   epgSources: EpgSource[];
@@ -130,6 +155,7 @@ export interface AppState {
   setPlaylistUrl: (url: string) => void;
   loadPlaylist: (url?: string) => Promise<void>;
   setSelectedCountry: (code: string | null) => void;
+  setSelectedRegion: (region: string | null) => void;
   setSelectedGroup: (group: string | null) => void;
   setSearchTerm: (term: string) => void;
   loadMetadataBundle: () => Promise<void>;
