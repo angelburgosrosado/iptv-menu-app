@@ -364,5 +364,62 @@ describe('IPTV Channel Enrichment Engine', () => {
     store.setSelectedTimezone(null);
     expect(usePlayerStore.getState().selectedTimezone).toBeNull();
   });
+
+  it('should detect blocked streams via iptv-org blocklist dataset', async () => {
+    const { checkChannelBlocklist, IPTV_ORG_BLOCKLIST, BLOCKLIST_BY_CHANNEL } = await import('../src/utils/channelEnrichment');
+    expect(IPTV_ORG_BLOCKLIST.length).toBeGreaterThan(500);
+    expect(BLOCKLIST_BY_CHANNEL.size).toBeGreaterThan(500);
+
+    // Known blocked items from blocklist
+    const entry = checkChannelBlocklist('21Sextury.us');
+    expect(entry).toBeDefined();
+    expect(entry?.reason).toBe('nsfw');
+    expect(entry?.ref).toContain('github.com/iptv-org/iptv/issues');
+
+    const dmcaEntry = checkChannelBlocklist('5StarMax.us');
+    expect(dmcaEntry).toBeDefined();
+    expect(dmcaEntry?.reason).toBe('dmca');
+
+    // Clean channels
+    expect(checkChannelBlocklist('WAPATV.pr')).toBeUndefined();
+    expect(checkChannelBlocklist('TelemundoPR.pr')).toBeUndefined();
+    expect(checkChannelBlocklist(undefined)).toBeUndefined();
+  });
+
+  it('should annotate channel health and proxy recommendation during enrichment', async () => {
+    const { enrichChannels, buildIptvOrgIndex } = await import('../src/utils/channelEnrichment');
+    const index = buildIptvOrgIndex([]);
+
+    const channels = [
+      {
+        id: 'clean-channel',
+        name: 'Clean Stream',
+        url: 'https://cdn.example.com/live.m3u8',
+        tvgId: 'clean-channel'
+      },
+      {
+        id: 'blocked-channel',
+        name: 'Blocked Channel',
+        url: 'https://cdn.example.com/blocked.m3u8',
+        tvgId: '21Sextury.us'
+      },
+      {
+        id: 'http-channel',
+        name: 'Insecure HTTP Stream',
+        url: 'http://playcom.trapemn.tv:1935/live.m3u8',
+        tvgId: 'insecure-http'
+      }
+    ];
+
+    const enriched = enrichChannels(channels as any, index);
+    expect(enriched[0].healthStatus).toBe('online');
+    expect(enriched[0].corsProxyRecommended).toBe(false);
+
+    expect(enriched[1].healthStatus).toBe('blocked');
+    expect(enriched[1].blockedReason).toBe('nsfw');
+
+    expect(enriched[2].corsProxyRecommended).toBe(true);
+  });
 });
+
 

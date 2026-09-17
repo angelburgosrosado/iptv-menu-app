@@ -29,9 +29,31 @@ export interface Channel {
   codec?: string;      // H.264 / AAC / HEVC
   streamType?: 'live' | 'vod' | 'series';
   directSource?: 'm3u' | 'xtream';
+  healthStatus?: 'online' | 'degraded' | 'blocked' | 'offline';
+  blockedReason?: string;
+  blockedRef?: string;
+  corsProxyRecommended?: boolean;
 }
 
 export type PlaylistChannel = Channel;
+
+export interface IptvOrgBlocklistEntry {
+  channel: string;
+  reason: string;
+  ref: string;
+}
+
+export interface StreamHealthMetric {
+  channelId: string;
+  url: string;
+  status: 'online' | 'degraded' | 'blocked' | 'offline';
+  latencyMs?: number;
+  httpStatus?: number;
+  contentType?: string;
+  isHls?: boolean;
+  blockedReason?: string;
+  lastChecked: number;
+}
 
 export interface CountrySection {
   code: string;

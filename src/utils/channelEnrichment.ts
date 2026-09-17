@@ -21,6 +21,8 @@ import regionsData from '../data/iptv-org/regions.json';
 import languagesData from '../data/iptv-org/languages.json';
 import timezonesData from '../data/iptv-org/timezones.json';
 import subdivisionsData from '../data/iptv-org/subdivisions.json';
+import blocklistData from '../data/iptv-org/blocklist.json';
+import { IptvOrgBlocklistEntry } from '../types/iptv';
 
 export type Json = Record<string, any>;
 
@@ -30,6 +32,19 @@ export const IPTV_ORG_REGIONS: IptvOrgRegion[] = regionsData as IptvOrgRegion[];
 export const IPTV_ORG_LANGUAGES: IptvOrgLanguage[] = languagesData as IptvOrgLanguage[];
 export const IPTV_ORG_TIMEZONES: IptvOrgTimezone[] = timezonesData as IptvOrgTimezone[];
 export const IPTV_ORG_SUBDIVISIONS: IptvOrgSubdivision[] = subdivisionsData as IptvOrgSubdivision[];
+export const IPTV_ORG_BLOCKLIST: IptvOrgBlocklistEntry[] = blocklistData as IptvOrgBlocklistEntry[];
+
+export const BLOCKLIST_BY_CHANNEL = new Map<string, IptvOrgBlocklistEntry>();
+for (const entry of IPTV_ORG_BLOCKLIST) {
+  if (entry.channel) {
+    BLOCKLIST_BY_CHANNEL.set(entry.channel.toLowerCase(), entry);
+  }
+}
+
+export function checkChannelBlocklist(channelId?: string): IptvOrgBlocklistEntry | undefined {
+  if (!channelId) return undefined;
+  return BLOCKLIST_BY_CHANNEL.get(channelId.toLowerCase());
+}
 
 export const COUNTRIES_BY_CODE = new Map<string, IptvOrgCountry>(
   IPTV_ORG_COUNTRIES.map((c) => [c.code.toUpperCase(), c])
@@ -303,6 +318,11 @@ export function enrichChannels(
     const langName = getLanguageName(lang);
     const tz = channel.timezone || getTimezonesForCountry(resolvedCountryCode)[0]?.id;
 
+    // Check blocklist diagnostics
+    const blockCheck = checkChannelBlocklist(channel.tvgId) || checkChannelBlocklist(match?.id) || checkChannelBlocklist(channel.id);
+    const healthStatus = blockCheck ? 'blocked' : (channel.healthStatus || 'online');
+    const isHttpNonSecure = channel.url?.startsWith('http://');
+
     if (!match) {
       return {
         ...channel,
@@ -313,6 +333,10 @@ export function enrichChannels(
         language: lang,
         languageName: channel.languageName || langName,
         timezone: tz,
+        healthStatus,
+        blockedReason: blockCheck?.reason,
+        blockedRef: blockCheck?.ref,
+        corsProxyRecommended: isHttpNonSecure || !!channel.corsProxyRecommended,
         metadataSource: channel.metadataSource || 'playlist'
       };
     }
@@ -332,6 +356,10 @@ export function enrichChannels(
       language: lang,
       languageName: channel.languageName || langName,
       timezone: tz,
+      healthStatus,
+      blockedReason: blockCheck?.reason,
+      blockedRef: blockCheck?.ref,
+      corsProxyRecommended: isHttpNonSecure || !!channel.corsProxyRecommended,
       metadataSource: 'iptv-org' as const
     };
   });
@@ -357,6 +385,13 @@ export function buildCountrySections(
     channel.countryFlag = channel.countryFlag || resolvedFlag;
     channel.languageName = channel.languageName || getLanguageName(resolvedLang);
     channel.timezone = channel.timezone || getTimezonesForCountry(code)[0]?.id;
+
+    const blockCheck = checkChannelBlocklist(channel.tvgId) || checkChannelBlocklist(channel.id);
+    channel.healthStatus = blockCheck ? 'blocked' : (channel.healthStatus || 'online');
+    channel.blockedReason = channel.blockedReason || blockCheck?.reason;
+    channel.blockedRef = channel.blockedRef || blockCheck?.ref;
+    channel.corsProxyRecommended = channel.url?.startsWith('http://') || !!channel.corsProxyRecommended;
+
     if (!channel.category) {
       channel.category = normalizeCategory(channel.group);
     }

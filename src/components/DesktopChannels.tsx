@@ -367,7 +367,13 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
                       }}
                       className="w-full h-full object-contain"
                     />
-                    <div className="absolute bottom-1 right-1 w-2 h-2 rounded-full bg-emerald-400 health-badge-live" title="Verified Live Stream" />
+                    <div className="absolute bottom-1 right-1 w-2.5 h-2.5 rounded-full border border-black/80"
+                      title={c.healthStatus === 'blocked' ? `Flagged in Blocklist: ${c.blockedReason || 'Policy restriction'}` : 'Verified Live Stream'}
+                    >
+                      <div className={`w-full h-full rounded-full ${
+                        c.healthStatus === 'blocked' ? 'bg-amber-400' : 'bg-emerald-400 health-badge-live'
+                      }`} />
+                    </div>
                   </div>
                   <div className="min-w-0">
                     <h4 className="text-xs font-bold text-white truncate leading-tight group-hover:text-cyan-400 transition-colors flex items-center gap-1.5">
@@ -376,7 +382,7 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
                       </span>
                       <span className="truncate">{c.name}</span>
                     </h4>
-                    <div className="flex items-center gap-1.5 mt-1">
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                       <span className="inline-block text-[9px] px-2 py-0.5 bg-white/5 border border-white/10 rounded-full font-semibold text-zinc-400 uppercase tracking-wider">
                         {c.category || c.group}
                       </span>
@@ -388,6 +394,16 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
                       {(c.languageName || c.language) && (
                         <span className="text-[9px] px-1.5 py-0.2 rounded bg-white/5 text-zinc-400 border border-white/5 font-medium truncate max-w-[100px]" title={`Language: ${c.languageName || getLanguageName(c.language)}`}>
                           {c.languageName || getLanguageName(c.language)}
+                        </span>
+                      )}
+                      {c.healthStatus === 'blocked' && (
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 font-mono font-bold" title={c.blockedReason}>
+                          {c.blockedReason ? c.blockedReason.toUpperCase() : 'FLAGGED'}
+                        </span>
+                      )}
+                      {c.corsProxyRecommended && (
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20 font-mono text-[8px]" title="CORS & Mixed-Content Protected via Gateway">
+                          PROXY
                         </span>
                       )}
                     </div>
@@ -456,13 +472,29 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
                       }}
                       className="w-full h-full object-contain"
                     />
-                    <div className="absolute bottom-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400 health-badge-live" />
+                    <div className="absolute bottom-0.5 right-0.5 w-2 h-2 rounded-full border border-black/80"
+                      title={c.healthStatus === 'blocked' ? `Flagged: ${c.blockedReason}` : 'Online Live Stream'}
+                    >
+                      <div className={`w-full h-full rounded-full ${
+                        c.healthStatus === 'blocked' ? 'bg-amber-400' : 'bg-emerald-400 health-badge-live'
+                      }`} />
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 min-w-0">
+                  <div className="flex items-center gap-2 min-w-0 flex-wrap">
                     <span className="text-sm flex-shrink-0" title={c.countryName || c.countryCode || 'International'}>
                       {c.countryFlag || getCountryFlag(c.countryCode)}
                     </span>
                     <h4 className="text-xs font-bold text-white truncate">{c.name}</h4>
+                    {c.healthStatus === 'blocked' && (
+                      <span className="text-[8px] px-1 py-0.2 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 font-mono font-bold">
+                        {c.blockedReason ? c.blockedReason.toUpperCase() : 'FLAGGED'}
+                      </span>
+                    )}
+                    {c.corsProxyRecommended && (
+                      <span className="text-[8px] px-1 py-0.2 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20 font-mono">
+                        PROXY
+                      </span>
+                    )}
                   </div>
                 </div>
 

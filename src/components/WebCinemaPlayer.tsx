@@ -120,9 +120,37 @@ export default function WebCinemaPlayer({
               <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
                 {currentChannel.group || 'Live TV'}
               </span>
+              {currentChannel.healthStatus === 'blocked' ? (
+                <span className="text-[10px] uppercase font-mono font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20" title={currentChannel.blockedReason}>
+                  FLAGGED: {currentChannel.blockedReason?.toUpperCase() || 'RESTRICTED'}
+                </span>
+              ) : (
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span>ONLINE</span>
+                </span>
+              )}
+              {currentChannel.corsProxyRecommended && (
+                <span className="text-[10px] uppercase font-mono font-bold tracking-wider px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/20" title="Routed via Node.js Stream Proxy Gateway">
+                  GATEWAY PROXY
+                </span>
+              )}
+              {currentChannel.resolution && (
+                <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-white/5 text-zinc-300 border border-white/10">
+                  {currentChannel.resolution}
+                </span>
+              )}
             </div>
-            <p className="text-[11px] text-zinc-400">
-              Channel {currentIndex + 1} of {channels.length} • Use <span className="text-blue-400 font-bold">↑ ↓</span> to switch channels
+            <p className="text-[11px] text-zinc-400 flex items-center gap-2">
+              <span>Channel {currentIndex + 1} of {channels.length}</span>
+              <span>•</span>
+              <span>Use <strong className="text-blue-400 font-bold">↑ ↓</strong> to switch</span>
+              {currentChannel.countryName && (
+                <>
+                  <span>•</span>
+                  <span>{currentChannel.countryFlag} {currentChannel.countryName}</span>
+                </>
+              )}
             </p>
           </div>
         </div>
