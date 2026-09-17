@@ -25,7 +25,10 @@ import {
   Download,
   Tag,
   ArrowUpDown,
-  PictureInPicture
+  PictureInPicture,
+  SlidersHorizontal,
+  HelpCircle,
+  X
 } from 'lucide-react';
 import { Channel } from '../types/iptv';
 import WebCinemaPlayer from './WebCinemaPlayer';
@@ -33,6 +36,7 @@ import CountryChannelSections from './CountryChannelSections';
 import { PageProtocolHeader } from './PageProtocolHeader';
 import { downloadM3UFile } from '../utils/m3uParser';
 import { ChannelTagModal } from './ChannelTagModal';
+import { parseSearchQuery, matchChannelWithQuery } from '../utils/searchQueryParser';
 import { 
   getCountryFlag, 
   normalizeCategory, 
@@ -67,12 +71,15 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
     error
   } = usePlayerStore();
   const [searchQuery, setSearchQuery] = React.useState('');
+  const [showSyntaxHelp, setShowSyntaxHelp] = React.useState(false);
   const [selectedGroup, setSelectedGroup] = React.useState<string | null>(null);
   const [viewMode, setViewMode] = React.useState<'grid' | 'list' | 'country'>('grid');
   const [cinemaChannel, setCinemaChannel] = React.useState<Channel | null>(null);
   const [sortMode, setSortMode] = React.useState<'default' | 'name-asc' | 'name-desc' | 'health' | 'country'>('default');
   const [selectedCustomTag, setSelectedCustomTag] = React.useState<string | null>(null);
   const [taggingChannel, setTaggingChannel] = React.useState<Channel | null>(null);
+
+  const parsedSearch = React.useMemo(() => parseSearchQuery(searchQuery), [searchQuery]);
 
   const allCustomTags = React.useMemo(() => {
     return getAllUniqueCustomTags();
@@ -130,20 +137,7 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
       });
     }
     if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      list = list.filter(
-        (c) => 
-          c.name.toLowerCase().includes(q) || 
-          c.group.toLowerCase().includes(q) ||
-          (c.category && c.category.toLowerCase().includes(q)) ||
-          (c.countryName && c.countryName.toLowerCase().includes(q)) ||
-          (c.countryCode && c.countryCode.toLowerCase().includes(q)) ||
-          (c.languageName && c.languageName.toLowerCase().includes(q)) ||
-          (c.language && c.language.toLowerCase().includes(q)) ||
-          (c.tvgId && c.tvgId.toLowerCase().includes(q)) ||
-          (c.subdivision && c.subdivision.toLowerCase().includes(q)) ||
-          (customTags[c.id] && customTags[c.id].some((t) => t.toLowerCase().includes(q)))
-      );
+      list = list.filter((c) => matchChannelWithQuery(c, parsedSearch, customTags[c.id] || []));
     }
 
     // Apply Sorting Mode
@@ -320,16 +314,196 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
           </button>
         </div>
 
-        <div className="relative w-full md:w-80">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
-          <input
-            type="text"
-            placeholder="Search by name, sport, or network..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-[#16161a] hover:bg-[#1c1c21] focus:bg-black border border-white/10 focus:border-cyan-500/50 rounded-xl text-xs text-white outline-none placeholder-zinc-500 transition-all font-sans"
-            aria-label="Full-text channel search"
-          />
+        <div className="flex flex-col gap-2 w-full md:w-96 relative">
+          <div className="relative w-full">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search or syntax (e.g. country:us quality:hd tag:sports)..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-16 py-2 bg-[#16161a] hover:bg-[#1c1c21] focus:bg-black border border-white/10 focus:border-cyan-500/50 rounded-xl text-xs text-white outline-none placeholder-zinc-500 transition-all font-sans shadow-inner"
+              aria-label="Advanced search query"
+            />
+            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="p-1 rounded-md text-zinc-500 hover:text-white hover:bg-white/10 transition-colors"
+                  title="Clear search"
+                  aria-label="Clear search"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowSyntaxHelp((prev) => !prev)}
+                className={`p-1 rounded-md border transition-all ${
+                  showSyntaxHelp
+                    ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
+                    : 'text-zinc-400 hover:text-white border-transparent hover:bg-white/10'
+                }`}
+                title="Syntax Filter Guide (country:, lang:, quality:, tag:)"
+                aria-label="Toggle search syntax guide"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Syntax Help Guide Popover */}
+          {showSyntaxHelp && (
+            <div className="absolute top-full right-0 mt-2 w-80 sm:w-96 bg-zinc-950/95 backdrop-blur-xl border border-white/15 rounded-2xl p-3.5 shadow-2xl z-30 flex flex-col gap-2.5 text-left text-xs animate-in fade-in duration-150">
+              <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                <div className="flex items-center gap-1.5 text-cyan-400 font-bold">
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Advanced Search Syntax</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowSyntaxHelp(false)}
+                  className="text-zinc-500 hover:text-white p-0.5 rounded"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-1.5 text-[11px] font-mono text-zinc-300">
+                <div className="flex items-center justify-between">
+                  <code className="text-cyan-300 bg-cyan-500/10 px-1.5 py-0.5 rounded">country:us</code>
+                  <span className="text-zinc-400 font-sans text-[10px]">Filter by ISO country code</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <code className="text-cyan-300 bg-cyan-500/10 px-1.5 py-0.5 rounded">lang:en</code>
+                  <span className="text-zinc-400 font-sans text-[10px]">Filter by broadcast language</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <code className="text-cyan-300 bg-cyan-500/10 px-1.5 py-0.5 rounded">quality:4k / quality:hd</code>
+                  <span className="text-zinc-400 font-sans text-[10px]">Filter stream resolution</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <code className="text-cyan-300 bg-cyan-500/10 px-1.5 py-0.5 rounded">tag:sports</code>
+                  <span className="text-zinc-400 font-sans text-[10px]">Filter by custom user tag</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <code className="text-cyan-300 bg-cyan-500/10 px-1.5 py-0.5 rounded">group:news</code>
+                  <span className="text-zinc-400 font-sans text-[10px]">Category or channel group</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <code className="text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded">-status:blocked</code>
+                  <span className="text-zinc-400 font-sans text-[10px]">Exclude flagged/blocked</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <code className="text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded">-country:ru</code>
+                  <span className="text-zinc-400 font-sans text-[10px]">Exclude country code</span>
+                </div>
+              </div>
+
+              {/* Quick Preset Injectors */}
+              <div className="border-t border-white/10 pt-2 flex flex-col gap-1">
+                <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Quick Filters</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { label: '4K Streams', query: 'quality:4k' },
+                    { label: 'US HD', query: 'country:us quality:hd' },
+                    { label: 'English News', query: 'lang:en group:news' },
+                    { label: 'Verified Only', query: '-status:blocked' },
+                  ].map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery((prev) => (prev ? `${prev.trim()} ${preset.query}` : preset.query));
+                      }}
+                      className="px-2 py-0.5 rounded bg-white/5 hover:bg-cyan-500/20 text-zinc-300 hover:text-cyan-300 border border-white/10 text-[10px] font-semibold transition-colors"
+                    >
+                      + {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Active Filter Badges */}
+          {parsedSearch.hasFilters && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {parsedSearch.countries.map((c) => (
+                <span key={c} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-cyan-500/15 border border-cyan-500/30 text-[10px] font-bold text-cyan-300">
+                  Country: {c}
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery((prev) => prev.replace(new RegExp(`\\b(country|cc):${c}\\b`, 'gi'), '').trim())}
+                    className="hover:text-white"
+                  >
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </span>
+              ))}
+              {parsedSearch.languages.map((l) => (
+                <span key={l} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-500/15 border border-blue-500/30 text-[10px] font-bold text-blue-300">
+                  Lang: {l}
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery((prev) => prev.replace(new RegExp(`\\b(lang|language):${l}\\b`, 'gi'), '').trim())}
+                    className="hover:text-white"
+                  >
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </span>
+              ))}
+              {parsedSearch.qualities.map((q) => (
+                <span key={q} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-500/15 border border-purple-500/30 text-[10px] font-bold text-purple-300">
+                  Quality: {q.toUpperCase()}
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery((prev) => prev.replace(new RegExp(`\\b(quality|res|resolution):${q}\\b`, 'gi'), '').trim())}
+                    className="hover:text-white"
+                  >
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </span>
+              ))}
+              {parsedSearch.tags.map((t) => (
+                <span key={t} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-[10px] font-bold text-amber-300">
+                  Tag: #{t}
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery((prev) => prev.replace(new RegExp(`\\btag:${t}\\b`, 'gi'), '').trim())}
+                    className="hover:text-white"
+                  >
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </span>
+              ))}
+              {parsedSearch.groups.map((g) => (
+                <span key={g} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-[10px] font-bold text-emerald-300">
+                  Group: {g}
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery((prev) => prev.replace(new RegExp(`\\b(group|cat|category):${g}\\b`, 'gi'), '').trim())}
+                    className="hover:text-white"
+                  >
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </span>
+              ))}
+              {parsedSearch.negatedCountries.map((nc) => (
+                <span key={nc} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-500/15 border border-rose-500/30 text-[10px] font-bold text-rose-300">
+                  Exclude: {nc}
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery((prev) => prev.replace(new RegExp(`-(country|cc):${nc}\\b`, 'gi'), '').trim())}
+                    className="hover:text-white"
+                  >
+                    <X className="w-2.5 h-2.5" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
