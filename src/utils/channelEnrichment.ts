@@ -324,7 +324,7 @@ export function buildIptvOrgIndex(records: Json[]) {
 
 export function enrichChannels(
   channels: PlaylistChannel[], 
-  iptvOrgIndex: ReturnType<typeof buildIptvOrgIndex>
+  iptvOrgIndex: ReturnType<typeof buildIptvOrgIndex> = { byId: new Map(), byNameCountry: new Map() }
 ): PlaylistChannel[] {
   return channels.map((channel) => {
     const tvgId = channel.tvgId || channel.epgChannelId || '';
@@ -359,6 +359,8 @@ export function enrichChannels(
         blockedReason: blockCheck?.reason,
         blockedRef: blockCheck?.ref,
         corsProxyRecommended: isHttpNonSecure || !!channel.corsProxyRecommended,
+        alternateUrls: channel.alternateUrls,
+        feedQuality: channel.feedQuality,
         metadataSource: channel.metadataSource || 'playlist'
       };
     }
@@ -382,6 +384,8 @@ export function enrichChannels(
       blockedReason: blockCheck?.reason,
       blockedRef: blockCheck?.ref,
       corsProxyRecommended: isHttpNonSecure || !!channel.corsProxyRecommended,
+      alternateUrls: channel.alternateUrls,
+      feedQuality: channel.feedQuality,
       metadataSource: 'iptv-org' as const
     };
   });

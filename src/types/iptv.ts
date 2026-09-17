@@ -33,6 +33,8 @@ export interface Channel {
   blockedReason?: string;
   blockedRef?: string;
   corsProxyRecommended?: boolean;
+  alternateUrls?: string[];
+  feedQuality?: 'auto' | 'fhd' | 'hd' | 'sd' | 'backup';
 }
 
 export type PlaylistChannel = Channel;

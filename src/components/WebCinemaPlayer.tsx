@@ -135,6 +135,11 @@ export default function WebCinemaPlayer({
                   GATEWAY PROXY
                 </span>
               )}
+              {currentChannel.alternateUrls && currentChannel.alternateUrls.length > 0 && (
+                <span className="text-[10px] uppercase font-mono font-bold tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/20" title={`${currentChannel.alternateUrls.length + 1} stream feeds available`}>
+                  {currentChannel.alternateUrls.length + 1} FEEDS
+                </span>
+              )}
               {currentChannel.resolution && (
                 <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-white/5 text-zinc-300 border border-white/10">
                   {currentChannel.resolution}
@@ -237,6 +242,8 @@ export default function WebCinemaPlayer({
               streamUrl={currentChannel.url}
               channelName={currentChannel.name}
               groupTitle={currentChannel.group}
+              alternateUrls={currentChannel.alternateUrls}
+              corsProxyRecommended={currentChannel.corsProxyRecommended}
               onNextChannel={handleNextChannel}
               onPrevChannel={handlePrevChannel}
               enableKeyboardNavigation={!showChannelDrawer}

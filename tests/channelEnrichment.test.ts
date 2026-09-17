@@ -464,6 +464,40 @@ describe('IPTV Channel Enrichment Engine', () => {
     store.setSelectedCountry(null);
     expect(usePlayerStore.getState().selectedCountry).toBeNull();
   });
+
+  it('should preserve and enrich alternateUrls and feedQuality for multi-stream channels', () => {
+    const rawChannels: PlaylistChannel[] = [
+      {
+        id: 'stream-multi-1',
+        name: 'Multi-Feed Sports',
+        url: 'https://cdn1.live.tv/primary.m3u8',
+        group: 'Sports',
+        tvgId: 'multi-sports',
+        alternateUrls: [
+          'https://cdn2.live.tv/backup-hd.m3u8',
+          'https://cdn3.live.tv/backup-sd.m3u8'
+        ],
+        feedQuality: 'fhd'
+      },
+      {
+        id: 'stream-single-1',
+        name: 'Single Feed News',
+        url: 'https://news.tv/live.m3u8',
+        group: 'News',
+        tvgId: 'single-news'
+      }
+    ];
+
+    const enriched = enrichChannels(rawChannels);
+
+    expect(enriched[0].alternateUrls).toEqual([
+      'https://cdn2.live.tv/backup-hd.m3u8',
+      'https://cdn3.live.tv/backup-sd.m3u8'
+    ]);
+    expect(enriched[0].feedQuality).toBe('fhd');
+    expect(enriched[1].alternateUrls).toBeUndefined();
+    expect(enriched[1].feedQuality).toBeUndefined();
+  });
 });
 
 

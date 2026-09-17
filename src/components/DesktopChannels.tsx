@@ -477,6 +477,11 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
                           PROXY
                         </span>
                       )}
+                      {c.alternateUrls && c.alternateUrls.length > 0 && (
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 font-mono font-bold text-[8px]" title={`${c.alternateUrls.length + 1} broadcast feeds available`}>
+                          {c.alternateUrls.length + 1} FEEDS
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -564,6 +569,11 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
                     {c.corsProxyRecommended && (
                       <span className="text-[8px] px-1 py-0.2 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20 font-mono">
                         PROXY
+                      </span>
+                    )}
+                    {c.alternateUrls && c.alternateUrls.length > 0 && (
+                      <span className="text-[8px] px-1 py-0.2 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 font-mono font-bold">
+                        {c.alternateUrls.length + 1} FEEDS
                       </span>
                     )}
                   </div>

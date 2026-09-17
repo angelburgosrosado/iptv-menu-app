@@ -19,28 +19,61 @@ import {
   Tv,
   Airplay,
   Radio,
-  Sliders
+  Sliders,
+  Layers,
+  ShieldAlert,
+  Server
 } from 'lucide-react';
 
 interface VideoPlayerProps {
   streamUrl: string;
   channelName: string;
   groupTitle?: string;
+  alternateUrls?: string[];
+  corsProxyRecommended?: boolean;
   onBackPress?: () => void;
   onNextChannel?: () => void;
   onPrevChannel?: () => void;
   enableKeyboardNavigation?: boolean;
+  onStreamSourceChange?: (url: string, index: number, isProxy: boolean) => void;
 }
 
 export function VideoPlayer({ 
   streamUrl, 
   channelName, 
   groupTitle,
+  alternateUrls = [],
+  corsProxyRecommended = false,
   onBackPress,
   onNextChannel,
   onPrevChannel,
-  enableKeyboardNavigation = true
+  enableKeyboardNavigation = true,
+  onStreamSourceChange
 }: VideoPlayerProps) {
+  // Build deduplicated list of stream candidates
+  const streamCandidates = React.useMemo(() => {
+    const list: string[] = [];
+    if (streamUrl && streamUrl.trim()) list.push(streamUrl.trim());
+    for (const alt of alternateUrls) {
+      if (alt && alt.trim() && !list.includes(alt.trim())) {
+        list.push(alt.trim());
+      }
+    }
+    return list;
+  }, [streamUrl, alternateUrls]);
+
+  const [activeCandidateIndex, setActiveCandidateIndex] = React.useState(0);
+  const [isUsingProxyRelay, setIsUsingProxyRelay] = React.useState(corsProxyRecommended);
+
+  // Compute actual active stream URL (either candidate or proxy wrapped)
+  const activeRawUrl = streamCandidates[activeCandidateIndex] || streamUrl;
+  const activeEffectiveUrl = React.useMemo(() => {
+    if (isUsingProxyRelay && !activeRawUrl.includes('/api/stream/proxy')) {
+      return `/api/stream/proxy?url=${encodeURIComponent(activeRawUrl)}`;
+    }
+    return activeRawUrl;
+  }, [activeRawUrl, isUsingProxyRelay]);
+
   const [isPlaying, setIsPlaying] = React.useState(true);
   const [isMuted, setIsMuted] = React.useState(false);
   const [volume, setVolume] = React.useState(1.0);
@@ -58,7 +91,7 @@ export function VideoPlayer({
   const channelHudTimeout = React.useRef<any>(null);
 
   // Initialize the native expo-video controller (or shimmed counterpart)
-  const player = useVideoPlayer({ uri: streamUrl }, (playerRef) => {
+  const player = useVideoPlayer({ uri: activeEffectiveUrl }, (playerRef) => {
     playerRef.play();
   });
 
@@ -139,17 +172,52 @@ export function VideoPlayer({
     }
   };
 
-  // Perform HLS Stream Error Recovery / Reload
+  // Switch stream source candidate or toggle proxy relay
+  const switchCandidate = (nextIndex: number, useProxy = isUsingProxyRelay) => {
+    if (nextIndex < 0 || nextIndex >= streamCandidates.length) return;
+    setActiveCandidateIndex(nextIndex);
+    setIsUsingProxyRelay(useProxy);
+    setHasError(false);
+    setIsLoading(true);
+    setRetryCount((prev) => prev + 1);
+
+    const targetRaw = streamCandidates[nextIndex];
+    const targetUrl = useProxy && !targetRaw.includes('/api/stream/proxy')
+      ? `/api/stream/proxy?url=${encodeURIComponent(targetRaw)}`
+      : targetRaw;
+
+    const decodedUrl = decodeURI(targetUrl);
+    player.replace({ uri: decodedUrl });
+    player.play();
+    setIsPlaying(true);
+    triggerChannelHud(`Feed ${nextIndex + 1}/${streamCandidates.length}${useProxy ? ' (Proxy)' : ''}`);
+    onStreamSourceChange?.(targetRaw, nextIndex, useProxy);
+  };
+
+  // Perform HLS Stream Error Recovery / Reload / Cascade
   const handleReloadStream = () => {
     setHasError(false);
     setIsLoading(true);
     setRetryCount((prev) => prev + 1);
     
     // Force native stream reload
-    const decodedUrl = decodeURI(streamUrl);
+    const decodedUrl = decodeURI(activeEffectiveUrl);
     player.replace({ uri: decodedUrl });
     player.play();
     setIsPlaying(true);
+  };
+
+  // Attempt next alternate feed candidate on failure
+  const handleTryNextCandidate = () => {
+    if (activeCandidateIndex + 1 < streamCandidates.length) {
+      switchCandidate(activeCandidateIndex + 1, false);
+    } else if (!isUsingProxyRelay) {
+      // If all direct candidate streams failed, attempt proxy relay on primary stream
+      switchCandidate(0, true);
+    } else {
+      // Exhausted all candidate streams and proxy relay
+      handleReloadStream();
+    }
   };
 
   const [videoEl, setVideoEl] = React.useState<HTMLVideoElement | null>(() => player._videoRef?.current || null);
@@ -215,7 +283,7 @@ export function VideoPlayer({
       videoEl.removeEventListener('error', onError);
       videoEl.removeEventListener('loadedmetadata', onLoad);
     };
-  }, [videoEl, retryCount]);
+  }, [videoEl, retryCount, activeEffectiveUrl]);
 
   // 10-Foot D-Pad & TV Remote / Keyboard Navigation Listener
   React.useEffect(() => {
@@ -325,16 +393,71 @@ export function VideoPlayer({
           <AlertCircle size={42} color="#ef4444" />
           <Text style={styles.errorText}>Stream Temporarily Offline</Text>
           <Text style={styles.errorDetails}>
-            This upstream feed is currently unreachable or locked by the provider (e.g. connection limit, IP restriction, or stream offline).
+            {streamCandidates.length > 1
+              ? `Feed ${activeCandidateIndex + 1} of ${streamCandidates.length} is unreachable. You can switch to an alternate broadcast feed or route through the proxy relay.`
+              : 'This upstream feed is currently unreachable or locked by the provider (e.g. connection limit, IP restriction, or stream offline).'}
           </Text>
-          <View style={{ flexDirection: 'row', gap: 12, marginTop: 8 }}>
+
+          {/* Alternate candidate quick pills if multiple feeds are available */}
+          {streamCandidates.length > 1 && (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginBottom: 16 }}>
+              {streamCandidates.map((_, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={[
+                    styles.candidatePill,
+                    activeCandidateIndex === idx && styles.candidatePillActive
+                  ]}
+                  onPress={() => switchCandidate(idx, isUsingProxyRelay)}
+                  activeOpacity={0.7}
+                >
+                  <Layers size={12} color={activeCandidateIndex === idx ? '#60a5fa' : '#94a3b8'} />
+                  <Text style={[
+                    styles.candidatePillText,
+                    activeCandidateIndex === idx && styles.candidatePillTextActive
+                  ]}>
+                    Feed {idx + 1} {idx === 0 ? '(Primary)' : `(Alt ${idx})`}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center', marginTop: 4 }}>
+            {streamCandidates.length > 1 && (
+              <TouchableOpacity
+                style={[styles.retryButton, { backgroundColor: '#0284c7' }]}
+                onPress={handleTryNextCandidate}
+                activeOpacity={0.7}
+              >
+                <Layers size={16} color="#ffffff" />
+                <Text style={styles.retryButtonText}>
+                  {activeCandidateIndex + 1 < streamCandidates.length ? 'Try Next Feed' : 'Try Feed 1 via Proxy'}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              style={[
+                styles.retryButton,
+                isUsingProxyRelay ? { backgroundColor: '#9333ea' } : { backgroundColor: '#374151' }
+              ]}
+              onPress={() => switchCandidate(activeCandidateIndex, !isUsingProxyRelay)}
+              activeOpacity={0.7}
+            >
+              <Server size={16} color="#ffffff" />
+              <Text style={styles.retryButtonText}>
+                {isUsingProxyRelay ? 'Proxy Active (Disable)' : 'Route via Proxy'}
+              </Text>
+            </TouchableOpacity>
+
             <TouchableOpacity
               style={styles.retryButton}
               onPress={handleReloadStream}
               activeOpacity={0.7}
             >
               <RotateCcw size={16} color="#ffffff" />
-              <Text style={styles.retryButtonText}>Retry Stream</Text>
+              <Text style={styles.retryButtonText}>Retry Feed</Text>
             </TouchableOpacity>
 
             {onNextChannel && (
@@ -405,6 +528,36 @@ export function VideoPlayer({
 
             <TouchableOpacity onPress={toggleMute} style={styles.hudIconBtn} title="Mute (M)">
               {isMuted ? <VolumeX size={20} color="#ef4444" /> : <Volume2 size={20} color="#ffffff" />}
+            </TouchableOpacity>
+
+            {/* Multi-Feed Candidate Cycle Button */}
+            {streamCandidates.length > 1 && (
+              <TouchableOpacity 
+                onPress={() => switchCandidate((activeCandidateIndex + 1) % streamCandidates.length, isUsingProxyRelay)} 
+                style={[styles.hudIconBtn, styles.hudFeedBadge]} 
+                title="Cycle Alternate Broadcast Feeds"
+              >
+                <Layers size={14} color="#60a5fa" />
+                <Text style={styles.hudFeedBadgeText}>Feed {activeCandidateIndex + 1}/{streamCandidates.length}</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Gateway Proxy Toggle Button */}
+            <TouchableOpacity 
+              onPress={() => switchCandidate(activeCandidateIndex, !isUsingProxyRelay)} 
+              style={[
+                styles.hudIconBtn, 
+                isUsingProxyRelay ? styles.hudProxyBadgeActive : styles.hudProxyBadgeInactive
+              ]} 
+              title={isUsingProxyRelay ? "Relayed via Proxy Gateway (Click to use direct stream)" : "Direct Stream (Click to route via Proxy Gateway)"}
+            >
+              <Server size={14} color={isUsingProxyRelay ? "#c084fc" : "#94a3b8"} />
+              <Text style={[
+                styles.hudProxyBadgeText,
+                isUsingProxyRelay ? { color: "#c084fc" } : { color: "#94a3b8" }
+              ]}>
+                {isUsingProxyRelay ? "PROXY" : "DIRECT"}
+              </Text>
             </TouchableOpacity>
 
             <View style={styles.spacer} />
@@ -606,6 +759,73 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     borderRadius: 6,
     letterSpacing: 1,
+  },
+  candidatePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 9999,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  candidatePillActive: {
+    backgroundColor: 'rgba(37, 99, 235, 0.25)',
+    borderColor: 'rgba(96, 165, 250, 0.5)',
+  },
+  candidatePillText: {
+    color: '#94a3b8',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  candidatePillTextActive: {
+    color: '#60a5fa',
+    fontWeight: '700',
+  },
+  hudFeedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(37, 99, 235, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(96, 165, 250, 0.3)',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  hudFeedBadgeText: {
+    color: '#60a5fa',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  hudProxyBadgeActive: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(168, 85, 247, 0.15)',
+    borderWidth: 1,
+    borderColor: 'rgba(192, 132, 252, 0.3)',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  hudProxyBadgeInactive: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  hudProxyBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
 });
 
