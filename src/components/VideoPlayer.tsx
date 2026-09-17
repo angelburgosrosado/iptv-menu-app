@@ -27,9 +27,11 @@ import {
   Subtitles,
   Check,
   Film,
-  Bookmark as BookmarkIcon
+  Bookmark as BookmarkIcon,
+  Activity
 } from 'lucide-react';
 import { usePlayerStore } from '../store/usePlayerStore';
+import { DiagnosticsHUD } from './DiagnosticsHUD';
 
 interface VideoPlayerProps {
   streamUrl: string;
@@ -91,6 +93,7 @@ export function VideoPlayer({
   const [volumeHudText, setVolumeHudText] = React.useState<string | null>(null);
   const [channelHudText, setChannelHudText] = React.useState<string | null>(null);
   const [showTrackModal, setShowTrackModal] = React.useState<'audio' | 'subtitle' | null>(null);
+  const [showDiagnostics, setShowDiagnostics] = React.useState(false);
 
   const { addBookmark, removeBookmark, isChannelBookmarked, scheduleRecording } = usePlayerStore();
   const isBookmarked = isChannelBookmarked(channelName.toLowerCase().replace(/[^a-z0-9]/g, '-')) || isChannelBookmarked(channelName);
@@ -344,6 +347,10 @@ export function VideoPlayer({
           e.preventDefault();
           togglePiP();
           break;
+        case 'KeyD':
+          e.preventDefault();
+          setShowDiagnostics((prev) => !prev);
+          break;
         default:
           break;
       }
@@ -510,7 +517,7 @@ export function VideoPlayer({
             {/* D-Pad / Remote Hint Badge */}
             <View style={styles.remoteHintBadge}>
               <Radio size={12} color="#60a5fa" />
-              <Text style={styles.remoteHintText}>D-Pad Active (↑↓ Ch, ←→ Vol, F Fullscreen, P PiP)</Text>
+              <Text style={styles.remoteHintText}>D-Pad Active (↑↓ Ch, ←→ Vol, F Fullscreen, P PiP, D Telemetry HUD)</Text>
             </View>
           </View>
 
@@ -672,6 +679,24 @@ export function VideoPlayer({
               <BookmarkIcon size={14} color={isBookmarked ? "#fbbf24" : "#94a3b8"} fill={isBookmarked ? "#fbbf24" : "none"} />
             </TouchableOpacity>
 
+            {/* Stream Telemetry & Diagnostics HUD Toggle Button */}
+            <TouchableOpacity
+              onPress={() => {
+                resetControlsTimer();
+                setShowDiagnostics((prev) => !prev);
+              }}
+              style={[
+                styles.hudIconBtn, 
+                showDiagnostics 
+                  ? { backgroundColor: 'rgba(6, 182, 212, 0.2)', borderWidth: 1, borderColor: 'rgba(6, 182, 212, 0.4)' }
+                  : { backgroundColor: 'rgba(255, 255, 255, 0.05)' }
+              ]}
+              title="Stream Telemetry & Diagnostics HUD (D)"
+            >
+              <Activity size={14} color={showDiagnostics ? "#22d3ee" : "#94a3b8"} />
+              <Text style={[styles.hudTrackBadgeText, showDiagnostics ? { color: '#22d3ee' } : {}]}>HUD</Text>
+            </TouchableOpacity>
+
             <View style={styles.spacer} />
 
             {/* Picture-in-Picture Button */}
@@ -760,6 +785,19 @@ export function VideoPlayer({
             </View>
           )}
         </View>
+      )}
+
+      {/* 6. Stream Telemetry & Bitrate Diagnostics Overlay */}
+      {showDiagnostics && (
+        <DiagnosticsHUD
+          streamUrl={activeEffectiveUrl}
+          channelName={channelName}
+          groupTitle={groupTitle}
+          isProxy={isUsingProxyRelay}
+          audioTracksCount={player.audioTracks ? player.audioTracks.length : 1}
+          subtitleTracksCount={player.subtitleTracks ? player.subtitleTracks.length : 0}
+          onClose={() => setShowDiagnostics(false)}
+        />
       )}
     </View>
   );
