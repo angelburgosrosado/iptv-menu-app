@@ -13,10 +13,13 @@ export interface Channel {
   tvgName?: string;
   tvgCountry?: string;
   language?: string;
+  languageName?: string;
   countryCode?: string;
   countryName?: string;
   countryFlag?: string;
   category?: string;
+  timezone?: string;
+  subdivision?: string;
   epgChannelId?: string;
   metadataSource?: 'playlist' | 'iptv-org' | 'manual';
   resolution?: string; // 4K, 1080p, 720p, SD
@@ -58,6 +61,24 @@ export interface IptvOrgRegion {
   code: string;
   name: string;
   countries: string[];
+}
+
+export interface IptvOrgLanguage {
+  code: string;
+  name: string;
+}
+
+export interface IptvOrgTimezone {
+  id: string;
+  utc_offset: string;
+  countries: string[];
+}
+
+export interface IptvOrgSubdivision {
+  country: string;
+  code: string;
+  name: string;
+  parent: string | null;
 }
 
 export interface EpgSource {
@@ -140,6 +161,8 @@ export interface AppState {
   countrySections: CountrySection[];
   selectedCountry: string | null;
   selectedRegion: string | null;
+  selectedLanguage: string | null;
+  selectedTimezone: string | null;
   selectedGroup: string | null;
   searchTerm: string;
   epgSources: EpgSource[];
@@ -156,6 +179,8 @@ export interface AppState {
   loadPlaylist: (url?: string) => Promise<void>;
   setSelectedCountry: (code: string | null) => void;
   setSelectedRegion: (region: string | null) => void;
+  setSelectedLanguage: (lang: string | null) => void;
+  setSelectedTimezone: (tz: string | null) => void;
   setSelectedGroup: (group: string | null) => void;
   setSearchTerm: (term: string) => void;
   loadMetadataBundle: () => Promise<void>;
