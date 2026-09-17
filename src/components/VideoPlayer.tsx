@@ -25,8 +25,11 @@ import {
   Server,
   Headphones,
   Subtitles,
-  Check
+  Check,
+  Film,
+  Bookmark as BookmarkIcon
 } from 'lucide-react';
+import { usePlayerStore } from '../store/usePlayerStore';
 
 interface VideoPlayerProps {
   streamUrl: string;
@@ -88,6 +91,9 @@ export function VideoPlayer({
   const [volumeHudText, setVolumeHudText] = React.useState<string | null>(null);
   const [channelHudText, setChannelHudText] = React.useState<string | null>(null);
   const [showTrackModal, setShowTrackModal] = React.useState<'audio' | 'subtitle' | null>(null);
+
+  const { addBookmark, removeBookmark, isChannelBookmarked, scheduleRecording } = usePlayerStore();
+  const isBookmarked = isChannelBookmarked(channelName.toLowerCase().replace(/[^a-z0-9]/g, '-')) || isChannelBookmarked(channelName);
 
   const containerRef = React.useRef<any>(null);
   const controlsTimeout = React.useRef<any>(null);
@@ -606,6 +612,65 @@ export function VideoPlayer({
                 </Text>
               </TouchableOpacity>
             )}
+
+            {/* Instant DVR Stream Capture Button */}
+            <TouchableOpacity
+              onPress={() => {
+                resetControlsTimer();
+                const duration = 60;
+                scheduleRecording({
+                  channelId: channelName.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+                  channelName: channelName,
+                  programTitle: `${channelName} Live Capture`,
+                  programDescription: `Direct stream recording from ${channelName} initiated from live player controls.`,
+                  streamUrl: activeEffectiveUrl,
+                  startTime: new Date().toISOString(),
+                  endTime: new Date(Date.now() + duration * 60000).toISOString(),
+                  durationMinutes: duration,
+                  status: 'recording',
+                  fileSizeEstimate: '1.47 GB'
+                });
+                triggerChannelHud(`DVR: Recording ${channelName} (60 min)`);
+              }}
+              style={[
+                styles.hudIconBtn, 
+                { backgroundColor: 'rgba(168, 85, 247, 0.15)', borderWidth: 1, borderColor: 'rgba(168, 85, 247, 0.3)' }
+              ]}
+              title="Instant DVR Record (60 min capture)"
+            >
+              <Film size={14} color="#c084fc" />
+              <Text style={[styles.hudTrackBadgeText, { color: '#c084fc' }]}>REC</Text>
+            </TouchableOpacity>
+
+            {/* Bookmark Toggle Button */}
+            <TouchableOpacity
+              onPress={() => {
+                resetControlsTimer();
+                const chanId = channelName.toLowerCase().replace(/[^a-z0-9]/g, '-');
+                if (isBookmarked) {
+                  removeBookmark(chanId);
+                  removeBookmark(channelName);
+                  triggerChannelHud('Removed from Bookmarks');
+                } else {
+                  addBookmark({
+                    channelId: chanId,
+                    channelName: channelName,
+                    streamUrl: activeEffectiveUrl,
+                    note: groupTitle || 'Live Stream'
+                  });
+                  triggerChannelHud(`Bookmarked ${channelName}`);
+                }
+              }}
+              style={[
+                styles.hudIconBtn, 
+                isBookmarked 
+                  ? { backgroundColor: 'rgba(245, 158, 11, 0.2)', borderWidth: 1, borderColor: 'rgba(245, 158, 11, 0.4)' }
+                  : { backgroundColor: 'rgba(255, 255, 255, 0.05)' }
+              ]}
+              title={isBookmarked ? "Remove Bookmark" : "Bookmark Channel"}
+            >
+              <BookmarkIcon size={14} color={isBookmarked ? "#fbbf24" : "#94a3b8"} fill={isBookmarked ? "#fbbf24" : "none"} />
+            </TouchableOpacity>
 
             <View style={styles.spacer} />
 

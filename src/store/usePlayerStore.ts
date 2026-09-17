@@ -5,7 +5,7 @@
 
 import { create } from 'zustand';
 import { MMKV } from 'react-native-mmkv';
-import { AppState, Channel, EpgSource } from '../types/iptv';
+import { AppState, Channel, EpgSource, DvrRecording, Bookmark } from '../types/iptv';
 import { parseM3U } from '../utils/m3uParser';
 import { buildCountrySections } from '../utils/channelEnrichment';
 
@@ -55,6 +55,20 @@ const writeArrayToStorage = (key: string, data: string[]): void => {
   storage.set(key, JSON.stringify(data));
 };
 
+const readJsonFromStorage = <T>(key: string, fallback: T): T => {
+  const json = storage.getString(key);
+  if (!json) return fallback;
+  try {
+    return JSON.parse(json);
+  } catch {
+    return fallback;
+  }
+};
+
+const writeJsonToStorage = (key: string, data: any): void => {
+  storage.set(key, JSON.stringify(data));
+};
+
 const INITIAL_FALLBACK_CHANNELS = [...parseM3U(FALLBACK_PLAYLIST), ...MELHATA_CHANNELS];
 const INITIAL_GROUPS = Array.from(new Set(INITIAL_FALLBACK_CHANNELS.map((c) => c.group))).sort();
 
@@ -69,6 +83,8 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   groups: INITIAL_GROUPS,
   favorites: readArrayFromStorage('favorites'),
   history: readArrayFromStorage('history'),
+  dvrRecordings: readJsonFromStorage<DvrRecording[]>('iptv_dvr_recordings', []),
+  bookmarks: readJsonFromStorage<Bookmark[]>('iptv_bookmarks', []),
   
   // Country & EPG Backbone enhancements
   countrySections: buildCountrySections(INITIAL_FALLBACK_CHANNELS),
@@ -336,6 +352,67 @@ export const usePlayerStore = create<AppState>((set, get) => ({
 
   clearCache: () => {
     storage.clearAll();
-    set({ favorites: [], history: [] });
+    set({ favorites: [], history: [], dvrRecordings: [], bookmarks: [] });
+  },
+
+  scheduleRecording: (recordingData: Omit<DvrRecording, 'id' | 'recordedAt'>) => {
+    const id = `rec_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const recordedAt = new Date().toISOString();
+    const duration = recordingData.durationMinutes || 60;
+    const fileSizeEstimate = recordingData.fileSizeEstimate || `${Math.round(duration * 24.5)} MB`;
+    
+    const newRecording: DvrRecording = {
+      ...recordingData,
+      id,
+      recordedAt,
+      fileSizeEstimate
+    };
+
+    const updatedRecordings = [newRecording, ...get().dvrRecordings];
+    writeJsonToStorage('iptv_dvr_recordings', updatedRecordings);
+    set({ dvrRecordings: updatedRecordings });
+    return newRecording;
+  },
+
+  deleteRecording: (id: string) => {
+    const updatedRecordings = get().dvrRecordings.filter((r) => r.id !== id);
+    writeJsonToStorage('iptv_dvr_recordings', updatedRecordings);
+    set({ dvrRecordings: updatedRecordings });
+  },
+
+  updateRecordingStatus: (id: string, status: 'completed' | 'recording' | 'scheduled') => {
+    const updatedRecordings = get().dvrRecordings.map((r) => 
+      r.id === id ? { ...r, status } : r
+    );
+    writeJsonToStorage('iptv_dvr_recordings', updatedRecordings);
+    set({ dvrRecordings: updatedRecordings });
+  },
+
+  addBookmark: (bookmarkData: Omit<Bookmark, 'id' | 'savedAt'>) => {
+    const existing = get().bookmarks.find((b) => b.channelId === bookmarkData.channelId);
+    if (existing) return existing;
+    
+    const id = `bm_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const savedAt = new Date().toISOString();
+    const newBookmark: Bookmark = {
+      ...bookmarkData,
+      id,
+      savedAt
+    };
+
+    const updatedBookmarks = [newBookmark, ...get().bookmarks];
+    writeJsonToStorage('iptv_bookmarks', updatedBookmarks);
+    set({ bookmarks: updatedBookmarks });
+    return newBookmark;
+  },
+
+  removeBookmark: (idOrChannelId: string) => {
+    const updatedBookmarks = get().bookmarks.filter((b) => b.id !== idOrChannelId && b.channelId !== idOrChannelId);
+    writeJsonToStorage('iptv_bookmarks', updatedBookmarks);
+    set({ bookmarks: updatedBookmarks });
+  },
+
+  isChannelBookmarked: (channelId: string) => {
+    return get().bookmarks.some((b) => b.channelId === channelId);
   },
 }));

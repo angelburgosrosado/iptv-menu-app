@@ -230,6 +230,10 @@ export interface AppState {
   error: string | null;
   playlistUrl: string;
 
+  // DVR & Bookmark Systems
+  dvrRecordings: DvrRecording[];
+  bookmarks: Bookmark[];
+
   // Actions
   setPlaylistUrl: (url: string) => void;
   loadPlaylist: (url?: string) => Promise<void>;
@@ -246,6 +250,42 @@ export interface AppState {
   addToHistory: (channelId: string) => void;
   clearHistory: () => void;
   clearCache: () => void;
+
+  // DVR & Bookmark Actions
+  scheduleRecording: (recording: Omit<DvrRecording, 'id' | 'recordedAt'>) => DvrRecording;
+  deleteRecording: (id: string) => void;
+  updateRecordingStatus: (id: string, status: 'completed' | 'recording' | 'scheduled') => void;
+  addBookmark: (bookmark: Omit<Bookmark, 'id' | 'savedAt'>) => Bookmark;
+  removeBookmark: (id: string) => void;
+  isChannelBookmarked: (channelId: string) => boolean;
+}
+
+export interface DvrRecording {
+  id: string;
+  channelId: string;
+  channelName: string;
+  channelLogo?: string;
+  programTitle: string;
+  programDescription?: string;
+  streamUrl: string;
+  catchupUrl?: string;
+  startTime: string;
+  endTime: string;
+  durationMinutes: number;
+  status: 'completed' | 'recording' | 'scheduled';
+  recordedAt: string;
+  fileSizeEstimate: string;
+}
+
+export interface Bookmark {
+  id: string;
+  channelId: string;
+  channelName: string;
+  channelLogo?: string;
+  programTitle?: string;
+  streamUrl: string;
+  savedAt: string;
+  note?: string;
 }
 
 export interface AdSenseSlotConfig {

@@ -23,11 +23,14 @@ import {
   Layers,
   Flame,
   Globe,
-  MapPin
+  MapPin,
+  Film,
+  Bookmark as BookmarkIcon
 } from 'lucide-react';
 import { Channel } from '../types/iptv';
 import { PageProtocolHeader } from './PageProtocolHeader';
 import { getCountryFlag, getLanguageName, formatUtcOffset } from '../utils/channelEnrichment';
+import { DvrModal } from './DvrModal';
 
 interface Show {
   title: string;
@@ -39,13 +42,27 @@ interface Show {
 }
 
 export default function DesktopEpg() {
-  const { channels, epgByChannel, isLoading, loadEpgBundle, selectedTimezone, setSelectedTimezone } = usePlayerStore();
+  const { 
+    channels, 
+    epgByChannel, 
+    isLoading, 
+    loadEpgBundle, 
+    selectedTimezone, 
+    setSelectedTimezone,
+    dvrRecordings,
+    bookmarks,
+    scheduleRecording,
+    addBookmark,
+    removeBookmark,
+    isChannelBookmarked
+  } = usePlayerStore();
   const [selectedShow, setSelectedShow] = React.useState<Show | null>(null);
   const [selectedChannel, setSelectedChannel] = React.useState<Channel | null>(null);
   const [isSyncing, setIsSyncing] = React.useState(false);
   const [syncToast, setSyncToast] = React.useState<string | null>(null);
   const [searchTerm, setSearchTerm] = React.useState('');
   const [selectedCategory, setSelectedCategory] = React.useState('all');
+  const [showDvrModal, setShowDvrModal] = React.useState(false);
 
   const categories = React.useMemo(() => {
     const set = new Set<string>();
@@ -328,6 +345,15 @@ export default function DesktopEpg() {
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
             <span>Sync XMLTV Feed</span>
+          </button>
+
+          <button
+            onClick={() => setShowDvrModal(true)}
+            className="px-3.5 py-2 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-200 text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-lg shadow-purple-500/10"
+            aria-label="Open DVR & Bookmarks Library"
+          >
+            <Film className="w-3.5 h-3.5 text-purple-400" />
+            <span>DVR & Bookmarks ({dvrRecordings.length + bookmarks.length})</span>
           </button>
         </div>
       </PageProtocolHeader>
@@ -631,6 +657,68 @@ export default function DesktopEpg() {
                   <span className="text-cyan-400 font-mono font-semibold">HLS / MPEG-TS</span>
                 </div>
 
+                {/* DVR & Bookmark Quick Actions */}
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => {
+                      const isAlreadyScheduled = dvrRecordings.some(r => r.channelId === selectedChannel.id && r.programTitle === selectedShow.title);
+                      if (isAlreadyScheduled) {
+                        setShowDvrModal(true);
+                        return;
+                      }
+                      scheduleRecording({
+                        channelId: selectedChannel.id,
+                        channelName: selectedChannel.name,
+                        channelLogo: selectedChannel.logo,
+                        programTitle: selectedShow.title,
+                        programDescription: selectedShow.description,
+                        streamUrl: selectedChannel.url,
+                        startTime: new Date().toISOString(),
+                        endTime: new Date(Date.now() + (selectedShow.duration || 60) * 60000).toISOString(),
+                        durationMinutes: selectedShow.duration || 60,
+                        status: selectedShow.isLive ? 'recording' : 'scheduled',
+                        fileSizeEstimate: `${Math.round((selectedShow.duration || 60) * 24.5)} MB`
+                      });
+                      setSyncToast(`DVR: ${selectedShow.isLive ? 'Started recording' : 'Scheduled capture for'} "${selectedShow.title}"`);
+                      setTimeout(() => setSyncToast(null), 3500);
+                    }}
+                    className="py-2.5 px-3 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-200 text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                    aria-label="DVR Record or Schedule"
+                  >
+                    <Film className="w-3.5 h-3.5 text-purple-400" />
+                    <span>{selectedShow.isLive ? 'Record Live' : 'Schedule DVR'}</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      if (isChannelBookmarked(selectedChannel.id)) {
+                        removeBookmark(selectedChannel.id);
+                        setSyncToast(`Removed ${selectedChannel.name} from Bookmarks`);
+                      } else {
+                        addBookmark({
+                          channelId: selectedChannel.id,
+                          channelName: selectedChannel.name,
+                          channelLogo: selectedChannel.logo,
+                          programTitle: selectedShow.title,
+                          streamUrl: selectedChannel.url,
+                          note: selectedChannel.group || 'Live Feed'
+                        });
+                        setSyncToast(`Bookmarked ${selectedChannel.name}`);
+                      }
+                      setTimeout(() => setSyncToast(null), 3000);
+                    }}
+                    className={`py-2.5 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      isChannelBookmarked(selectedChannel.id)
+                        ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
+                        : 'bg-white/5 hover:bg-white/10 border-white/10 text-zinc-300'
+                    }`}
+                    aria-label="Toggle Channel Bookmark"
+                  >
+                    <BookmarkIcon className={`w-3.5 h-3.5 ${isChannelBookmarked(selectedChannel.id) ? 'fill-current text-amber-400' : 'text-zinc-400'}`} />
+                    <span>{isChannelBookmarked(selectedChannel.id) ? 'Bookmarked' : 'Bookmark'}</span>
+                  </button>
+                </div>
+
                 {/* Launch Button */}
                 <button
                   onClick={() => handlePlayInSimulator(selectedChannel)}
@@ -653,6 +741,12 @@ export default function DesktopEpg() {
           </div>
         </div>
       )}
+
+      {/* DVR & Bookmarks Modal */}
+      <DvrModal 
+        isOpen={showDvrModal} 
+        onClose={() => setShowDvrModal(false)} 
+      />
     </div>
   );
 }

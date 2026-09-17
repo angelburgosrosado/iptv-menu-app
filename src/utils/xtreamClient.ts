@@ -414,7 +414,7 @@ export async function fetchXtreamFullEpg(
 export function generateXtreamCatchupUrl(
   account: XtreamAccount,
   streamId: number | string,
-  startTimestamp: number,
+  startTimestamp: number | string | Date,
   durationMinutes = 60
 ): string {
   let baseUrl = account.serverUrl.trim().replace(/\/+$/, '');
@@ -423,7 +423,20 @@ export function generateXtreamCatchupUrl(
   }
 
   // Format start time into YYYY-MM-DD:HH-mm
-  const date = new Date(startTimestamp * 1000);
+  let date: Date;
+  if (startTimestamp instanceof Date) {
+    date = startTimestamp;
+  } else if (typeof startTimestamp === 'number') {
+    date = new Date(startTimestamp < 1e11 ? startTimestamp * 1000 : startTimestamp);
+  } else {
+    const parsed = Date.parse(startTimestamp);
+    if (!isNaN(parsed)) {
+      date = new Date(parsed);
+    } else {
+      date = new Date();
+    }
+  }
+
   const pad = (n: number) => n.toString().padStart(2, '0');
   const formattedStart = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}:${pad(date.getHours())}-${pad(date.getMinutes())}`;
 
