@@ -323,4 +323,49 @@ describe('apps/api - REST API Endpoints & Public Services', () => {
       expect(bodyText).toContain('LC');
     });
   });
+
+  describe('Dynamic M3U8 Playlist Export API', () => {
+    it('should generate formatted M3U playlist file with attachment headers', async () => {
+      const mockChannels = [
+        {
+          id: 'test-1',
+          name: 'Global News HD',
+          logo: 'https://cdn.example.com/logo.png',
+          url: 'https://cdn.example.com/live/stream.m3u8',
+          group: 'News',
+          tvgId: 'global.news',
+          countryCode: 'US',
+          language: 'English'
+        }
+      ];
+
+      const response = await request(app)
+        .post('/api/export/playlist.m3u')
+        .send({
+          playlistName: 'Custom-Bundle',
+          channels: mockChannels
+        })
+        .buffer();
+
+      expect(response.status).toBe(200);
+      expect(response.headers['content-type']).toContain('audio/x-mpegurl');
+      expect(response.headers['content-disposition']).toContain('attachment; filename="Custom-Bundle.m3u"');
+      const bodyText = response.text || response.body.toString();
+      expect(bodyText).toContain('#EXTM3U');
+      expect(bodyText).toContain('#PLAYLIST:Custom-Bundle');
+      expect(bodyText).toContain('tvg-id="global.news"');
+      expect(bodyText).toContain('Global News HD');
+      expect(bodyText).toContain('https://cdn.example.com/live/stream.m3u8');
+    });
+
+    it('should return 400 when channels array is missing', async () => {
+      const response = await request(app)
+        .post('/api/export/playlist.m3u')
+        .send({});
+
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error');
+    });
+  });
 });
+

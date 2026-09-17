@@ -11,8 +11,14 @@ export function useVideoPlayer(source: VideoSource | string, setup?: (player: an
   const [duration, setDuration] = React.useState(0);
   const [isMuted, setIsMuted] = React.useState(false);
   const [volume, setVolumeState] = React.useState(1.0);
+  const [audioTracks, setAudioTracks] = React.useState<{ id: number; name: string; lang?: string }[]>([]);
+  const [currentAudioTrack, setCurrentAudioTrack] = React.useState<number>(-1);
+  const [subtitleTracks, setSubtitleTracks] = React.useState<{ id: number; name: string; lang?: string }[]>([]);
+  const [currentSubtitleTrack, setCurrentSubtitleTrack] = React.useState<number>(-1);
+
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
   const subscribersRef = React.useRef(new Set<(el: HTMLVideoElement | null) => void>());
+  const hlsRef = React.useRef<any>(null);
 
   const player = React.useMemo(() => {
     return {
@@ -27,6 +33,9 @@ export function useVideoPlayer(source: VideoSource | string, setup?: (player: an
             console.error('Video subscriber error:', err);
           }
         });
+      },
+      _attachHls: (hlsInstance: any) => {
+        hlsRef.current = hlsInstance;
       },
       subscribe: (callback: (el: HTMLVideoElement | null) => void) => {
         subscribersRef.current.add(callback);
@@ -127,6 +136,37 @@ export function useVideoPlayer(source: VideoSource | string, setup?: (player: an
           videoRef.current.load();
         }
       },
+      // Track Management
+      audioTracks,
+      currentAudioTrack,
+      subtitleTracks,
+      currentSubtitleTrack,
+      setAudioTrack: (trackId: number) => {
+        if (hlsRef.current) {
+          hlsRef.current.audioTrack = trackId;
+        }
+        setCurrentAudioTrack(trackId);
+      },
+      setSubtitleTrack: (trackId: number) => {
+        if (hlsRef.current) {
+          hlsRef.current.subtitleTrack = trackId;
+        }
+        if (videoRef.current && (videoRef.current as any).textTracks) {
+          const tt = (videoRef.current as any).textTracks;
+          for (let i = 0; i < tt.length; i++) {
+            tt[i].mode = (i === trackId) ? 'showing' : 'disabled';
+          }
+        }
+        setCurrentSubtitleTrack(trackId);
+      },
+      _updateAudioTracks: (tracks: { id: number; name: string; lang?: string }[], current: number) => {
+        setAudioTracks(tracks);
+        setCurrentAudioTrack(current);
+      },
+      _updateSubtitleTracks: (tracks: { id: number; name: string; lang?: string }[], current: number) => {
+        setSubtitleTracks(tracks);
+        setCurrentSubtitleTrack(current);
+      },
       isPlaying,
       currentTime,
       duration,
@@ -140,7 +180,7 @@ export function useVideoPlayer(source: VideoSource | string, setup?: (player: an
         isMuted
       }
     };
-  }, [uri, isPlaying, currentTime, duration, volume, isMuted]);
+  }, [uri, isPlaying, currentTime, duration, volume, isMuted, audioTracks, currentAudioTrack, subtitleTracks, currentSubtitleTrack]);
 
   // Handle source callbacks
   React.useEffect(() => {
@@ -214,11 +254,30 @@ export const VideoView = ({ player, style, startsInFullscreen = false, ...props 
           maxLiveSyncPlaybackRate: 1.1,
         });
         activeHlsRef.current = hls;
+        player._attachHls?.(hls);
+
+        const syncTracks = () => {
+          if (!hls) return;
+          const aTracks = (hls.audioTracks || []).map((t: any, idx: number) => ({
+            id: idx,
+            name: t.name || t.lang || `Track ${idx + 1}`,
+            lang: t.lang || ''
+          }));
+          player._updateAudioTracks?.(aTracks, hls.audioTrack ?? -1);
+
+          const sTracks = (hls.subtitleTracks || []).map((t: any, idx: number) => ({
+            id: idx,
+            name: t.name || t.lang || `Subtitle ${idx + 1}`,
+            lang: t.lang || ''
+          }));
+          player._updateSubtitleTracks?.(sTracks, hls.subtitleTrack ?? -1);
+        };
 
         hls.loadSource(streamUrl);
         hls.attachMedia(video);
 
         hls.on((window as any).Hls.Events.MANIFEST_PARSED, () => {
+          syncTracks();
           const playPromise = video.play();
           if (playPromise !== undefined) {
             playPromise.catch((err) => {
@@ -228,6 +287,11 @@ export const VideoView = ({ player, style, startsInFullscreen = false, ...props 
             });
           }
         });
+
+        hls.on((window as any).Hls.Events.AUDIO_TRACKS_UPDATED, syncTracks);
+        hls.on((window as any).Hls.Events.AUDIO_TRACK_SWITCHED, syncTracks);
+        hls.on((window as any).Hls.Events.SUBTITLE_TRACKS_UPDATED, syncTracks);
+        hls.on((window as any).Hls.Events.SUBTITLE_TRACK_SWITCH, syncTracks);
 
         hls.on((window as any).Hls.Events.ERROR, (event: any, data: any) => {
           if (data.fatal) {

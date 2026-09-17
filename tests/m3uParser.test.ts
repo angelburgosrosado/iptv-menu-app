@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { parseM3U } from '../src/utils/m3uParser';
+import { parseM3U, generateM3UPlaylist } from '../src/utils/m3uParser';
+import { Channel } from '../src/types/iptv';
 
 describe('m3uParser utility', () => {
   it('should parse a standard M3U8 playlist with full attributes', () => {
@@ -129,4 +130,61 @@ https://stream.example.com/test.m3u8`;
 
     expect(onProgress).toHaveBeenCalledWith(100);
   });
+
+  describe('generateM3UPlaylist', () => {
+    const mockChannels: Channel[] = [
+      {
+        id: 'cnn-hd',
+        name: 'CNN HD',
+        logo: 'https://images.iptv.menu/cnn.png',
+        url: 'https://stream.cnn.com/live.m3u8',
+        group: 'News',
+        tvgId: 'cnn.us',
+        tvgName: 'CNN USA',
+        countryCode: 'US',
+        language: 'English',
+        epgChannelId: 'cnn.us'
+      },
+      {
+        id: 'espn-sports',
+        name: 'ESPN',
+        logo: 'https://images.iptv.menu/espn.png',
+        url: 'https://stream.espn.com/live.m3u8',
+        group: 'Sports',
+        tvgId: 'espn.us',
+        countryCode: 'US',
+        epgChannelId: 'espn.us'
+      }
+    ];
+
+    it('should generate valid M3U8 content with metadata tags', () => {
+      const output = generateM3UPlaylist(mockChannels, { playlistName: 'Custom List' });
+
+      expect(output).toContain('#EXTM3U');
+      expect(output).toContain('#PLAYLIST:Custom List');
+      expect(output).toContain('tvg-id="cnn.us"');
+      expect(output).toContain('tvg-name="CNN USA"');
+      expect(output).toContain('tvg-logo="https://images.iptv.menu/cnn.png"');
+      expect(output).toContain('tvg-country="US"');
+      expect(output).toContain('tvg-language="English"');
+      expect(output).toContain('group-title="News"');
+      expect(output).toContain(',CNN HD');
+      expect(output).toContain('https://stream.cnn.com/live.m3u8');
+      expect(output).toContain('https://stream.espn.com/live.m3u8');
+    });
+
+    it('should respect custom options when generating M3U', () => {
+      const output = generateM3UPlaylist(mockChannels, {
+        includeLogos: false,
+        includeGroupTitle: false,
+        includeEpgInfo: false
+      });
+
+      expect(output).not.toContain('tvg-logo=');
+      expect(output).not.toContain('group-title=');
+      expect(output).not.toContain('tvg-id=');
+      expect(output).toContain('https://stream.cnn.com/live.m3u8');
+    });
+  });
 });
+

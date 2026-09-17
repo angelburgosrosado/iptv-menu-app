@@ -22,7 +22,10 @@ import {
   Sliders,
   Layers,
   ShieldAlert,
-  Server
+  Server,
+  Headphones,
+  Subtitles,
+  Check
 } from 'lucide-react';
 
 interface VideoPlayerProps {
@@ -84,6 +87,7 @@ export function VideoPlayer({
   const [isFullscreen, setIsFullscreen] = React.useState(false);
   const [volumeHudText, setVolumeHudText] = React.useState<string | null>(null);
   const [channelHudText, setChannelHudText] = React.useState<string | null>(null);
+  const [showTrackModal, setShowTrackModal] = React.useState<'audio' | 'subtitle' | null>(null);
 
   const containerRef = React.useRef<any>(null);
   const controlsTimeout = React.useRef<any>(null);
@@ -560,6 +564,49 @@ export function VideoPlayer({
               </Text>
             </TouchableOpacity>
 
+            {/* Audio Track Selector Button */}
+            {player.audioTracks && player.audioTracks.length > 1 && (
+              <TouchableOpacity
+                onPress={() => {
+                  resetControlsTimer();
+                  setShowTrackModal((prev) => prev === 'audio' ? null : 'audio');
+                }}
+                style={[
+                  styles.hudIconBtn,
+                  showTrackModal === 'audio' ? styles.hudTrackActive : styles.hudTrackInactive
+                ]}
+                title="Select Audio Track"
+              >
+                <Headphones size={14} color={showTrackModal === 'audio' ? "#38bdf8" : "#94a3b8"} />
+                <Text style={[styles.hudTrackBadgeText, showTrackModal === 'audio' ? { color: '#38bdf8' } : {}]}>
+                  Audio ({player.audioTracks.length})
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Subtitle / Closed Caption Selector Button */}
+            {player.subtitleTracks && player.subtitleTracks.length > 0 && (
+              <TouchableOpacity
+                onPress={() => {
+                  resetControlsTimer();
+                  setShowTrackModal((prev) => prev === 'subtitle' ? null : 'subtitle');
+                }}
+                style={[
+                  styles.hudIconBtn,
+                  showTrackModal === 'subtitle' ? styles.hudTrackActive : styles.hudTrackInactive
+                ]}
+                title="Select Subtitles / CC"
+              >
+                <Subtitles size={14} color={showTrackModal === 'subtitle' ? "#38bdf8" : (player.currentSubtitleTrack >= 0 ? "#22c55e" : "#94a3b8")} />
+                <Text style={[
+                  styles.hudTrackBadgeText, 
+                  showTrackModal === 'subtitle' ? { color: '#38bdf8' } : (player.currentSubtitleTrack >= 0 ? { color: '#22c55e' } : {})
+                ]}>
+                  {player.currentSubtitleTrack >= 0 ? 'CC ON' : 'CC'}
+                </Text>
+              </TouchableOpacity>
+            )}
+
             <View style={styles.spacer} />
 
             {/* Picture-in-Picture Button */}
@@ -574,6 +621,79 @@ export function VideoPlayer({
 
             <Text style={styles.liveIndicator}>● LIVE</Text>
           </View>
+
+          {/* Audio & Subtitle Track Selector Flyout Popover */}
+          {showTrackModal && (
+            <View style={styles.trackFlyoutModal}>
+              <View style={styles.trackFlyoutHeader}>
+                <Text style={styles.trackFlyoutTitle}>
+                  {showTrackModal === 'audio' ? 'Select Audio Track' : 'Select Subtitles / CC'}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setShowTrackModal(null)}
+                  style={styles.trackFlyoutClose}
+                >
+                  <Text style={{ color: '#94a3b8', fontSize: 11, fontWeight: '700' }}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.trackFlyoutList}>
+                {showTrackModal === 'subtitle' && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      player.setSubtitleTrack?.(-1);
+                      setShowTrackModal(null);
+                      triggerChannelHud('Subtitles: Off');
+                    }}
+                    style={[
+                      styles.trackItem,
+                      player.currentSubtitleTrack === -1 && styles.trackItemActive
+                    ]}
+                  >
+                    <Text style={[styles.trackItemText, player.currentSubtitleTrack === -1 && styles.trackItemTextActive]}>
+                      Off
+                    </Text>
+                    {player.currentSubtitleTrack === -1 && <Check size={14} color="#38bdf8" />}
+                  </TouchableOpacity>
+                )}
+
+                {(showTrackModal === 'audio' ? player.audioTracks : player.subtitleTracks)?.map((track: any) => {
+                  const isSelected = showTrackModal === 'audio'
+                    ? player.currentAudioTrack === track.id
+                    : player.currentSubtitleTrack === track.id;
+
+                  return (
+                    <TouchableOpacity
+                      key={track.id}
+                      onPress={() => {
+                        if (showTrackModal === 'audio') {
+                          player.setAudioTrack?.(track.id);
+                          triggerChannelHud(`Audio: ${track.name}`);
+                        } else {
+                          player.setSubtitleTrack?.(track.id);
+                          triggerChannelHud(`Subtitles: ${track.name}`);
+                        }
+                        setShowTrackModal(null);
+                      }}
+                      style={[styles.trackItem, isSelected && styles.trackItemActive]}
+                    >
+                      <View>
+                        <Text style={[styles.trackItemText, isSelected && styles.trackItemTextActive]}>
+                          {track.name}
+                        </Text>
+                        {track.lang && (
+                          <Text style={styles.trackItemSubtext}>
+                            {track.lang.toUpperCase()}
+                          </Text>
+                        )}
+                      </View>
+                      {isSelected && <Check size={14} color="#38bdf8" />}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          )}
         </View>
       )}
     </View>
@@ -827,6 +947,101 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.5,
   },
+  hudTrackActive: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(56, 189, 248, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.5)',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  hudTrackInactive: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  hudTrackBadgeText: {
+    color: '#94a3b8',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  trackFlyoutModal: {
+    position: 'absolute',
+    bottom: 74,
+    left: 20,
+    width: 240,
+    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 14,
+    padding: 12,
+    zIndex: 50,
+    backdropFilter: 'blur(16px)',
+    shadowColor: '#000',
+    shadowOpacity: 0.6,
+    shadowRadius: 16,
+  },
+  trackFlyoutHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.1)',
+    marginBottom: 8,
+  },
+  trackFlyoutTitle: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  trackFlyoutClose: {
+    padding: 4,
+  },
+  trackFlyoutList: {
+    maxHeight: 200,
+    overflow: 'scroll',
+    gap: 4,
+  },
+  trackItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: 'transparent',
+  },
+  trackItemActive: {
+    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+  },
+  trackItemText: {
+    color: '#cbd5e1',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  trackItemTextActive: {
+    color: '#38bdf8',
+    fontWeight: '700',
+  },
+  trackItemSubtext: {
+    color: '#64748b',
+    fontSize: 9,
+    fontWeight: '700',
+    marginTop: 1,
+  },
 });
 
 export default VideoPlayer;
+

@@ -146,3 +146,61 @@ export function parseM3U(m3uContent: string, options?: ParserOptions): Channel[]
 
   return channels;
 }
+
+export interface M3UExportOptions {
+  playlistName?: string;
+  includeGroupTitle?: boolean;
+  includeLogos?: boolean;
+  includeEpgInfo?: boolean;
+}
+
+/**
+ * Generates standard compliant M3U8 IPTV playlist markup from a list of channels
+ */
+export function generateM3UPlaylist(
+  channels: Channel[], 
+  options: M3UExportOptions = {}
+): string {
+  const {
+    playlistName = 'IPTV Menu Curated Playlist',
+    includeGroupTitle = true,
+    includeLogos = true,
+    includeEpgInfo = true
+  } = options;
+
+  const header = `#EXTM3U x-tvg-url="https://iptv-org.github.io/epg/guides.json" tvg-shift="0"\n#PLAYLIST:${playlistName}\n`;
+  
+  const entries = channels.map((c) => {
+    const tvgId = includeEpgInfo && c.tvgId ? ` tvg-id="${c.tvgId}"` : '';
+    const tvgName = includeEpgInfo && c.tvgName ? ` tvg-name="${c.tvgName}"` : ` tvg-name="${c.name}"`;
+    const tvgLogo = includeLogos && c.logo ? ` tvg-logo="${c.logo}"` : '';
+    const tvgCountry = c.countryCode ? ` tvg-country="${c.countryCode}"` : '';
+    const tvgLanguage = c.language ? ` tvg-language="${c.language}"` : '';
+    const groupTitle = includeGroupTitle && c.group ? ` group-title="${c.group}"` : '';
+
+    const extinf = `#EXTINF:-1${tvgId}${tvgName}${tvgLogo}${tvgCountry}${tvgLanguage}${groupTitle},${c.name}`;
+    return `${extinf}\n${c.url}`;
+  });
+
+  return header + entries.join('\n') + '\n';
+}
+
+/**
+ * Triggers a browser file download of the generated M3U playlist
+ */
+export function downloadM3UFile(channels: Channel[], filename = 'iptv-channels.m3u'): void {
+  if (typeof window === 'undefined') return;
+  const content = generateM3UPlaylist(channels, {
+    playlistName: filename.replace(/\.m3u8?$/i, '')
+  });
+  const blob = new Blob([content], { type: 'audio/x-mpegurl;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename.endsWith('.m3u') || filename.endsWith('.m3u8') ? filename : `${filename}.m3u`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+

@@ -388,6 +388,42 @@ app.get('/api/channels/avatar', (req, res) => {
 });
 
 // ==========================================
+// M3U PLAYLIST EXPORT API (PHASE 9)
+// ==========================================
+app.use('/api/export', cors({ origin: '*' }));
+
+app.post('/api/export/playlist.m3u', (req, res) => {
+  try {
+    const { channels, playlistName, includeGroupTitle, includeLogos, includeEpgInfo } = req.body;
+    if (!Array.isArray(channels)) {
+      return res.status(400).json({ error: 'Expected channels array in request body' });
+    }
+    const name = playlistName || 'IPTV-Curated-Playlist';
+    const header = `#EXTM3U x-tvg-url="https://iptv-org.github.io/epg/guides.json" tvg-shift="0"\n#PLAYLIST:${name}\n`;
+    const entries = channels.map((c: any) => {
+      const tvgId = (includeEpgInfo !== false && c.tvgId) ? ` tvg-id="${c.tvgId}"` : '';
+      const tvgName = (includeEpgInfo !== false && c.tvgName) ? ` tvg-name="${c.tvgName}"` : ` tvg-name="${c.name || 'Channel'}"`;
+      const tvgLogo = (includeLogos !== false && c.logo) ? ` tvg-logo="${c.logo}"` : '';
+      const tvgCountry = c.countryCode ? ` tvg-country="${c.countryCode}"` : '';
+      const tvgLanguage = c.language ? ` tvg-language="${c.language}"` : '';
+      const groupTitle = (includeGroupTitle !== false && c.group) ? ` group-title="${c.group}"` : '';
+
+      const extinf = `#EXTINF:-1${tvgId}${tvgName}${tvgLogo}${tvgCountry}${tvgLanguage}${groupTitle},${c.name || 'Channel'}`;
+      return `${extinf}\n${c.url}`;
+    });
+
+    const m3uContent = header + entries.join('\n') + '\n';
+    const filename = `${name.replace(/[^a-zA-Z0-9_-]/g, '_')}.m3u`;
+    res.setHeader('Content-Type', 'audio/x-mpegurl; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(m3uContent);
+  } catch (error: any) {
+    logger.error('Error generating M3U playlist export', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==========================================
 // PUBLIC EPG GUIDE & SCHEDULE API
 // ==========================================
 app.use('/api/epg/live', cors({ origin: '*' }));

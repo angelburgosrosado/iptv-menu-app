@@ -21,12 +21,14 @@ import {
   AlertCircle, 
   RotateCcw,
   Sparkles,
-  LayoutGrid
+  LayoutGrid,
+  Download
 } from 'lucide-react';
 import { Channel } from '../types/iptv';
 import WebCinemaPlayer from './WebCinemaPlayer';
 import CountryChannelSections from './CountryChannelSections';
 import { PageProtocolHeader } from './PageProtocolHeader';
+import { downloadM3UFile } from '../utils/m3uParser';
 import { 
   getCountryFlag, 
   normalizeCategory, 
@@ -242,11 +244,20 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
 
       {/* Directory Search & Filter Subbar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
+        <div className="flex items-center gap-3">
           <span className="text-xs text-zinc-400">
             Showing <strong className="text-white">{filteredChannels.length}</strong> streams across{' '}
             <strong className="text-white">{groups.length}</strong> categories
           </span>
+          <button
+            onClick={() => downloadM3UFile(filteredChannels, `iptv-curated-${filteredChannels.length}.m3u`)}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-[11px] font-semibold text-zinc-300 hover:text-white border border-white/10 transition-all cursor-pointer"
+            title="Download currently filtered channels as standard M3U playlist file"
+            aria-label="Export M3U Playlist"
+          >
+            <Download className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Export M3U</span>
+          </button>
         </div>
 
         <div className="relative w-full md:w-80">
