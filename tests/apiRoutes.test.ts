@@ -239,7 +239,7 @@ describe('apps/api - REST API Endpoints & Public Services', () => {
     });
   });
 
-  describe('GET /api/public/adsense', () => {
+    describe('GET /api/public/adsense', () => {
     it('should return public AdSense configuration with active client and designated slots', async () => {
       const response = await request(app).get('/api/public/adsense');
 
@@ -249,6 +249,44 @@ describe('apps/api - REST API Endpoints & Public Services', () => {
       expect(response.body).toHaveProperty('slots');
       expect(response.body.slots).toHaveProperty('topBannerSlot');
       expect(response.body.slots).toHaveProperty('bottomBannerSlot');
+    });
+  });
+
+  describe('Universal Stream Diagnostic Prober API', () => {
+    it('should reject probe requests with missing url parameter with 400', async () => {
+      const response = await request(app).get('/api/stream/probe');
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error');
+    });
+
+    it('should prevent SSRF by rejecting probe to private / loopback IP addresses', async () => {
+      const response = await request(app).get('/api/stream/probe?url=http://169.254.169.254/latest/meta-data');
+      expect(response.status).toBe(200);
+      expect(response.body.isOnline).toBe(false);
+      expect(response.body.error).toContain('Access to private or loopback addresses is prohibited');
+    });
+
+    it('should reject invalid batch probe request missing urls array', async () => {
+      const response = await request(app).post('/api/stream/probe/batch').send({});
+      expect(response.status).toBe(400);
+      expect(response.body).toHaveProperty('error');
+    });
+
+    it('should handle batch probe request and return results map', async () => {
+      const response = await request(app)
+        .post('/api/stream/probe/batch')
+        .send({
+          urls: [
+            'http://169.254.169.254/secret',
+            'ftp://invalid.protocol/stream.ts'
+          ]
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toHaveProperty('results');
+      expect(response.body.totalProbed).toBe(2);
+      expect(response.body.results['http://169.254.169.254/secret'].isOnline).toBe(false);
+      expect(response.body.results['ftp://invalid.protocol/stream.ts'].isOnline).toBe(false);
     });
   });
 });

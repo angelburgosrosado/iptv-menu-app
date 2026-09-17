@@ -15,7 +15,10 @@ export const DEFAULT_UPSTREAM_USER_AGENT = 'VLC/3.0.18 LibVLC/3.0.18';
 /**
  * Validates if the target URL is safe to proxy (SSRF prevention).
  */
-export function isSafeTargetUrl(rawUrl: string): { safe: boolean; reason?: string; parsedUrl?: URL } {
+export function isSafeTargetUrl(
+  rawUrl: string,
+  forceStrictCheck = false
+): { safe: boolean; reason?: string; parsedUrl?: URL } {
   let parsed: URL;
   try {
     parsed = new URL(rawUrl);
@@ -29,8 +32,13 @@ export function isSafeTargetUrl(rawUrl: string): { safe: boolean; reason?: strin
 
   const hostname = parsed.hostname.toLowerCase();
 
+  // Cloud metadata endpoint (169.254.169.254) is ALWAYS blocked regardless of environment
+  if (hostname === '169.254.169.254') {
+    return { safe: false, reason: 'Access to private or loopback addresses is prohibited' };
+  }
+
   // Allow local addresses only in testing or when explicitly enabled
-  const allowLocal = process.env.ALLOW_LOCAL_PROXY === 'true' || process.env.NODE_ENV === 'test';
+  const allowLocal = !forceStrictCheck && (process.env.ALLOW_LOCAL_PROXY === 'true' || process.env.NODE_ENV === 'test');
 
   if (!allowLocal) {
     if (
@@ -39,8 +47,7 @@ export function isSafeTargetUrl(rawUrl: string): { safe: boolean; reason?: strin
       hostname === '::1' ||
       hostname === '0.0.0.0' ||
       hostname.startsWith('10.') ||
-      hostname.startsWith('192.168.') ||
-      hostname === '169.254.169.254'
+      hostname.startsWith('192.168.')
     ) {
       return { safe: false, reason: 'Access to private or loopback addresses is prohibited' };
     }

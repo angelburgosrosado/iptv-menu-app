@@ -40,6 +40,7 @@ import { handleStreamProxy } from './services/streamProxyService';
 import { channelMetadataService } from './services/channelMetadataService';
 import { epgService } from './services/epgService';
 import { adsenseService } from './services/adsenseService';
+import { streamHealthProber } from './services/streamHealthProber';
 
 const logger = new Logger('api-server');
 
@@ -301,6 +302,25 @@ app.use('/api/stream', cors({ origin: '*' }));
 app.get('/api/stream/proxy', handleStreamProxy);
 app.head('/api/stream/proxy', handleStreamProxy);
 app.options('/api/stream/proxy', handleStreamProxy);
+
+app.get('/api/stream/probe', async (req, res) => {
+  const targetUrl = (req.query.url as string) || '';
+  if (!targetUrl) {
+    return res.status(400).json({ error: 'Missing required query parameter "url"' });
+  }
+  const force = req.query.force === 'true';
+  const result = await streamHealthProber.probeStream(targetUrl, force);
+  res.json(result);
+});
+
+app.post('/api/stream/probe/batch', async (req, res) => {
+  const { urls } = req.body;
+  if (!Array.isArray(urls)) {
+    return res.status(400).json({ error: 'Expected "urls" array in request body' });
+  }
+  const results = await streamHealthProber.probeBatch(urls);
+  res.json({ results, totalProbed: Object.keys(results).length });
+});
 
 // ==========================================
 // CHANNEL METADATA & ENRICHMENT (IPTV-ORG)
