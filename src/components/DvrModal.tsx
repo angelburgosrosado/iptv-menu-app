@@ -23,6 +23,7 @@ import {
   Plus
 } from 'lucide-react';
 import { DvrRecording, Bookmark } from '../types/iptv';
+import { downloadRecordedBlob } from '../utils/streamRecorderEngine';
 
 interface DvrModalProps {
   isOpen: boolean;
@@ -77,6 +78,11 @@ export function DvrModal({ isOpen, onClose, initialTab = 'dvr' }: DvrModalProps)
   };
 
   const handleDownloadTicket = (rec: DvrRecording) => {
+    if (rec.blobUrl) {
+      downloadRecordedBlob(rec.blobUrl, rec.downloadFilename || `dvr-${rec.channelName.toLowerCase().replace(/[^a-z0-9]/g, '-')}.webm`);
+      return;
+    }
+
     const m3uContent = `#EXTM3U
 #EXTINF:-1 tvg-id="${rec.channelId}" tvg-name="${rec.channelName}" group-title="DVR Recording",${rec.programTitle} - ${rec.channelName} (${rec.durationMinutes}m Catchup)
 ${rec.catchupUrl || rec.streamUrl}
@@ -458,8 +464,10 @@ ${rec.catchupUrl || rec.streamUrl}
 
                     <button
                       onClick={() => handleDownloadTicket(rec)}
-                      className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white transition-colors cursor-pointer"
-                      title="Export M3U Ticket"
+                      className={`p-2 rounded-xl transition-colors cursor-pointer ${
+                        rec.blobUrl ? 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30' : 'bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white'
+                      }`}
+                      title={rec.blobUrl ? "Download Recorded Video (.webm/.mp4)" : "Export M3U Catchup Ticket"}
                     >
                       <Download className="w-4 h-4" />
                     </button>

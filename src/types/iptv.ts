@@ -323,6 +323,30 @@ export interface AppState {
   setParentalSessionTimeout: (minutes: number) => void;
   lockParentalSession: () => void;
   unlockParentalSession: () => void;
+  // Live Stream Recording Engine & Local DVR Exporter
+  activeRecording: ActiveRecordingState;
+  startActiveRecording: (params: { channelId: string; channelName: string; streamUrl: string; maxDurationSeconds?: number; mimeType?: string }) => void;
+  updateActiveRecordingProgress: (elapsedSeconds: number, bytesRecorded: number) => void;
+  stopActiveRecording: (result?: { blobUrl?: string; downloadFilename?: string; bytesRecorded?: number; elapsedSeconds?: number }) => DvrRecording | null;
+  cancelActiveRecording: (errorMessage?: string) => void;
+}
+
+export type StreamRecorderStatus = 'idle' | 'recording' | 'stopping' | 'error';
+
+export interface ActiveRecordingState {
+  status: StreamRecorderStatus;
+  isRecording: boolean;
+  channelId: string;
+  channelName: string;
+  streamUrl: string;
+  startTime: number;
+  elapsedSeconds: number;
+  bytesRecorded: number;
+  mimeType: string;
+  maxDurationSeconds: number;
+  error?: string;
+  blobUrl?: string;
+  downloadFilename?: string;
 }
 
 export type AudioDspPreset = 'flat' | 'bass_boost' | 'vocal_clarity' | 'night_mode' | 'treble_boost' | 'custom';
@@ -383,6 +407,8 @@ export interface DvrRecording {
   status: 'completed' | 'recording' | 'scheduled';
   recordedAt: string;
   fileSizeEstimate: string;
+  blobUrl?: string;
+  downloadFilename?: string;
 }
 
 export interface Bookmark {

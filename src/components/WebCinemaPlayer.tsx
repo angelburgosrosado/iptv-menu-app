@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { Channel } from '../types/iptv';
 import { usePlayerStore } from '../store/usePlayerStore';
+import { formatBytes, formatDuration } from '../utils/streamRecorderEngine';
 import { VideoPlayer } from './VideoPlayer';
 import SleepTimerModal from './SleepTimerModal';
 import AudioEqualizerModal from './AudioEqualizerModal';
@@ -54,7 +55,8 @@ export default function WebCinemaPlayer({
     audioDsp,
     parentalControls,
     isChannelLocked,
-    toggleChannelLock
+    toggleChannelLock,
+    activeRecording
   } = usePlayerStore();
   const [currentChannel, setCurrentChannel] = React.useState<Channel>(initialChannel);
   const [showChannelDrawer, setShowChannelDrawer] = React.useState(false);
@@ -520,10 +522,19 @@ export default function WebCinemaPlayer({
               </button>
             </>
           )}
+          {activeRecording.isRecording && (
+            <>
+              <span className="hidden sm:inline">•</span>
+              <span className="flex items-center gap-1.5 text-rose-400 font-bold animate-pulse">
+                <span className="w-2 h-2 rounded-full bg-rose-500" />
+                <span>REC {formatDuration(activeRecording.elapsedSeconds)} ({formatBytes(activeRecording.bytesRecorded)})</span>
+              </span>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-4">
           <span className="hidden md:inline">
-            Shortcuts: <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">Space</kbd> Pause • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">F</kbd> Fullscreen • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">P</kbd> PiP • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">Z</kbd> Sleep • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">Q</kbd> EQ • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">L</kbd> Lock • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">E</kbd> Guide
+            Shortcuts: <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">Space</kbd> Pause • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">F</kbd> Fullscreen • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">P</kbd> PiP • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">Z</kbd> Sleep • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">Q</kbd> EQ • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">L</kbd> Lock • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">R</kbd> Record • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">E</kbd> Guide
           </span>
           <span className="text-blue-400 font-mono text-[10px] font-bold">10-FOOT LEANBACK TV READY</span>
         </div>

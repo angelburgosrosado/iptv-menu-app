@@ -5,11 +5,12 @@
 
 import { create } from 'zustand';
 import { MMKV } from 'react-native-mmkv';
-import { AppState, Channel, EpgSource, DvrRecording, Bookmark, PlaylistSubscription, SleepTimerState, AudioDspConfig, AudioDspPreset, AudioDspBands, ParentalControlsConfig } from '../types/iptv';
+import { AppState, Channel, EpgSource, DvrRecording, Bookmark, PlaylistSubscription, SleepTimerState, AudioDspConfig, AudioDspPreset, AudioDspBands, ParentalControlsConfig, ActiveRecordingState } from '../types/iptv';
 import { parseM3U } from '../utils/m3uParser';
 import { buildCountrySections } from '../utils/channelEnrichment';
 import { DEFAULT_DSP_CONFIG, DSP_PRESETS, audioDspEngine } from '../utils/audioDspEngine';
 import { hashPin, verifyPin, DEFAULT_LOCKED_CATEGORIES } from '../utils/parentalSecurity';
+import { formatBytes } from '../utils/streamRecorderEngine';
 
 // Initialize react-native-mmkv storage container
 const storage = new MMKV({ id: 'iptv_user_storage_v1' });
@@ -50,6 +51,19 @@ const DEFAULT_SLEEP_TIMER: SleepTimerState = {
   endAction: 'pause',
   audioDuckRatio: 1.0,
   dimRatio: 0.0,
+};
+
+const DEFAULT_ACTIVE_RECORDING: ActiveRecordingState = {
+  status: 'idle',
+  isRecording: false,
+  channelId: '',
+  channelName: '',
+  streamUrl: '',
+  startTime: 0,
+  elapsedSeconds: 0,
+  bytesRecorded: 0,
+  mimeType: 'video/webm',
+  maxDurationSeconds: 3600,
 };
 
 // Pre-provided high-definition royalty-free & public IPTV streams fallback
@@ -182,6 +196,9 @@ export const usePlayerStore = create<AppState>((set, get) => ({
 
   // Parental Controls & Content Security Engine
   parentalControls: getInitialParentalControls(),
+
+  // Live Stream Recording Engine & Local DVR Exporter
+  activeRecording: DEFAULT_ACTIVE_RECORDING,
 
   // Country & EPG Backbone enhancements
   countrySections: buildCountrySections(INITIAL_FALLBACK_CHANNELS),
@@ -1032,5 +1049,92 @@ export const usePlayerStore = create<AppState>((set, get) => ({
     };
     writeJsonToStorage('iptv_parental_controls', updated);
     set({ parentalControls: updated });
+  },
+
+  // Live Stream Recording Engine & Local DVR Exporter Actions
+  startActiveRecording: ({ channelId, channelName, streamUrl, maxDurationSeconds = 3600, mimeType = 'video/webm' }) => {
+    set({
+      activeRecording: {
+        status: 'recording',
+        isRecording: true,
+        channelId,
+        channelName,
+        streamUrl,
+        startTime: Date.now(),
+        elapsedSeconds: 0,
+        bytesRecorded: 0,
+        mimeType,
+        maxDurationSeconds,
+        error: undefined,
+        blobUrl: undefined,
+        downloadFilename: undefined,
+      }
+    });
+  },
+
+  updateActiveRecordingProgress: (elapsedSeconds: number, bytesRecorded: number) => {
+    const current = get().activeRecording;
+    if (!current.isRecording) return;
+    set({
+      activeRecording: {
+        ...current,
+        elapsedSeconds,
+        bytesRecorded,
+      }
+    });
+  },
+
+  stopActiveRecording: (result) => {
+    const current = get().activeRecording;
+    if (!current.isRecording && current.status === 'idle') return null;
+
+    const durationSec = result?.elapsedSeconds ?? current.elapsedSeconds;
+    const durationMin = Math.max(1, Math.ceil(durationSec / 60));
+    const bytes = result?.bytesRecorded ?? current.bytesRecorded;
+    const sizeEstimate = formatBytes(bytes);
+
+    const newDvr: DvrRecording = {
+      id: `rec_live_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      channelId: current.channelId,
+      channelName: current.channelName,
+      programTitle: `${current.channelName} Live Capture`,
+      programDescription: `Direct stream recording from ${current.channelName} (${durationSec}s, ${sizeEstimate}).`,
+      streamUrl: current.streamUrl,
+      startTime: new Date(current.startTime || (Date.now() - durationSec * 1000)).toISOString(),
+      endTime: new Date().toISOString(),
+      durationMinutes: durationMin,
+      status: 'completed',
+      recordedAt: new Date().toISOString(),
+      fileSizeEstimate: sizeEstimate,
+      blobUrl: result?.blobUrl,
+      downloadFilename: result?.downloadFilename,
+    };
+
+    const updatedRecordings = [newDvr, ...get().dvrRecordings];
+    writeJsonToStorage('iptv_dvr_recordings', updatedRecordings);
+
+    set({
+      dvrRecordings: updatedRecordings,
+      activeRecording: {
+        ...current,
+        status: 'idle',
+        isRecording: false,
+        blobUrl: result?.blobUrl,
+        downloadFilename: result?.downloadFilename,
+      }
+    });
+
+    return newDvr;
+  },
+
+  cancelActiveRecording: (errorMessage?: string) => {
+    set({
+      activeRecording: {
+        ...get().activeRecording,
+        status: errorMessage ? 'error' : 'idle',
+        isRecording: false,
+        error: errorMessage,
+      }
+    });
   },
 }));

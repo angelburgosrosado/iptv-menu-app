@@ -31,9 +31,11 @@ import {
   Activity,
   Moon,
   Lock,
-  Unlock
+  Unlock,
+  Square
 } from 'lucide-react';
 import { usePlayerStore } from '../store/usePlayerStore';
+import { streamRecorder, formatBytes, formatDuration } from '../utils/streamRecorderEngine';
 import { DiagnosticsHUD } from './DiagnosticsHUD';
 import SleepTimerModal from './SleepTimerModal';
 import AudioEqualizerModal from './AudioEqualizerModal';
@@ -114,7 +116,12 @@ export function VideoPlayer({
     audioDsp,
     parentalControls,
     isChannelLocked,
-    toggleChannelLock
+    toggleChannelLock,
+    activeRecording,
+    startActiveRecording,
+    updateActiveRecordingProgress,
+    stopActiveRecording,
+    cancelActiveRecording
   } = usePlayerStore();
   const isBookmarked = isChannelBookmarked(channelName.toLowerCase().replace(/[^a-z0-9]/g, '-')) || isChannelBookmarked(channelName);
   const isLocked = isChannelLocked({ id: channelName, name: channelName, group: groupTitle });
@@ -314,6 +321,56 @@ export function VideoPlayer({
     return () => unsub?.();
   }, [player]);
 
+  const handleToggleRecording = React.useCallback(() => {
+    resetControlsTimer();
+    if (activeRecording.isRecording) {
+      triggerChannelHud('Stopping & Finalizing Recording...');
+      streamRecorder.stop();
+    } else {
+      if (!videoEl) {
+        triggerChannelHud('Recording: Video not ready yet');
+        return;
+      }
+      const channelSlug = (channelName || 'stream').toLowerCase().replace(/[^a-z0-9]/g, '-');
+      startActiveRecording({
+        channelId: channelSlug,
+        channelName,
+        streamUrl: activeEffectiveUrl,
+        maxDurationSeconds: 3600
+      });
+
+      const started = streamRecorder.start(videoEl, {
+        channelId: channelSlug,
+        channelName,
+        streamUrl: activeEffectiveUrl,
+        maxDurationSeconds: 3600,
+        autoDownload: true,
+        onProgress: (prog) => {
+          updateActiveRecordingProgress(prog.elapsedSeconds, prog.bytesRecorded);
+        },
+        onComplete: (res) => {
+          stopActiveRecording({
+            blobUrl: res.blobUrl,
+            downloadFilename: res.filename,
+            bytesRecorded: res.bytesRecorded,
+            elapsedSeconds: res.durationSeconds
+          });
+          triggerChannelHud(`DVR Saved: ${res.filename} (${res.formattedSize})`);
+        },
+        onError: (err) => {
+          cancelActiveRecording(err.message);
+          triggerChannelHud(`Recording Error: ${err.message}`);
+        }
+      });
+
+      if (started) {
+        triggerChannelHud('Recording Started (Press R or REC to Stop)');
+      } else {
+        triggerChannelHud('Failed to start recording');
+      }
+    }
+  }, [activeRecording.isRecording, videoEl, channelName, activeEffectiveUrl, startActiveRecording, updateActiveRecordingProgress, stopActiveRecording, cancelActiveRecording]);
+
   // Safe wrapper for video status listeners
   React.useEffect(() => {
     if (!videoEl) return;
@@ -436,6 +493,10 @@ export function VideoPlayer({
             toggleChannelLock(channelName);
           }
           break;
+        case 'KeyR':
+          e.preventDefault();
+          handleToggleRecording();
+          break;
         default:
           break;
       }
@@ -443,7 +504,7 @@ export function VideoPlayer({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [enableKeyboardNavigation, volume, isPlaying, isMuted, onNextChannel, onPrevChannel, parentalControls.pinHash, isLocked, channelName, toggleChannelLock]);
+  }, [enableKeyboardNavigation, volume, isPlaying, isMuted, onNextChannel, onPrevChannel, parentalControls.pinHash, isLocked, channelName, toggleChannelLock, handleToggleRecording]);
 
   return (
     <View 
@@ -475,6 +536,29 @@ export function VideoPlayer({
             >
               <Lock size={15} color="#ffffff" />
               <Text style={styles.parentalUnlockBtnText}>Enter PIN to Unlock</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Active Stream Recording Floating HUD Indicator */}
+      {activeRecording.isRecording && (
+        <View style={styles.recordingBadgeContainer}>
+          <View style={styles.recordingPill}>
+            <View style={styles.recordingDot} />
+            <Text style={styles.recordingPillText}>
+              REC {formatDuration(activeRecording.elapsedSeconds)}
+            </Text>
+            <Text style={styles.recordingPillSubtext}>
+              {formatBytes(activeRecording.bytesRecorded)}
+            </Text>
+            <TouchableOpacity
+              onPress={handleToggleRecording}
+              style={styles.recordingStopBtn}
+              title="Stop and Export Recording (R)"
+            >
+              <Square size={10} color="#ffffff" fill="#ffffff" />
+              <Text style={styles.recordingStopBtnText}>STOP</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -727,33 +811,30 @@ export function VideoPlayer({
               </TouchableOpacity>
             )}
 
-            {/* Instant DVR Stream Capture Button */}
+            {/* Live Stream Recording Engine Toggle Button */}
             <TouchableOpacity
-              onPress={() => {
-                resetControlsTimer();
-                const duration = 60;
-                scheduleRecording({
-                  channelId: channelName.toLowerCase().replace(/[^a-z0-9]/g, '-'),
-                  channelName: channelName,
-                  programTitle: `${channelName} Live Capture`,
-                  programDescription: `Direct stream recording from ${channelName} initiated from live player controls.`,
-                  streamUrl: activeEffectiveUrl,
-                  startTime: new Date().toISOString(),
-                  endTime: new Date(Date.now() + duration * 60000).toISOString(),
-                  durationMinutes: duration,
-                  status: 'recording',
-                  fileSizeEstimate: '1.47 GB'
-                });
-                triggerChannelHud(`DVR: Recording ${channelName} (60 min)`);
-              }}
+              onPress={handleToggleRecording}
               style={[
                 styles.hudIconBtn, 
-                { backgroundColor: 'rgba(168, 85, 247, 0.15)', borderWidth: 1, borderColor: 'rgba(168, 85, 247, 0.3)' }
+                activeRecording.isRecording 
+                  ? { backgroundColor: 'rgba(239, 68, 68, 0.25)', borderWidth: 1, borderColor: '#ef4444' }
+                  : { backgroundColor: 'rgba(168, 85, 247, 0.15)', borderWidth: 1, borderColor: 'rgba(168, 85, 247, 0.3)' }
               ]}
-              title="Instant DVR Record (60 min capture)"
+              title={activeRecording.isRecording ? "Stop and Export Live Stream Recording (R)" : "Record Live Stream to Local DVR (R)"}
             >
-              <Film size={14} color="#c084fc" />
-              <Text style={[styles.hudTrackBadgeText, { color: '#c084fc' }]}>REC</Text>
+              {activeRecording.isRecording ? (
+                <>
+                  <Square size={14} color="#f43f5e" fill="#f43f5e" />
+                  <Text style={[styles.hudTrackBadgeText, { color: '#f43f5e', fontWeight: '700' }]}>
+                    {formatDuration(activeRecording.elapsedSeconds)}
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Film size={14} color="#c084fc" />
+                  <Text style={[styles.hudTrackBadgeText, { color: '#c084fc' }]}>REC</Text>
+                </>
+              )}
             </TouchableOpacity>
 
             {/* Bookmark Toggle Button */}
@@ -1398,6 +1479,61 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 13,
     fontWeight: '700',
+  },
+  recordingBadgeContainer: {
+    position: 'absolute',
+    top: 24,
+    right: 24,
+    zIndex: 40,
+  },
+  recordingPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(24, 24, 27, 0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.4)',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 20,
+    backdropFilter: 'blur(12px)',
+    shadowColor: '#ef4444',
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+  },
+  recordingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#ef4444',
+  },
+  recordingPillText: {
+    color: '#ef4444',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  recordingPillSubtext: {
+    color: '#a1a1aa',
+    fontSize: 11,
+    fontFamily: 'monospace',
+    fontWeight: '600',
+  },
+  recordingStopBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#dc2626',
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    marginLeft: 4,
+  },
+  recordingStopBtnText: {
+    color: '#ffffff',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.3,
   },
 });
 
