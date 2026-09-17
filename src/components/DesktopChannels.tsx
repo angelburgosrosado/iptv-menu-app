@@ -76,13 +76,24 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
     toggleChannelLock,
     tvNavigation,
     isLoading,
-    error
+    error,
+    matrixConfig,
+    setMatrixSlot
   } = usePlayerStore();
   const [searchQuery, setSearchQuery] = React.useState('');
   const [showSyntaxHelp, setShowSyntaxHelp] = React.useState(false);
   const [selectedGroup, setSelectedGroup] = React.useState<string | null>(null);
   const [viewMode, setViewMode] = React.useState<'grid' | 'list' | 'country'>('grid');
   const [cinemaChannel, setCinemaChannel] = React.useState<Channel | null>(null);
+
+  const handleAddToMultiScreen = (c: Channel) => {
+    const emptyIdx = matrixConfig.slots.findIndex((s: Channel | null) => s === null);
+    const targetIdx = emptyIdx >= 0 ? emptyIdx : 0;
+    setMatrixSlot(targetIdx, c);
+    if (onSwitchToMultiScreen) {
+      onSwitchToMultiScreen();
+    }
+  };
   const [sortMode, setSortMode] = React.useState<'default' | 'name-asc' | 'name-desc' | 'health' | 'country'>('default');
   const [selectedCustomTag, setSelectedCustomTag] = React.useState<string | null>(null);
   const [taggingChannel, setTaggingChannel] = React.useState<Channel | null>(null);
@@ -904,6 +915,15 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
                   </button>
 
                   <button
+                    onClick={() => handleAddToMultiScreen(c)}
+                    className="p-2 rounded-xl bg-white/5 hover:bg-cyan-500/20 text-zinc-400 hover:text-cyan-300 border border-white/10 transition-all cursor-pointer"
+                    title="Send to Multi-Screen Canvas"
+                    aria-label="Send to Multi-Screen"
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
                     onClick={() => handlePlayInSimulator(c)}
                     className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/10 transition-all cursor-pointer"
                     title="Preview in Mobile Phone Simulator"
@@ -1058,6 +1078,15 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
                     aria-label="Picture-in-Picture"
                   >
                     <PictureInPicture className="w-3.5 h-3.5" />
+                  </button>
+
+                  <button
+                    onClick={() => handleAddToMultiScreen(c)}
+                    className="p-1 rounded-lg bg-white/5 hover:bg-cyan-500/20 text-zinc-400 hover:text-cyan-300 border border-white/10 transition-all cursor-pointer"
+                    title="Send to Multi-Screen Canvas"
+                    aria-label="Send to Multi-Screen"
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
                   </button>
 
                   <button

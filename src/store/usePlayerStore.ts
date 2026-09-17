@@ -5,13 +5,21 @@
 
 import { create } from 'zustand';
 import { MMKV } from 'react-native-mmkv';
-import { AppState, Channel, EpgSource, DvrRecording, Bookmark, PlaylistSubscription, SleepTimerState, AudioDspConfig, AudioDspPreset, AudioDspBands, ParentalControlsConfig, ActiveRecordingState, TvNavigationConfig, SpatialFocusZone, SubtitleConfig, SubtitlePreset } from '../types/iptv';
+import { AppState, Channel, EpgSource, DvrRecording, Bookmark, PlaylistSubscription, SleepTimerState, AudioDspConfig, AudioDspPreset, AudioDspBands, ParentalControlsConfig, ActiveRecordingState, TvNavigationConfig, SpatialFocusZone, SubtitleConfig, SubtitlePreset, MatrixLayoutMode, MultiScreenMatrixConfig } from '../types/iptv';
 import { parseM3U } from '../utils/m3uParser';
 import { buildCountrySections } from '../utils/channelEnrichment';
 import { DEFAULT_DSP_CONFIG, DSP_PRESETS, audioDspEngine } from '../utils/audioDspEngine';
 import { hashPin, verifyPin, DEFAULT_LOCKED_CATEGORIES } from '../utils/parentalSecurity';
 import { formatBytes } from '../utils/streamRecorderEngine';
 import { DEFAULT_SUBTITLE_CONFIG, SUBTITLE_PRESETS, clampSyncOffset, applySubtitleStylesToDom } from '../utils/subtitleEngine';
+
+export const DEFAULT_MATRIX_CONFIG: MultiScreenMatrixConfig = {
+  layout: 'quad',
+  slots: [null, null, null, null],
+  mutedSlots: [false, true, true, true],
+  volumes: [0.8, 0.8, 0.8, 0.8],
+  focusedAudioSlot: 0,
+};
 
 // Initialize react-native-mmkv storage container
 const storage = new MMKV({ id: 'iptv_user_storage_v1' });
@@ -215,6 +223,9 @@ export const usePlayerStore = create<AppState>((set, get) => ({
 
   // Multi-Language Subtitle & Closed Caption Customization Engine
   subtitleConfig: readJsonFromStorage<SubtitleConfig>('iptv_subtitle_config', DEFAULT_SUBTITLE_CONFIG),
+
+  // Multi-Stream Split-Screen & Quad-View PIP Matrix Engine
+  matrixConfig: readJsonFromStorage<MultiScreenMatrixConfig>('iptv_matrix_config', DEFAULT_MATRIX_CONFIG),
 
   // Country & EPG Backbone enhancements
   countrySections: buildCountrySections(INITIAL_FALLBACK_CHANNELS),
@@ -1232,5 +1243,189 @@ export const usePlayerStore = create<AppState>((set, get) => ({
     writeJsonToStorage('iptv_subtitle_config', reset);
     applySubtitleStylesToDom(reset);
     set({ subtitleConfig: reset });
+  },
+
+  // Multi-Stream Split-Screen & Quad-View PIP Matrix Engine Actions
+  setMatrixLayout: (layout: MatrixLayoutMode) => {
+    const updated: MultiScreenMatrixConfig = {
+      ...get().matrixConfig,
+      layout
+    };
+    writeJsonToStorage('iptv_matrix_config', updated);
+    set({ matrixConfig: updated });
+  },
+
+  setMatrixSlot: (slotIdx: number, channel: Channel | null) => {
+    if (slotIdx < 0 || slotIdx > 3) return;
+    const slots = [...get().matrixConfig.slots];
+    slots[slotIdx] = channel;
+    const updated: MultiScreenMatrixConfig = {
+      ...get().matrixConfig,
+      slots
+    };
+    if (get().matrixConfig.focusedAudioSlot === null && channel !== null) {
+      updated.focusedAudioSlot = slotIdx;
+      const newMuted = [true, true, true, true];
+      newMuted[slotIdx] = false;
+      updated.mutedSlots = newMuted;
+    }
+    writeJsonToStorage('iptv_matrix_config', updated);
+    set({ matrixConfig: updated });
+  },
+
+  clearMatrixSlot: (slotIdx: number) => {
+    if (slotIdx < 0 || slotIdx > 3) return;
+    const slots = [...get().matrixConfig.slots];
+    slots[slotIdx] = null;
+    let focusedAudioSlot = get().matrixConfig.focusedAudioSlot;
+    let mutedSlots = [...get().matrixConfig.mutedSlots];
+
+    if (focusedAudioSlot === slotIdx) {
+      const nextAvailable = slots.findIndex(s => s !== null);
+      if (nextAvailable >= 0) {
+        focusedAudioSlot = nextAvailable;
+        mutedSlots = mutedSlots.map((_, i) => i !== nextAvailable);
+      } else {
+        focusedAudioSlot = null;
+      }
+    }
+
+    const updated: MultiScreenMatrixConfig = {
+      ...get().matrixConfig,
+      slots,
+      focusedAudioSlot,
+      mutedSlots
+    };
+    writeJsonToStorage('iptv_matrix_config', updated);
+    set({ matrixConfig: updated });
+  },
+
+  swapMatrixSlots: (slotA: number, slotB: number) => {
+    if (slotA < 0 || slotA > 3 || slotB < 0 || slotB > 3 || slotA === slotB) return;
+    const slots = [...get().matrixConfig.slots];
+    const tempSlot = slots[slotA];
+    slots[slotA] = slots[slotB];
+    slots[slotB] = tempSlot;
+
+    let focusedAudioSlot = get().matrixConfig.focusedAudioSlot;
+    if (focusedAudioSlot === slotA) {
+      focusedAudioSlot = slotB;
+    } else if (focusedAudioSlot === slotB) {
+      focusedAudioSlot = slotA;
+    }
+
+    const mutedSlots = [...get().matrixConfig.mutedSlots];
+    const tempMute = mutedSlots[slotA];
+    mutedSlots[slotA] = mutedSlots[slotB];
+    mutedSlots[slotB] = tempMute;
+
+    const volumes = [...get().matrixConfig.volumes];
+    const tempVol = volumes[slotA];
+    volumes[slotA] = volumes[slotB];
+    volumes[slotB] = tempVol;
+
+    const updated: MultiScreenMatrixConfig = {
+      ...get().matrixConfig,
+      slots,
+      focusedAudioSlot,
+      mutedSlots,
+      volumes
+    };
+    writeJsonToStorage('iptv_matrix_config', updated);
+    set({ matrixConfig: updated });
+  },
+
+  promoteToHeroSlot: (slotIdx: number) => {
+    if (slotIdx <= 0 || slotIdx > 3) return;
+    get().swapMatrixSlots(0, slotIdx);
+    get().setMatrixAudioSolo(0);
+  },
+
+  setMatrixAudioSolo: (slotIdx: number) => {
+    if (slotIdx < 0 || slotIdx > 3) return;
+    const newMuted = [true, true, true, true];
+    newMuted[slotIdx] = false;
+    const updated: MultiScreenMatrixConfig = {
+      ...get().matrixConfig,
+      focusedAudioSlot: slotIdx,
+      mutedSlots: newMuted
+    };
+    writeJsonToStorage('iptv_matrix_config', updated);
+    set({ matrixConfig: updated });
+  },
+
+  toggleMatrixMuteAll: () => {
+    const isAnyUnmuted = get().matrixConfig.mutedSlots.some(m => !m);
+    if (isAnyUnmuted) {
+      const updated: MultiScreenMatrixConfig = {
+        ...get().matrixConfig,
+        mutedSlots: [true, true, true, true],
+        focusedAudioSlot: null
+      };
+      writeJsonToStorage('iptv_matrix_config', updated);
+      set({ matrixConfig: updated });
+    } else {
+      const target = get().matrixConfig.focusedAudioSlot ?? 0;
+      get().setMatrixAudioSolo(target);
+    }
+  },
+
+  setMatrixSlotVolume: (slotIdx: number, volume: number) => {
+    if (slotIdx < 0 || slotIdx > 3) return;
+    const volumes = [...get().matrixConfig.volumes];
+    volumes[slotIdx] = Math.max(0, Math.min(1, volume));
+
+    const mutedSlots = [...get().matrixConfig.mutedSlots];
+    let focusedAudioSlot = get().matrixConfig.focusedAudioSlot;
+
+    if (volume === 0) {
+      mutedSlots[slotIdx] = true;
+      if (focusedAudioSlot === slotIdx) focusedAudioSlot = null;
+    } else if (mutedSlots[slotIdx]) {
+      mutedSlots[slotIdx] = false;
+      focusedAudioSlot = slotIdx;
+    }
+
+    const updated: MultiScreenMatrixConfig = {
+      ...get().matrixConfig,
+      volumes,
+      mutedSlots,
+      focusedAudioSlot
+    };
+    writeJsonToStorage('iptv_matrix_config', updated);
+    set({ matrixConfig: updated });
+  },
+
+  toggleMatrixSlotMute: (slotIdx: number) => {
+    if (slotIdx < 0 || slotIdx > 3) return;
+    const mutedSlots = [...get().matrixConfig.mutedSlots];
+    mutedSlots[slotIdx] = !mutedSlots[slotIdx];
+    let focusedAudioSlot = get().matrixConfig.focusedAudioSlot;
+
+    if (!mutedSlots[slotIdx]) {
+      focusedAudioSlot = slotIdx;
+    } else if (focusedAudioSlot === slotIdx) {
+      focusedAudioSlot = null;
+    }
+
+    const updated: MultiScreenMatrixConfig = {
+      ...get().matrixConfig,
+      mutedSlots,
+      focusedAudioSlot
+    };
+    writeJsonToStorage('iptv_matrix_config', updated);
+    set({ matrixConfig: updated });
+  },
+
+  resetMatrixConfig: () => {
+    const reset: MultiScreenMatrixConfig = {
+      layout: 'quad',
+      slots: [null, null, null, null],
+      mutedSlots: [false, true, true, true],
+      volumes: [0.8, 0.8, 0.8, 0.8],
+      focusedAudioSlot: 0
+    };
+    writeJsonToStorage('iptv_matrix_config', reset);
+    set({ matrixConfig: reset });
   },
 }));

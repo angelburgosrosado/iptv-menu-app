@@ -14,9 +14,17 @@ import {
   X, 
   Tv, 
   Headphones, 
-  Radio
+  Radio,
+  Crown,
+  ArrowLeftRight,
+  RotateCcw,
+  Search,
+  Filter,
+  AlertTriangle,
+  Columns,
+  Square
 } from 'lucide-react';
-import { Channel } from '../types/iptv';
+import { Channel, MatrixLayoutMode } from '../types/iptv';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { PageProtocolHeader } from './PageProtocolHeader';
 
@@ -24,15 +32,30 @@ interface MatrixSlotVideoProps {
   channel: Channel;
   isMuted: boolean;
   volume: number;
+  slotIdx: number;
+  onRetry?: () => void;
 }
 
-function MatrixSlotVideo({ channel, isMuted, volume }: MatrixSlotVideoProps) {
+function MatrixSlotVideo({ channel, isMuted, volume, slotIdx, onRetry }: MatrixSlotVideoProps) {
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
   const hlsRef = React.useRef<any>(null);
+  const [hasError, setHasError] = React.useState(false);
+  const [isBuffering, setIsBuffering] = React.useState(true);
+  const [retryCount, setRetryCount] = React.useState(0);
+
+  const handleManualRetry = () => {
+    setHasError(false);
+    setIsBuffering(true);
+    setRetryCount(prev => prev + 1);
+    if (onRetry) onRetry();
+  };
 
   React.useEffect(() => {
     const video = videoRef.current;
     if (!video || !channel?.url) return;
+
+    setHasError(false);
+    setIsBuffering(true);
 
     if (hlsRef.current) {
       hlsRef.current.destroy();
@@ -45,6 +68,17 @@ function MatrixSlotVideo({ channel, isMuted, volume }: MatrixSlotVideoProps) {
     const effectiveUrl = (isHttpsPage && isHttp && !rawUrl.includes('/api/stream/proxy'))
       ? `/api/stream/proxy?url=${encodeURIComponent(rawUrl)}`
       : rawUrl;
+
+    const handlePlaying = () => setIsBuffering(false);
+    const handleWaiting = () => setIsBuffering(true);
+    const handleError = () => {
+      setIsBuffering(false);
+      setHasError(true);
+    };
+
+    video.addEventListener('playing', handlePlaying);
+    video.addEventListener('waiting', handleWaiting);
+    video.addEventListener('error', handleError);
 
     if (effectiveUrl.includes('.m3u8') || effectiveUrl.includes('/api/stream/proxy')) {
       const HlsClass = (window as any).Hls;
@@ -67,16 +101,27 @@ function MatrixSlotVideo({ channel, isMuted, volume }: MatrixSlotVideoProps) {
         });
 
         hls.on(HlsClass.Events.ERROR, (_: any, data: any) => {
-          if (data.fatal && !effectiveUrl.includes('/api/stream/proxy')) {
-            hls.destroy();
-            hlsRef.current = null;
-            const proxyUrl = `/api/stream/proxy?url=${encodeURIComponent(rawUrl)}`;
-            if (HlsClass.isSupported()) {
-              const fallbackHls = new HlsClass({ enableWorker: true, lowLatencyMode: true });
-              hlsRef.current = fallbackHls;
-              fallbackHls.loadSource(proxyUrl);
-              fallbackHls.attachMedia(video);
-              fallbackHls.on(HlsClass.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+          if (data.fatal) {
+            if (!effectiveUrl.includes('/api/stream/proxy')) {
+              hls.destroy();
+              hlsRef.current = null;
+              const proxyUrl = `/api/stream/proxy?url=${encodeURIComponent(rawUrl)}`;
+              if (HlsClass.isSupported()) {
+                const fallbackHls = new HlsClass({ enableWorker: true, lowLatencyMode: true });
+                hlsRef.current = fallbackHls;
+                fallbackHls.loadSource(proxyUrl);
+                fallbackHls.attachMedia(video);
+                fallbackHls.on(HlsClass.Events.MANIFEST_PARSED, () => video.play().catch(() => {}));
+                fallbackHls.on(HlsClass.Events.ERROR, (_: any, fallbackData: any) => {
+                  if (fallbackData.fatal) {
+                    setHasError(true);
+                    setIsBuffering(false);
+                  }
+                });
+              }
+            } else {
+              setHasError(true);
+              setIsBuffering(false);
             }
           }
         });
@@ -90,12 +135,15 @@ function MatrixSlotVideo({ channel, isMuted, volume }: MatrixSlotVideoProps) {
     }
 
     return () => {
+      video.removeEventListener('playing', handlePlaying);
+      video.removeEventListener('waiting', handleWaiting);
+      video.removeEventListener('error', handleError);
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
       }
     };
-  }, [channel?.url]);
+  }, [channel?.url, retryCount]);
 
   React.useEffect(() => {
     if (videoRef.current) {
@@ -105,145 +153,410 @@ function MatrixSlotVideo({ channel, isMuted, volume }: MatrixSlotVideoProps) {
   }, [isMuted, volume]);
 
   return (
-    <video
-      ref={videoRef}
-      autoPlay
-      playsInline
-      muted={isMuted}
-      className="w-full h-full object-cover"
-    />
+    <div className="relative w-full h-full bg-black">
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        muted={isMuted}
+        className="w-full h-full object-cover"
+      />
+
+      {/* Buffering Spinner */}
+      {isBuffering && !hasError && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/40 pointer-events-none">
+          <div className="w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      )}
+
+      {/* Stream Error Recovery Overlay */}
+      {hasError && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center p-4 bg-zinc-950/90 text-center z-10">
+          <AlertTriangle className="w-8 h-8 text-amber-400 mb-2" />
+          <span className="text-xs font-bold text-white mb-1">Stream Playback Stalled</span>
+          <p className="text-[11px] text-zinc-400 mb-3 max-w-xs">
+            Feed transmission interrupted by source host or network timeout.
+          </p>
+          <button
+            onClick={handleManualRetry}
+            className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md cursor-pointer"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Retry Feed</span>
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
 export default function MultiScreenMatrix() {
-  const { channels } = usePlayerStore();
-  const [activeSlotCount, setActiveSlotCount] = React.useState<2 | 4>(4);
-  const [slots, setSlots] = React.useState<(Channel | null)[]>([null, null, null, null]);
-  const [mutedSlots, setMutedSlots] = React.useState<boolean[]>([false, true, true, true]);
-  const [volumes, setVolumes] = React.useState<number[]>([0.8, 0.8, 0.8, 0.8]);
-  const [focusedAudioSlot, setFocusedAudioSlot] = React.useState<number | null>(0);
+  const { 
+    channels,
+    matrixConfig,
+    setMatrixLayout,
+    setMatrixSlot,
+    clearMatrixSlot,
+    swapMatrixSlots,
+    promoteToHeroSlot,
+    setMatrixAudioSolo,
+    toggleMatrixMuteAll,
+    setMatrixSlotVolume,
+    toggleMatrixSlotMute
+  } = usePlayerStore();
+
   const [selectedSlotIdx, setSelectedSlotIdx] = React.useState<number | null>(null);
+  const [swapSourceSlotIdx, setSwapSourceSlotIdx] = React.useState<number | null>(null);
   const [activeVolumePopupIdx, setActiveVolumePopupIdx] = React.useState<number | null>(null);
   const [fullscreenSlotIdx, setFullscreenSlotIdx] = React.useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const [selectedCategory, setSelectedCategory] = React.useState('All');
 
-  // Initialize with the first 4 channels if available
+  const { layout, slots, mutedSlots, volumes, focusedAudioSlot } = matrixConfig;
+
+  // Initial seed: If all slots are null, populate slots with the first available channels
   React.useEffect(() => {
     if (channels.length > 0 && slots.every(s => s === null)) {
-      setSlots([
-        channels[0] || null,
-        channels[1] || null,
-        channels[2] || null,
-        channels[3] || null
-      ]);
+      setMatrixSlot(0, channels[0] || null);
+      setMatrixSlot(1, channels[1] || null);
+      setMatrixSlot(2, channels[2] || null);
+      setMatrixSlot(3, channels[3] || null);
     }
   }, [channels]);
 
+  // Determine active slots count for current layout mode
+  const activeSlotCount = React.useMemo(() => {
+    switch (layout) {
+      case 'dual': return 2;
+      case 'triple': return 3;
+      case 'hero':
+      case 'quad':
+      default:
+        return 4;
+    }
+  }, [layout]);
+
+  // Filtered channels for stream assignment modal
+  const filteredChannels = React.useMemo(() => {
+    let result = channels;
+    if (selectedCategory !== 'All') {
+      result = result.filter(c => (c.group || '').toLowerCase().includes(selectedCategory.toLowerCase()));
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(c => 
+        c.name.toLowerCase().includes(q) || 
+        (c.group || '').toLowerCase().includes(q) ||
+        (c.countryName || c.countryCode || '').toLowerCase().includes(q)
+      );
+    }
+    return result;
+  }, [channels, selectedCategory, searchQuery]);
+
+  // Unique channel groups for filter chips
+  const channelGroups = React.useMemo(() => {
+    const set = new Set<string>();
+    channels.forEach(c => {
+      if (c.group) set.add(c.group);
+    });
+    return ['All', ...Array.from(set).slice(0, 8)];
+  }, [channels]);
+
   const handleSelectChannelForSlot = (channel: Channel, slotIdx: number) => {
-    const updated = [...slots];
-    updated[slotIdx] = channel;
-    setSlots(updated);
+    setMatrixSlot(slotIdx, channel);
     setSelectedSlotIdx(null);
+    setSearchQuery('');
   };
 
-  const handleSoloAudio = (slotIdx: number, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    setFocusedAudioSlot(slotIdx);
-    const newMuted = mutedSlots.map((_, i) => i !== slotIdx);
-    setMutedSlots(newMuted);
-  };
-
-  const handleToggleMuteAll = () => {
-    const isAnyUnmuted = mutedSlots.some(m => !m);
-    if (isAnyUnmuted) {
-      // Mute everything
-      setMutedSlots([true, true, true, true]);
-      setFocusedAudioSlot(null);
-    } else {
-      // Restore solo audio on focused slot (or slot 0)
-      const target = focusedAudioSlot ?? 0;
-      handleSoloAudio(target);
+  const handleSwapSlots = (targetIdx: number) => {
+    if (swapSourceSlotIdx !== null && swapSourceSlotIdx !== targetIdx) {
+      swapMatrixSlots(swapSourceSlotIdx, targetIdx);
+      setSwapSourceSlotIdx(null);
     }
   };
 
-  const handleToggleMute = (idx: number, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const updated = [...mutedSlots];
-    updated[idx] = !updated[idx];
-    setMutedSlots(updated);
-    if (!updated[idx]) {
-      setFocusedAudioSlot(idx);
-    }
-  };
-
-  const handleVolumeChange = (idx: number, val: number) => {
-    const updated = [...volumes];
-    updated[idx] = val;
-    setVolumes(updated);
-    if (val === 0) {
-      const updatedMute = [...mutedSlots];
-      updatedMute[idx] = true;
-      setMutedSlots(updatedMute);
-    } else if (mutedSlots[idx]) {
-      const updatedMute = [...mutedSlots];
-      updatedMute[idx] = false;
-      setMutedSlots(updatedMute);
-      setFocusedAudioSlot(idx);
-    }
-  };
-
-  const handleRemoveSlot = (idx: number, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const updated = [...slots];
-    updated[idx] = null;
-    setSlots(updated);
-    if (focusedAudioSlot === idx) {
-      const nextAvailable = updated.findIndex(s => s !== null);
-      if (nextAvailable >= 0) {
-        handleSoloAudio(nextAvailable);
-      } else {
-        setFocusedAudioSlot(null);
-      }
-    }
-  };
-
-  // 1-4 Keyboard Hotkeys for Audio Solo Focus
+  // Keyboard Hotkeys: 1-4 for solo audio focus, M for mute all, Esc to exit fullscreen
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const targetTag = (e.target as HTMLElement)?.tagName?.toLowerCase();
       if (targetTag === 'input' || targetTag === 'textarea') return;
 
-      if (e.key === '1') handleSoloAudio(0);
-      if (e.key === '2') handleSoloAudio(1);
-      if (e.key === '3' && activeSlotCount === 4) handleSoloAudio(2);
-      if (e.key === '4' && activeSlotCount === 4) handleSoloAudio(3);
-      if (e.key === 'm' || e.key === 'M') handleToggleMuteAll();
-      if (e.key === 'Escape' && fullscreenSlotIdx !== null) setFullscreenSlotIdx(null);
+      if (e.key === '1') setMatrixAudioSolo(0);
+      if (e.key === '2' && activeSlotCount >= 2) setMatrixAudioSolo(1);
+      if (e.key === '3' && activeSlotCount >= 3) setMatrixAudioSolo(2);
+      if (e.key === '4' && activeSlotCount >= 4) setMatrixAudioSolo(3);
+      if (e.key === 'm' || e.key === 'M') toggleMatrixMuteAll();
+      if (e.key === 'Escape') {
+        if (fullscreenSlotIdx !== null) setFullscreenSlotIdx(null);
+        if (swapSourceSlotIdx !== null) setSwapSourceSlotIdx(null);
+        if (selectedSlotIdx !== null) setSelectedSlotIdx(null);
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeSlotCount, fullscreenSlotIdx, mutedSlots, focusedAudioSlot]);
+  }, [activeSlotCount, fullscreenSlotIdx, swapSourceSlotIdx, selectedSlotIdx, setMatrixAudioSolo, toggleMatrixMuteAll]);
 
-  const allMuted = mutedSlots.every(m => m);
+  const allMuted = mutedSlots.slice(0, activeSlotCount).every(m => m);
+
+  // Render a specific slot quadrant
+  const renderSlot = (idx: number, isHeroSlot: boolean = false) => {
+    const channel = slots[idx];
+    const isMuted = mutedSlots[idx];
+    const volume = volumes[idx] ?? 0.8;
+    const isAudioFocused = focusedAudioSlot === idx && !isMuted;
+    const isFullscreen = fullscreenSlotIdx === idx;
+    const isSwapping = swapSourceSlotIdx === idx;
+
+    return (
+      <div
+        key={idx}
+        onClick={() => {
+          if (swapSourceSlotIdx !== null) {
+            handleSwapSlots(idx);
+          } else {
+            setMatrixAudioSolo(idx);
+          }
+        }}
+        className={`relative aspect-video bg-black rounded-2xl overflow-hidden border group shadow-xl transition-all cursor-pointer ${
+          isHeroSlot && layout === 'hero' ? 'lg:aspect-auto lg:h-full' : ''
+        } ${
+          isAudioFocused 
+            ? 'border-cyan-500 ring-2 ring-cyan-500/40 shadow-cyan-500/20' 
+            : isSwapping
+              ? 'border-amber-500 ring-2 ring-amber-500/50'
+              : 'border-white/10 ring-1 ring-white/5'
+        } ${isFullscreen ? '!fixed inset-4 z-50 !aspect-auto !h-auto' : ''}`}
+      >
+        {channel ? (
+          <>
+            {/* Native Multi-Feed Video with HLS Demuxing Engine */}
+            <MatrixSlotVideo
+              channel={channel}
+              isMuted={isMuted}
+              volume={volume}
+              slotIdx={idx}
+            />
+
+            {/* Slot Top Navigation Overlay */}
+            <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none z-20">
+              <div className="flex items-center gap-2 bg-black/80 backdrop-blur-md px-2.5 py-1 rounded-xl border border-white/10 pointer-events-auto">
+                <div className="w-2 h-2 rounded-full bg-emerald-400 health-badge-live" />
+                <span className="text-xs font-bold text-white max-w-[130px] truncate">{channel.name}</span>
+                <span className="text-[10px] text-cyan-400 font-mono font-bold">
+                  {idx === 0 && (layout === 'hero' || layout === 'triple') ? '★ HERO' : `#Q${idx + 1}`}
+                </span>
+
+                {/* Animated Audio Solo VU Meter */}
+                {isAudioFocused && (
+                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-[9px] font-black tracking-wider uppercase">
+                    <span className="flex items-center gap-0.5">
+                      <span className="w-0.5 h-2 bg-cyan-400 animate-pulse rounded-full" />
+                      <span className="w-0.5 h-3.5 bg-cyan-400 animate-pulse rounded-full delay-75" />
+                      <span className="w-0.5 h-1.5 bg-cyan-400 animate-pulse rounded-full delay-150" />
+                    </span>
+                    <span className="hidden sm:inline">SOLO</span>
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1 bg-black/80 backdrop-blur-md p-1 rounded-xl border border-white/10 pointer-events-auto relative">
+                {/* Promote to Hero / Slot 1 (for satellite slots) */}
+                {idx > 0 && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      promoteToHeroSlot(idx);
+                    }}
+                    className="p-1.5 rounded-lg text-amber-400/80 hover:text-amber-300 hover:bg-amber-400/10 transition-colors cursor-pointer"
+                    title={`Promote Q#${idx + 1} to Hero Slot (Slot #1)`}
+                    aria-label="Promote to Hero"
+                  >
+                    <Crown className="w-3.5 h-3.5" />
+                  </button>
+                )}
+
+                {/* Swap Slot Button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSwapSourceSlotIdx(swapSourceSlotIdx === idx ? null : idx);
+                  }}
+                  className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                    isSwapping 
+                      ? 'bg-amber-500 text-black shadow-sm' 
+                      : 'text-zinc-400 hover:text-white hover:bg-white/10'
+                  }`}
+                  title={isSwapping ? 'Cancel Swap' : `Swap Q#${idx + 1} with another quadrant`}
+                  aria-label="Swap Quadrant"
+                >
+                  <ArrowLeftRight className="w-3.5 h-3.5" />
+                </button>
+
+                {/* Solo Audio Focus Button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setMatrixAudioSolo(idx);
+                  }}
+                  className={`p-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                    isAudioFocused
+                      ? 'bg-cyan-500 text-black shadow-md shadow-cyan-500/40'
+                      : 'text-zinc-400 hover:text-white hover:bg-white/10'
+                  }`}
+                  title={`Solo Audio on Quadrant #${idx + 1} (Hotkey: ${idx + 1})`}
+                  aria-label={`Solo Audio Quadrant ${idx + 1}`}
+                >
+                  <Headphones className="w-3.5 h-3.5" />
+                </button>
+
+                {/* Volume slider toggle button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveVolumePopupIdx(activeVolumePopupIdx === idx ? null : idx);
+                  }}
+                  className={`p-1.5 rounded-lg text-white transition-colors cursor-pointer ${
+                    isMuted ? 'text-zinc-400 hover:text-white' : 'text-cyan-400 bg-cyan-500/20'
+                  }`}
+                  title="Volume & Mute Control"
+                  aria-label="Adjust Volume"
+                >
+                  {isMuted ? (
+                    <VolumeX className="w-3.5 h-3.5" />
+                  ) : volume < 0.5 ? (
+                    <Volume1 className="w-3.5 h-3.5" />
+                  ) : (
+                    <Volume2 className="w-3.5 h-3.5" />
+                  )}
+                </button>
+
+                {/* Volume Slider Dropdown Popup */}
+                {activeVolumePopupIdx === idx && (
+                  <div 
+                    onClick={(e) => e.stopPropagation()}
+                    className="absolute top-full right-0 mt-2 p-3 bg-zinc-900 border border-white/10 rounded-xl shadow-2xl z-50 flex items-center gap-2 min-w-[150px]"
+                  >
+                    <button
+                      onClick={() => toggleMatrixSlotMute(idx)}
+                      className="text-xs font-bold text-zinc-300 hover:text-white cursor-pointer"
+                    >
+                      {isMuted ? 'Unmute' : 'Mute'}
+                    </button>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={isMuted ? 0 : volume}
+                      onChange={(e) => setMatrixSlotVolume(idx, parseFloat(e.target.value))}
+                      className="w-20 accent-cyan-400 cursor-pointer"
+                      aria-label={`Volume for quadrant ${idx + 1}`}
+                    />
+                    <span className="text-[10px] text-cyan-400 font-mono w-7">
+                      {isMuted ? '0%' : `${Math.round(volume * 100)}%`}
+                    </span>
+                  </div>
+                )}
+
+                {/* Fullscreen Quadrant Toggle */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setFullscreenSlotIdx(fullscreenSlotIdx === idx ? null : idx);
+                  }}
+                  className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                  title={isFullscreen ? 'Exit Fullscreen (Esc)' : 'Fullscreen Quadrant'}
+                  aria-label="Toggle Quadrant Fullscreen"
+                >
+                  <Maximize2 className="w-3.5 h-3.5" />
+                </button>
+
+                {/* Change Channel */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedSlotIdx(idx);
+                  }}
+                  className="p-1.5 rounded-lg text-zinc-400 hover:text-cyan-400 hover:bg-cyan-500/10 transition-colors cursor-pointer"
+                  title="Switch Channel"
+                  aria-label="Switch Channel for Quadrant"
+                >
+                  <Tv className="w-3.5 h-3.5" />
+                </button>
+
+                {/* Clear / Remove Slot */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    clearMatrixSlot(idx);
+                  }}
+                  className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                  title="Clear Quadrant Slot"
+                  aria-label="Clear Quadrant Stream"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Bottom HUD Overlay on Hover */}
+            <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between text-[10px] text-zinc-400 font-mono bg-black/75 px-3 py-1 rounded-xl backdrop-blur-md pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity border border-white/5">
+              <span className="text-white flex items-center gap-1.5">
+                <Radio className="w-3 h-3 text-cyan-400" />
+                <span>Live Feed • HLS Engine</span>
+              </span>
+              <span className="text-cyan-400">Audio: {isMuted ? 'Muted' : `${Math.round(volume * 100)}%`}</span>
+              <span>Hotkeys: 1-4 • M</span>
+            </div>
+          </>
+        ) : (
+          /* Empty Quadrant Slot */
+          <div className="w-full h-full flex flex-col items-center justify-center p-4 bg-zinc-900/60 border border-dashed border-white/10 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-zinc-500 mb-2">
+              <Tv className="w-6 h-6" />
+            </div>
+            <span className="text-xs font-bold text-zinc-300 mb-1">
+              {idx === 0 && (layout === 'hero' || layout === 'triple') ? 'Hero Master Feed Ready' : `Quadrant #${idx + 1} Ready`}
+            </span>
+            <p className="text-[10px] text-zinc-500 mb-3 max-w-xs">
+              Assign any channel from your active playlist to this monitor slot.
+            </p>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedSlotIdx(idx);
+              }}
+              className="px-3.5 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-xs font-bold text-white rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-cyan-500/20 cursor-pointer"
+              aria-label={`Assign channel to quadrant ${idx + 1}`}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Assign Stream</span>
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="flex flex-col gap-6 h-full">
       {/* Protocol Architecture Header */}
       <PageProtocolHeader
-        title="Quad Multi-Screen Monitoring Canvas"
-        description="Concurrent multi-feed media orchestration canvas running parallel HLS demuxing pipelines with hardware-accelerated decoding, audio solo focus arbiter, and dynamic grid slot allocation."
+        title="Multi-Stream Split-Screen & Quad Matrix Engine"
+        description="Concurrent multi-feed media orchestration canvas running parallel HLS demuxing pipelines with hardware-accelerated decoding, audio solo focus arbiter, and dynamic broadcast layouts."
         protocol="SMPTE ST 2022-7 & RFC 8216 HLS"
         schema="Multi-Program Transport Stream (MPTS) & W3C MSE"
         rfcOrStandard="SMPTE ST 2022-7 • W3C Media Source Extensions"
         layer="Demuxing & Concurrent Rendering Layer"
-        supportedTags={['MSE', 'HLS.js Demuxer', 'Audio Solo Arbiter', 'SMPTE 2022-7', 'Hotkeys 1-4']}
+        supportedTags={['MSE', 'HLS.js Demuxer', 'Audio Solo Arbiter', 'Hero 1+3 Layout', 'Hotkeys 1-4']}
         icon={LayoutGrid}
         badgeColor="cyan"
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {/* Master Mute All / Solo Audio Toggle */}
           <button
-            onClick={handleToggleMuteAll}
+            onClick={toggleMatrixMuteAll}
             className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 border ${
               allMuted
                 ? 'bg-rose-500/20 text-rose-300 border-rose-500/30'
@@ -256,229 +569,136 @@ export default function MultiScreenMatrix() {
             <span>{allMuted ? 'Muted All' : `Solo Q#${(focusedAudioSlot ?? 0) + 1}`}</span>
           </button>
 
-          <button
-            onClick={() => setActiveSlotCount(2)}
-            className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-              activeSlotCount === 2 
-                ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-500/25 border border-cyan-400/30' 
-                : 'bg-white/5 text-zinc-400 hover:text-white border border-white/5'
-            }`}
-            aria-label="Dual 2x1 Screen Layout"
-          >
-            Dual (2x1)
-          </button>
-          <button
-            onClick={() => setActiveSlotCount(4)}
-            className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
-              activeSlotCount === 4 
-                ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-500/25 border border-cyan-400/30' 
-                : 'bg-white/5 text-zinc-400 hover:text-white border border-white/5'
-            }`}
-            aria-label="Quad 2x2 Screen Layout"
-          >
-            Quad (2x2)
-          </button>
+          {/* Layout Selector Chips */}
+          <div className="flex items-center bg-white/5 border border-white/10 rounded-xl p-0.5">
+            <button
+              onClick={() => setMatrixLayout('dual')}
+              className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                layout === 'dual'
+                  ? 'bg-cyan-600 text-white shadow-sm' 
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+              title="Dual 2x1 Split Screen"
+            >
+              Dual (2x1)
+            </button>
+            <button
+              onClick={() => setMatrixLayout('triple')}
+              className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                layout === 'triple'
+                  ? 'bg-cyan-600 text-white shadow-sm' 
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+              title="Triple 1+2 Split View"
+            >
+              Triple (1+2)
+            </button>
+            <button
+              onClick={() => setMatrixLayout('hero')}
+              className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                layout === 'hero'
+                  ? 'bg-cyan-600 text-white shadow-sm' 
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+              title="Hero 1+3 Broadcast Command Center"
+            >
+              Hero (1+3)
+            </button>
+            <button
+              onClick={() => setMatrixLayout('quad')}
+              className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                layout === 'quad'
+                  ? 'bg-cyan-600 text-white shadow-sm' 
+                  : 'text-zinc-400 hover:text-white'
+              }`}
+              title="Quad 2x2 Matrix View"
+            >
+              Quad (2x2)
+            </button>
+          </div>
         </div>
       </PageProtocolHeader>
 
-      {/* Multi-Grid Canvas */}
-      <div className={`grid gap-4 flex-1 ${activeSlotCount === 2 ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 md:grid-cols-2'}`}>
-        {Array.from({ length: activeSlotCount }).map((_, idx) => {
-          const channel = slots[idx];
-          const isMuted = mutedSlots[idx];
-          const volume = volumes[idx] ?? 0.8;
-          const isAudioFocused = focusedAudioSlot === idx && !isMuted;
-          const isFullscreen = fullscreenSlotIdx === idx;
+      {/* Swapping Active Alert Notification */}
+      {swapSourceSlotIdx !== null && (
+        <div className="flex items-center justify-between px-4 py-2 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-300 text-xs font-bold">
+          <div className="flex items-center gap-2">
+            <ArrowLeftRight className="w-4 h-4 text-amber-400" />
+            <span>Click any other quadrant to swap with Slot #{swapSourceSlotIdx + 1}</span>
+          </div>
+          <button 
+            onClick={() => setSwapSourceSlotIdx(null)}
+            className="text-[11px] underline hover:text-white cursor-pointer"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
 
-          return (
-            <div
-              key={idx}
-              onClick={() => handleSoloAudio(idx)}
-              className={`relative aspect-video bg-black rounded-2xl overflow-hidden border group shadow-xl transition-all cursor-pointer ${
-                isAudioFocused 
-                  ? 'border-cyan-500 ring-2 ring-cyan-500/40 shadow-cyan-500/10' 
-                  : 'border-white/10 ring-1 ring-white/5'
-              } ${isFullscreen ? 'fixed inset-4 z-50 aspect-auto' : ''}`}
-            >
-              {channel ? (
-                <>
-                  {/* Native Multi-Feed Video with HLS Demuxing Engine */}
-                  <MatrixSlotVideo
-                    channel={channel}
-                    isMuted={isMuted}
-                    volume={volume}
-                  />
+      {/* Multi-Grid Canvas with Dynamic Layouts */}
+      {layout === 'quad' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
+          {renderSlot(0)}
+          {renderSlot(1)}
+          {renderSlot(2)}
+          {renderSlot(3)}
+        </div>
+      )}
 
-                  {/* Channel Top Badge Overlay */}
-                  <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none z-20">
-                    <div className="flex items-center gap-2 bg-black/75 backdrop-blur-md px-2.5 py-1 rounded-xl border border-white/10 pointer-events-auto">
-                      <div className="w-2 h-2 rounded-full bg-emerald-400 health-badge-live" />
-                      <span className="text-xs font-bold text-white max-w-[140px] truncate">{channel.name}</span>
-                      <span className="text-[10px] text-cyan-400 font-mono font-bold">#Q{idx + 1}</span>
+      {layout === 'dual' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 flex-1">
+          {renderSlot(0)}
+          {renderSlot(1)}
+        </div>
+      )}
 
-                      {/* Solo Audio Focus Pill */}
-                      {isAudioFocused && (
-                        <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 text-[9px] font-black tracking-wider uppercase">
-                          <span className="flex items-center gap-0.5">
-                            <span className="w-0.5 h-2 bg-cyan-400 animate-pulse rounded-full" />
-                            <span className="w-0.5 h-3 bg-cyan-400 animate-pulse rounded-full delay-75" />
-                            <span className="w-0.5 h-1.5 bg-cyan-400 animate-pulse rounded-full delay-150" />
-                          </span>
-                          <span>PRIMARY AUDIO</span>
-                        </span>
-                      )}
-                    </div>
+      {layout === 'hero' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1">
+          {/* Main Hero Slot (spans 2 columns and full height on desktop) */}
+          <div className="lg:col-span-2">
+            {renderSlot(0, true)}
+          </div>
+          {/* 3 Satellite Slots stacked vertically */}
+          <div className="flex flex-col gap-4 lg:col-span-1">
+            {renderSlot(1)}
+            {renderSlot(2)}
+            {renderSlot(3)}
+          </div>
+        </div>
+      )}
 
-                    <div className="flex items-center gap-1 bg-black/75 backdrop-blur-md p-1 rounded-xl border border-white/10 pointer-events-auto relative">
-                      {/* Solo Audio Button */}
-                      <button
-                        onClick={(e) => handleSoloAudio(idx, e)}
-                        className={`p-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                          isAudioFocused
-                            ? 'bg-cyan-500 text-black shadow-md shadow-cyan-500/40'
-                            : 'text-zinc-400 hover:text-white hover:bg-white/10'
-                        }`}
-                        title={`Solo Audio on Quadrant #${idx + 1} (Hotkey: ${idx + 1})`}
-                        aria-label={`Solo Audio Quadrant ${idx + 1}`}
-                      >
-                        <Headphones className="w-3.5 h-3.5" />
-                        <span className="text-[10px] font-mono hidden sm:inline">SOLO</span>
-                      </button>
+      {layout === 'triple' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1">
+          {/* Primary Stream on Left */}
+          <div className="lg:col-span-2">
+            {renderSlot(0, true)}
+          </div>
+          {/* 2 Satellite Streams on Right */}
+          <div className="flex flex-col gap-4 lg:col-span-1">
+            {renderSlot(1)}
+            {renderSlot(2)}
+          </div>
+        </div>
+      )}
 
-                      {/* Volume slider toggle button */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveVolumePopupIdx(activeVolumePopupIdx === idx ? null : idx);
-                        }}
-                        className={`p-1.5 rounded-lg text-white transition-colors cursor-pointer ${
-                          isMuted ? 'text-zinc-400 hover:text-white' : 'text-cyan-400 bg-cyan-500/20'
-                        }`}
-                        title="Volume & Mute Control"
-                        aria-label="Adjust Volume"
-                      >
-                        {isMuted ? (
-                          <VolumeX className="w-3.5 h-3.5" />
-                        ) : volume < 0.5 ? (
-                          <Volume1 className="w-3.5 h-3.5" />
-                        ) : (
-                          <Volume2 className="w-3.5 h-3.5" />
-                        )}
-                      </button>
-
-                      {/* Volume Slider Dropdown Popup */}
-                      {activeVolumePopupIdx === idx && (
-                        <div 
-                          onClick={(e) => e.stopPropagation()}
-                          className="absolute top-full right-0 mt-2 p-3 bg-[#16161a] border border-white/10 rounded-xl shadow-2xl z-50 flex items-center gap-2 min-w-[140px]"
-                        >
-                          <button
-                            onClick={(e) => handleToggleMute(idx, e)}
-                            className="text-xs font-bold text-zinc-300 hover:text-white cursor-pointer"
-                          >
-                            {isMuted ? 'Unmute' : 'Mute'}
-                          </button>
-                          <input
-                            type="range"
-                            min="0"
-                            max="1"
-                            step="0.05"
-                            value={isMuted ? 0 : volume}
-                            onChange={(e) => handleVolumeChange(idx, parseFloat(e.target.value))}
-                            className="w-20 accent-cyan-400 cursor-pointer"
-                            aria-label={`Volume for quadrant ${idx + 1}`}
-                          />
-                          <span className="text-[10px] text-cyan-400 font-mono w-7">
-                            {isMuted ? '0%' : `${Math.round(volume * 100)}%`}
-                          </span>
-                        </div>
-                      )}
-
-                      {/* Fullscreen Quadrant Toggle */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setFullscreenSlotIdx(fullscreenSlotIdx === idx ? null : idx);
-                        }}
-                        className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-                        title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen Quadrant'}
-                        aria-label="Toggle Quadrant Fullscreen"
-                      >
-                        <Maximize2 className="w-3.5 h-3.5" />
-                      </button>
-
-                      {/* Change Channel */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedSlotIdx(idx);
-                        }}
-                        className="p-1.5 rounded-lg text-zinc-400 hover:text-cyan-400 hover:bg-cyan-500/10 transition-colors cursor-pointer"
-                        title="Switch Channel"
-                        aria-label="Switch Channel for Quadrant"
-                      >
-                        <Tv className="w-3.5 h-3.5" />
-                      </button>
-
-                      {/* Remove Slot */}
-                      <button
-                        onClick={(e) => handleRemoveSlot(idx, e)}
-                        className="p-1.5 rounded-lg text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
-                        title="Remove Stream"
-                        aria-label="Remove Quadrant Stream"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Bottom Diagnostics Overlay */}
-                  <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between text-[10px] text-zinc-400 font-mono bg-black/75 px-3 py-1 rounded-xl backdrop-blur-md pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity border border-white/5">
-                    <span className="text-white flex items-center gap-1.5">
-                      <Radio className="w-3 h-3 text-cyan-400" />
-                      <span>Live 60 FPS</span>
-                    </span>
-                    <span className="text-cyan-400">Vol: {isMuted ? 'Muted' : `${Math.round(volume * 100)}%`}</span>
-                    <span>Quadrant #{idx + 1} (Hotkey: {idx + 1})</span>
-                  </div>
-                </>
-              ) : (
-                /* Empty Quadrant Slot */
-                <div className="w-full h-full flex flex-col items-center justify-center p-4 bg-[#16161a]/60 border border-dashed border-white/10 text-center">
-                  <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center text-zinc-500 mb-2">
-                    <Tv className="w-6 h-6" />
-                  </div>
-                  <span className="text-xs font-bold text-zinc-300 mb-1">Quadrant #{idx + 1} Ready</span>
-                  <p className="text-[10px] text-zinc-500 mb-3 max-w-xs">Assign any channel from your active playlist to this quadrant.</p>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedSlotIdx(idx);
-                    }}
-                    className="px-3.5 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-xs font-bold text-white rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-cyan-500/20 cursor-pointer"
-                    aria-label={`Assign channel to quadrant ${idx + 1}`}
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Assign Stream
-                  </button>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Channel Assignment Selector Modal */}
+      {/* Stream Assignment Modal with Fast Search & Category Filtering */}
       {selectedSlotIdx !== null && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#16161a] border border-white/10 rounded-3xl w-full max-w-lg p-6 max-h-[80vh] flex flex-col shadow-2xl">
+          <div className="bg-zinc-950 border border-white/10 rounded-3xl w-full max-w-xl p-6 max-h-[85vh] flex flex-col shadow-2xl">
             <div className="flex items-center justify-between pb-4 border-b border-white/5">
               <div>
-                <h3 className="text-sm font-bold text-white">Select Stream for Quadrant #{selectedSlotIdx + 1}</h3>
-                <p className="text-xs text-zinc-400 mt-0.5">Choose a channel from your active catalog to stream concurrently.</p>
+                <h3 className="text-sm font-bold text-white">
+                  Assign Stream to Quadrant #{selectedSlotIdx + 1}
+                </h3>
+                <p className="text-xs text-zinc-400 mt-0.5">
+                  Select a live stream to pipe into this multi-screen monitor slot.
+                </p>
               </div>
               <button
-                onClick={() => setSelectedSlotIdx(null)}
+                onClick={() => {
+                  setSelectedSlotIdx(null);
+                  setSearchQuery('');
+                }}
                 className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white transition-all cursor-pointer"
                 aria-label="Close stream selector"
               >
@@ -486,35 +706,85 @@ export default function MultiScreenMatrix() {
               </button>
             </div>
 
-            <div className="overflow-y-auto space-y-2 py-4 flex-1 scrollbar-thin">
-              {channels.map((c) => (
-                <div
-                  key={c.id}
-                  onClick={() => handleSelectChannelForSlot(c, selectedSlotIdx)}
-                  className="flex items-center justify-between p-3 rounded-2xl bg-white/[0.02] hover:bg-cyan-500/10 border border-white/5 hover:border-cyan-500/30 cursor-pointer transition-all group"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-xl bg-black/60 border border-white/5 flex items-center justify-center p-1.5 overflow-hidden flex-shrink-0">
-                      <img
-                        src={c.logo || 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=120&auto=format&fit=crop&q=60'}
-                        alt={c.name}
-                        className="w-full h-full object-contain"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=120&auto=format&fit=crop&q=60';
-                        }}
-                      />
-                    </div>
-                    <div className="min-w-0">
-                      <h4 className="text-xs font-bold text-white group-hover:text-cyan-400 truncate">{c.name}</h4>
-                      <span className="text-[10px] text-zinc-500 block truncate">{c.group}</span>
-                    </div>
-                  </div>
+            {/* Search Input */}
+            <div className="pt-4 pb-2">
+              <div className="relative">
+                <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search channels by name, group, or country..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-white/5 border border-white/10 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-cyan-500/50"
+                  autoFocus
+                />
+              </div>
+            </div>
 
-                  <span className="text-[11px] font-bold text-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                    Select & Play
-                  </span>
-                </div>
+            {/* Category Filter Chips */}
+            <div className="flex items-center gap-1.5 overflow-x-auto py-2 scrollbar-none">
+              {channelGroups.map((group) => (
+                <button
+                  key={group}
+                  onClick={() => setSelectedCategory(group)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all cursor-pointer ${
+                    selectedCategory === group
+                      ? 'bg-cyan-600 text-white shadow-sm'
+                      : 'bg-white/5 text-zinc-400 hover:text-white border border-white/5'
+                  }`}
+                >
+                  {group}
+                </button>
               ))}
+            </div>
+
+            {/* Channels List */}
+            <div className="overflow-y-auto space-y-2 py-3 flex-1 scrollbar-thin">
+              {filteredChannels.length === 0 ? (
+                <div className="py-12 text-center text-zinc-500 text-xs">
+                  No channels match your search criteria.
+                </div>
+              ) : (
+                filteredChannels.map((c) => {
+                  const isAssignedToOtherSlot = slots.findIndex((s, i) => s?.id === c.id && i !== selectedSlotIdx);
+
+                  return (
+                    <div
+                      key={c.id}
+                      onClick={() => handleSelectChannelForSlot(c, selectedSlotIdx)}
+                      className="flex items-center justify-between p-3 rounded-2xl bg-white/[0.02] hover:bg-cyan-500/10 border border-white/5 hover:border-cyan-500/30 cursor-pointer transition-all group"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-xl bg-black/60 border border-white/5 flex items-center justify-center p-1.5 overflow-hidden flex-shrink-0">
+                          <img
+                            src={c.logo || 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=120&auto=format&fit=crop&q=60'}
+                            alt={c.name}
+                            className="w-full h-full object-contain"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=120&auto=format&fit=crop&q=60';
+                            }}
+                          />
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="text-xs font-bold text-white group-hover:text-cyan-400 truncate">{c.name}</h4>
+                          <span className="text-[10px] text-zinc-500 block truncate">{c.group || 'General'}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {isAssignedToOtherSlot >= 0 && (
+                          <span className="text-[10px] text-amber-400/80 font-mono">
+                            in #Q{isAssignedToOtherSlot + 1}
+                          </span>
+                        )}
+                        <span className="text-[11px] font-bold text-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                          Assign & Play
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
         </div>

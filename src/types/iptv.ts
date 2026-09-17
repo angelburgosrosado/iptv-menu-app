@@ -342,6 +342,19 @@ export interface AppState {
   setSubtitlePreset: (preset: SubtitlePreset) => void;
   setSubtitleSyncOffset: (offsetMs: number) => void;
   resetSubtitleConfig: () => void;
+
+  // Multi-Stream Split-Screen & Quad-View PIP Matrix Engine
+  matrixConfig: MultiScreenMatrixConfig;
+  setMatrixLayout: (layout: MatrixLayoutMode) => void;
+  setMatrixSlot: (slotIdx: number, channel: Channel | null) => void;
+  clearMatrixSlot: (slotIdx: number) => void;
+  swapMatrixSlots: (slotA: number, slotB: number) => void;
+  promoteToHeroSlot: (slotIdx: number) => void;
+  setMatrixAudioSolo: (slotIdx: number) => void;
+  toggleMatrixMuteAll: () => void;
+  setMatrixSlotVolume: (slotIdx: number, volume: number) => void;
+  toggleMatrixSlotMute: (slotIdx: number) => void;
+  resetMatrixConfig: () => void;
 }
 
 export type SubtitleFontSize = 'small' | 'medium' | 'large' | 'xlarge';
@@ -494,4 +507,14 @@ export interface ParentalControlsConfig {
   lockedCategories: string[];
   hideLockedChannelsInGuide: boolean;
   requirePinForSettings: boolean;
+}
+
+export type MatrixLayoutMode = 'quad' | 'dual' | 'hero' | 'triple';
+
+export interface MultiScreenMatrixConfig {
+  layout: MatrixLayoutMode;
+  slots: (Channel | null)[];
+  mutedSlots: boolean[];
+  volumes: number[];
+  focusedAudioSlot: number | null;
 }
