@@ -299,6 +299,35 @@ export interface AppState {
   cancelSleepTimer: () => void;
   extendSleepTimer: (additionalMinutes: number) => void;
   tickSleepTimer: () => void;
+
+  // Audio Equalizer & Sound Normalization DSP
+  audioDsp: AudioDspConfig;
+  setDspEnabled: (enabled: boolean) => void;
+  setDspPreset: (preset: AudioDspPreset) => void;
+  setDspBand: (band: keyof AudioDspBands, gainDb: number) => void;
+  toggleNormalization: () => void;
+  toggleDialogueEnhancer: () => void;
+  setPreampGain: (gain: number) => void;
+  resetDsp: () => void;
+}
+
+export type AudioDspPreset = 'flat' | 'bass_boost' | 'vocal_clarity' | 'night_mode' | 'treble_boost' | 'custom';
+
+export interface AudioDspBands {
+  subBass: number;   // 60 Hz (-12 to +12 dB)
+  lowMid: number;    // 250 Hz
+  mid: number;       // 1000 Hz
+  upperMid: number;  // 4000 Hz
+  high: number;      // 14000 Hz
+}
+
+export interface AudioDspConfig {
+  enabled: boolean;
+  preset: AudioDspPreset;
+  bands: AudioDspBands;
+  normalization: boolean;
+  dialogueEnhancer: boolean;
+  preampGain: number; // 0.5 to 2.0 (default 1.0)
 }
 
 export interface SleepTimerState {

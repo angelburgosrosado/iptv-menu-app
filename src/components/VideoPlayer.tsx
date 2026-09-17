@@ -34,6 +34,8 @@ import {
 import { usePlayerStore } from '../store/usePlayerStore';
 import { DiagnosticsHUD } from './DiagnosticsHUD';
 import SleepTimerModal from './SleepTimerModal';
+import AudioEqualizerModal from './AudioEqualizerModal';
+import { audioDspEngine } from '../utils/audioDspEngine';
 
 interface VideoPlayerProps {
   streamUrl: string;
@@ -97,8 +99,9 @@ export function VideoPlayer({
   const [showTrackModal, setShowTrackModal] = React.useState<'audio' | 'subtitle' | null>(null);
   const [showDiagnostics, setShowDiagnostics] = React.useState(false);
   const [showSleepTimer, setShowSleepTimer] = React.useState(false);
+  const [showEqualizer, setShowEqualizer] = React.useState(false);
 
-  const { addBookmark, removeBookmark, isChannelBookmarked, scheduleRecording, sleepTimer } = usePlayerStore();
+  const { addBookmark, removeBookmark, isChannelBookmarked, scheduleRecording, sleepTimer, audioDsp } = usePlayerStore();
   const isBookmarked = isChannelBookmarked(channelName.toLowerCase().replace(/[^a-z0-9]/g, '-')) || isChannelBookmarked(channelName);
 
   const containerRef = React.useRef<any>(null);
@@ -110,6 +113,25 @@ export function VideoPlayer({
   const player = useVideoPlayer({ uri: activeEffectiveUrl }, (playerRef) => {
     playerRef.play();
   });
+
+  // Attach Web Audio API DSP engine to player HTMLVideoElement
+  React.useEffect(() => {
+    if (player && (player as any).subscribe) {
+      const unsubscribe = (player as any).subscribe((el: HTMLVideoElement | null) => {
+        if (el) {
+          audioDspEngine.attachMediaElement(el, audioDsp);
+        }
+      });
+      return () => {
+        if (typeof unsubscribe === 'function') unsubscribe();
+      };
+    }
+  }, [player]);
+
+  // Sync DSP config updates to Web Audio API engine
+  React.useEffect(() => {
+    audioDspEngine.applyConfig(audioDsp);
+  }, [audioDsp]);
 
   // Dynamic audio ducking during Sleep Timer fade-out (last 60s)
   React.useEffect(() => {
@@ -378,6 +400,10 @@ export function VideoPlayer({
         case 'KeyZ':
           e.preventDefault();
           setShowSleepTimer((prev) => !prev);
+          break;
+        case 'KeyQ':
+          e.preventDefault();
+          setShowEqualizer((prev) => !prev);
           break;
         default:
           break;
@@ -747,6 +773,24 @@ export function VideoPlayer({
               )}
             </TouchableOpacity>
 
+            {/* Audio Equalizer & DSP Button */}
+            <TouchableOpacity
+              onPress={() => {
+                resetControlsTimer();
+                setShowEqualizer((prev) => !prev);
+              }}
+              style={[
+                styles.hudIconBtn,
+                audioDsp.enabled
+                  ? { backgroundColor: 'rgba(16, 185, 129, 0.2)', borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.4)' }
+                  : { backgroundColor: 'rgba(255, 255, 255, 0.05)' }
+              ]}
+              title="Audio Equalizer & Sound Normalization DSP (Q)"
+            >
+              <Sliders size={14} color={audioDsp.enabled ? "#34d399" : "#94a3b8"} />
+              <Text style={[styles.hudTrackBadgeText, audioDsp.enabled ? { color: '#34d399' } : {}]}>EQ</Text>
+            </TouchableOpacity>
+
             <View style={styles.spacer} />
 
             {/* Picture-in-Picture Button */}
@@ -854,6 +898,12 @@ export function VideoPlayer({
       <SleepTimerModal
         isOpen={showSleepTimer}
         onClose={() => setShowSleepTimer(false)}
+      />
+
+      {/* 8. Audio Equalizer & Sound Normalization DSP Modal */}
+      <AudioEqualizerModal
+        isOpen={showEqualizer}
+        onClose={() => setShowEqualizer(false)}
       />
     </View>
   );

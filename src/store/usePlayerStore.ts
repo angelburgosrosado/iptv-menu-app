@@ -5,9 +5,10 @@
 
 import { create } from 'zustand';
 import { MMKV } from 'react-native-mmkv';
-import { AppState, Channel, EpgSource, DvrRecording, Bookmark, PlaylistSubscription, SleepTimerState } from '../types/iptv';
+import { AppState, Channel, EpgSource, DvrRecording, Bookmark, PlaylistSubscription, SleepTimerState, AudioDspConfig, AudioDspPreset, AudioDspBands } from '../types/iptv';
 import { parseM3U } from '../utils/m3uParser';
 import { buildCountrySections } from '../utils/channelEnrichment';
+import { DEFAULT_DSP_CONFIG, DSP_PRESETS, audioDspEngine } from '../utils/audioDspEngine';
 
 // Initialize react-native-mmkv storage container
 const storage = new MMKV({ id: 'iptv_user_storage_v1' });
@@ -147,6 +148,9 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   
   // Sleep Timer & Playback Automation Engine
   sleepTimer: DEFAULT_SLEEP_TIMER,
+
+  // Audio Equalizer & Sound Normalization DSP
+  audioDsp: readJsonFromStorage<AudioDspConfig>('iptv_audio_dsp_config', DEFAULT_DSP_CONFIG),
 
   // Country & EPG Backbone enhancements
   countrySections: buildCountrySections(INITIAL_FALLBACK_CHANNELS),
@@ -740,5 +744,92 @@ export const usePlayerStore = create<AppState>((set, get) => ({
         dimRatio: dim,
       }
     });
+  },
+
+  // Audio DSP Actions
+  setDspEnabled: (enabled: boolean) => {
+    const updated: AudioDspConfig = {
+      ...get().audioDsp,
+      enabled,
+    };
+    writeJsonToStorage('iptv_audio_dsp_config', updated);
+    audioDspEngine.applyConfig(updated);
+    set({ audioDsp: updated });
+  },
+
+  setDspPreset: (preset: AudioDspPreset) => {
+    let bands = get().audioDsp.bands;
+    if (preset !== 'custom') {
+      bands = { ...DSP_PRESETS[preset] };
+    }
+    const updated: AudioDspConfig = {
+      ...get().audioDsp,
+      preset,
+      bands,
+      enabled: true,
+    };
+    writeJsonToStorage('iptv_audio_dsp_config', updated);
+    audioDspEngine.applyConfig(updated);
+    set({ audioDsp: updated });
+  },
+
+  setDspBand: (band: keyof AudioDspBands, gainDb: number) => {
+    const updatedBands = {
+      ...get().audioDsp.bands,
+      [band]: Math.max(-12, Math.min(12, Math.round(gainDb * 10) / 10)),
+    };
+    const updated: AudioDspConfig = {
+      ...get().audioDsp,
+      preset: 'custom',
+      bands: updatedBands,
+      enabled: true,
+    };
+    writeJsonToStorage('iptv_audio_dsp_config', updated);
+    audioDspEngine.applyConfig(updated);
+    set({ audioDsp: updated });
+  },
+
+  toggleNormalization: () => {
+    const updated: AudioDspConfig = {
+      ...get().audioDsp,
+      normalization: !get().audioDsp.normalization,
+      enabled: true,
+    };
+    writeJsonToStorage('iptv_audio_dsp_config', updated);
+    audioDspEngine.applyConfig(updated);
+    set({ audioDsp: updated });
+  },
+
+  toggleDialogueEnhancer: () => {
+    const updated: AudioDspConfig = {
+      ...get().audioDsp,
+      dialogueEnhancer: !get().audioDsp.dialogueEnhancer,
+      enabled: true,
+    };
+    writeJsonToStorage('iptv_audio_dsp_config', updated);
+    audioDspEngine.applyConfig(updated);
+    set({ audioDsp: updated });
+  },
+
+  setPreampGain: (gain: number) => {
+    const clamped = Math.max(0.5, Math.min(2.0, gain));
+    const updated: AudioDspConfig = {
+      ...get().audioDsp,
+      preampGain: clamped,
+      enabled: true,
+    };
+    writeJsonToStorage('iptv_audio_dsp_config', updated);
+    audioDspEngine.applyConfig(updated);
+    set({ audioDsp: updated });
+  },
+
+  resetDsp: () => {
+    const updated: AudioDspConfig = {
+      ...DEFAULT_DSP_CONFIG,
+      enabled: false,
+    };
+    writeJsonToStorage('iptv_audio_dsp_config', updated);
+    audioDspEngine.applyConfig(updated);
+    set({ audioDsp: updated });
   },
 }));

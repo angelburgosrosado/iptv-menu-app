@@ -20,12 +20,14 @@ import {
   Radio, 
   Layers,
   Sparkles,
-  Moon
+  Moon,
+  Sliders
 } from 'lucide-react';
 import { Channel } from '../types/iptv';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { VideoPlayer } from './VideoPlayer';
 import SleepTimerModal from './SleepTimerModal';
+import AudioEqualizerModal from './AudioEqualizerModal';
 
 interface WebCinemaPlayerProps {
   initialChannel: Channel;
@@ -38,10 +40,11 @@ export default function WebCinemaPlayer({
   onClose,
   onSwitchToMultiScreen
 }: WebCinemaPlayerProps) {
-  const { channels, favorites, toggleFavorite, addToHistory, openPiP, sleepTimer } = usePlayerStore();
+  const { channels, favorites, toggleFavorite, addToHistory, openPiP, sleepTimer, audioDsp } = usePlayerStore();
   const [currentChannel, setCurrentChannel] = React.useState<Channel>(initialChannel);
   const [showChannelDrawer, setShowChannelDrawer] = React.useState(false);
   const [showSleepTimer, setShowSleepTimer] = React.useState(false);
+  const [showEqualizer, setShowEqualizer] = React.useState(false);
   const [drawerSearch, setDrawerSearch] = React.useState('');
   const [selectedGroup, setSelectedGroup] = React.useState<string | null>(null);
 
@@ -90,7 +93,9 @@ export default function WebCinemaPlayer({
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (showSleepTimer) {
+        if (showEqualizer) {
+          setShowEqualizer(false);
+        } else if (showSleepTimer) {
           setShowSleepTimer(false);
         } else if (showChannelDrawer) {
           setShowChannelDrawer(false);
@@ -107,10 +112,13 @@ export default function WebCinemaPlayer({
       if ((e.key === 'z' || e.key === 'Z') && !(e.target instanceof HTMLInputElement)) {
         setShowSleepTimer((prev) => !prev);
       }
+      if ((e.key === 'q' || e.key === 'Q') && !(e.target instanceof HTMLInputElement)) {
+        setShowEqualizer((prev) => !prev);
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, showChannelDrawer, showSleepTimer, currentChannel, openPiP]);
+  }, [onClose, showChannelDrawer, showSleepTimer, showEqualizer, currentChannel, openPiP]);
 
   // Filtered channels for drawer
   const filteredDrawerChannels = React.useMemo(() => {
@@ -242,6 +250,23 @@ export default function WebCinemaPlayer({
             <Moon className={`w-4 h-4 ${sleepTimer.isActive ? 'fill-current text-indigo-400 animate-pulse' : 'text-zinc-400'}`} />
             <span className="text-xs font-bold hidden sm:inline">
               {sleepTimer.isActive ? `${Math.ceil(sleepTimer.remainingSeconds / 60)}m` : 'Sleep'}
+            </span>
+          </button>
+
+          {/* Audio Equalizer & DSP Button */}
+          <button
+            onClick={() => setShowEqualizer(true)}
+            className={`p-2 rounded-xl border transition-all flex items-center gap-1.5 cursor-pointer ${
+              audioDsp.enabled
+                ? 'bg-cyan-600/20 text-cyan-300 border-cyan-500/40 shadow-md shadow-cyan-500/10'
+                : 'bg-white/5 hover:bg-white/10 text-zinc-300 border-white/10 hover:text-white'
+            }`}
+            title="Audio Equalizer & Sound Normalizer (Q)"
+            aria-label="Audio Equalizer"
+          >
+            <Sliders className={`w-4 h-4 ${audioDsp.enabled ? 'text-cyan-400' : 'text-zinc-400'}`} />
+            <span className="text-xs font-bold hidden sm:inline">
+              {audioDsp.enabled ? audioDsp.preset.toUpperCase() : 'EQ'}
             </span>
           </button>
 
@@ -448,7 +473,7 @@ export default function WebCinemaPlayer({
         </div>
         <div className="flex items-center gap-4">
           <span className="hidden md:inline">
-            Shortcuts: <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">Space</kbd> Pause • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">F</kbd> Fullscreen • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">P</kbd> PiP • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">Z</kbd> Sleep • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">E</kbd> Guide
+            Shortcuts: <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">Space</kbd> Pause • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">F</kbd> Fullscreen • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">P</kbd> PiP • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">Z</kbd> Sleep • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">Q</kbd> EQ • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">E</kbd> Guide
           </span>
           <span className="text-blue-400 font-mono text-[10px] font-bold">10-FOOT LEANBACK TV READY</span>
         </div>
@@ -456,6 +481,9 @@ export default function WebCinemaPlayer({
 
       {/* Sleep Timer Configuration & Automation Modal */}
       <SleepTimerModal isOpen={showSleepTimer} onClose={() => setShowSleepTimer(false)} />
+
+      {/* Audio Equalizer & Sound Normalization Modal */}
+      <AudioEqualizerModal isOpen={showEqualizer} onClose={() => setShowEqualizer(false)} />
     </div>
   );
 }
