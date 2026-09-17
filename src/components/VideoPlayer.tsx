@@ -29,12 +29,15 @@ import {
   Film,
   Bookmark as BookmarkIcon,
   Activity,
-  Moon
+  Moon,
+  Lock,
+  Unlock
 } from 'lucide-react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { DiagnosticsHUD } from './DiagnosticsHUD';
 import SleepTimerModal from './SleepTimerModal';
 import AudioEqualizerModal from './AudioEqualizerModal';
+import { ParentalPinModal } from './ParentalPinModal';
 import { audioDspEngine } from '../utils/audioDspEngine';
 
 interface VideoPlayerProps {
@@ -100,9 +103,21 @@ export function VideoPlayer({
   const [showDiagnostics, setShowDiagnostics] = React.useState(false);
   const [showSleepTimer, setShowSleepTimer] = React.useState(false);
   const [showEqualizer, setShowEqualizer] = React.useState(false);
+  const [showParentalModal, setShowParentalModal] = React.useState(false);
 
-  const { addBookmark, removeBookmark, isChannelBookmarked, scheduleRecording, sleepTimer, audioDsp } = usePlayerStore();
+  const { 
+    addBookmark, 
+    removeBookmark, 
+    isChannelBookmarked, 
+    scheduleRecording, 
+    sleepTimer, 
+    audioDsp,
+    parentalControls,
+    isChannelLocked,
+    toggleChannelLock
+  } = usePlayerStore();
   const isBookmarked = isChannelBookmarked(channelName.toLowerCase().replace(/[^a-z0-9]/g, '-')) || isChannelBookmarked(channelName);
+  const isLocked = isChannelLocked({ id: channelName, name: channelName, group: groupTitle });
 
   const containerRef = React.useRef<any>(null);
   const controlsTimeout = React.useRef<any>(null);
@@ -132,6 +147,14 @@ export function VideoPlayer({
   React.useEffect(() => {
     audioDspEngine.applyConfig(audioDsp);
   }, [audioDsp]);
+
+  // Parental Controls Enforcement (Mute & Pause stream if locked and session is not unlocked)
+  React.useEffect(() => {
+    if (isLocked && !parentalControls.isSessionUnlocked && player) {
+      if (player.setVolume) player.setVolume(0);
+      if (player.pause) player.pause();
+    }
+  }, [isLocked, parentalControls.isSessionUnlocked, player]);
 
   // Dynamic audio ducking during Sleep Timer fade-out (last 60s)
   React.useEffect(() => {
@@ -405,6 +428,14 @@ export function VideoPlayer({
           e.preventDefault();
           setShowEqualizer((prev) => !prev);
           break;
+        case 'KeyL':
+          e.preventDefault();
+          if (!parentalControls.pinHash || isLocked) {
+            setShowParentalModal(true);
+          } else {
+            toggleChannelLock(channelName);
+          }
+          break;
         default:
           break;
       }
@@ -412,7 +443,7 @@ export function VideoPlayer({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [enableKeyboardNavigation, volume, isPlaying, isMuted, onNextChannel, onPrevChannel]);
+  }, [enableKeyboardNavigation, volume, isPlaying, isMuted, onNextChannel, onPrevChannel, parentalControls.pinHash, isLocked, channelName, toggleChannelLock]);
 
   return (
     <View 
@@ -426,6 +457,28 @@ export function VideoPlayer({
         style={styles.videoStyle}
         startsInFullscreen={false}
       />
+
+      {/* Parental Controls Security Scrim Barrier */}
+      {isLocked && !parentalControls.isSessionUnlocked && (
+        <View style={styles.parentalLockOverlay}>
+          <View style={styles.parentalLockCard}>
+            <View style={styles.parentalLockIconBadge}>
+              <ShieldAlert size={36} color="#f43f5e" />
+            </View>
+            <Text style={styles.parentalLockTitle}>Channel Locked</Text>
+            <Text style={styles.parentalLockSubtitle}>
+              Parental Controls active for {channelName}. Enter your 4-digit PIN to watch.
+            </Text>
+            <TouchableOpacity
+              onPress={() => setShowParentalModal(true)}
+              style={styles.parentalUnlockBtn}
+            >
+              <Lock size={15} color="#ffffff" />
+              <Text style={styles.parentalUnlockBtnText}>Enter PIN to Unlock</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
       {/* 2. Floating TV HUD Badges (Volume & Channel Switch) */}
       {volumeHudText && (
@@ -791,6 +844,30 @@ export function VideoPlayer({
               <Text style={[styles.hudTrackBadgeText, audioDsp.enabled ? { color: '#34d399' } : {}]}>EQ</Text>
             </TouchableOpacity>
 
+            {/* Parental Controls Lock Button */}
+            <TouchableOpacity
+              onPress={() => {
+                resetControlsTimer();
+                if (!parentalControls.pinHash || isLocked) {
+                  setShowParentalModal(true);
+                } else {
+                  toggleChannelLock(channelName);
+                }
+              }}
+              style={[
+                styles.hudIconBtn,
+                isLocked
+                  ? { backgroundColor: 'rgba(244, 63, 94, 0.2)', borderWidth: 1, borderColor: 'rgba(244, 63, 94, 0.4)' }
+                  : { backgroundColor: 'rgba(255, 255, 255, 0.05)' }
+              ]}
+              title={isLocked ? "Unlock Channel with PIN (L)" : "Lock Channel with PIN (L)"}
+            >
+              {isLocked ? <Lock size={14} color="#f43f5e" /> : <Unlock size={14} color="#94a3b8" />}
+              <Text style={[styles.hudTrackBadgeText, isLocked ? { color: '#f43f5e' } : {}]}>
+                {isLocked ? 'LOCK' : 'PIN'}
+              </Text>
+            </TouchableOpacity>
+
             <View style={styles.spacer} />
 
             {/* Picture-in-Picture Button */}
@@ -904,6 +981,14 @@ export function VideoPlayer({
       <AudioEqualizerModal
         isOpen={showEqualizer}
         onClose={() => setShowEqualizer(false)}
+      />
+
+      {/* 9. Parental Controls PIN Verification & Management Modal */}
+      <ParentalPinModal
+        isOpen={showParentalModal}
+        onClose={() => setShowParentalModal(false)}
+        channelName={channelName}
+        initialMode={parentalControls.pinHash ? (isLocked ? 'unlock' : 'settings') : 'setup'}
       />
     </View>
   );
@@ -1249,6 +1334,70 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '700',
     marginTop: 1,
+  },
+  parentalLockOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.92)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 35,
+    padding: 24,
+  },
+  parentalLockCard: {
+    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+    borderWidth: 1,
+    borderColor: 'rgba(244, 63, 94, 0.3)',
+    borderRadius: 20,
+    padding: 28,
+    alignItems: 'center',
+    maxWidth: 380,
+    width: '100%',
+  },
+  parentalLockIconBadge: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(244, 63, 94, 0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(244, 63, 94, 0.3)',
+  },
+  parentalLockTitle: {
+    color: '#ffffff',
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: 0.4,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  parentalLockSubtitle: {
+    color: '#94a3b8',
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  parentalUnlockBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#4f46e5',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    width: '100%',
+  },
+  parentalUnlockBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });
 

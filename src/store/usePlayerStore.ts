@@ -5,13 +5,41 @@
 
 import { create } from 'zustand';
 import { MMKV } from 'react-native-mmkv';
-import { AppState, Channel, EpgSource, DvrRecording, Bookmark, PlaylistSubscription, SleepTimerState, AudioDspConfig, AudioDspPreset, AudioDspBands } from '../types/iptv';
+import { AppState, Channel, EpgSource, DvrRecording, Bookmark, PlaylistSubscription, SleepTimerState, AudioDspConfig, AudioDspPreset, AudioDspBands, ParentalControlsConfig } from '../types/iptv';
 import { parseM3U } from '../utils/m3uParser';
 import { buildCountrySections } from '../utils/channelEnrichment';
 import { DEFAULT_DSP_CONFIG, DSP_PRESETS, audioDspEngine } from '../utils/audioDspEngine';
+import { hashPin, verifyPin, DEFAULT_LOCKED_CATEGORIES } from '../utils/parentalSecurity';
 
 // Initialize react-native-mmkv storage container
 const storage = new MMKV({ id: 'iptv_user_storage_v1' });
+
+const DEFAULT_PARENTAL_CONTROLS: ParentalControlsConfig = {
+  isEnabled: false,
+  pinHash: null,
+  isSessionUnlocked: false,
+  sessionUnlockTimeoutMinutes: 30,
+  unlockedAtTimestamp: null,
+  lockedChannelIds: [],
+  lockedCategories: [...DEFAULT_LOCKED_CATEGORIES],
+  hideLockedChannelsInGuide: false,
+  requirePinForSettings: false,
+};
+
+const getInitialParentalControls = (): ParentalControlsConfig => {
+  const loaded = readJsonFromStorage<ParentalControlsConfig>('iptv_parental_controls', DEFAULT_PARENTAL_CONTROLS);
+  if (loaded.isSessionUnlocked && loaded.unlockedAtTimestamp && loaded.sessionUnlockTimeoutMinutes > 0) {
+    const elapsedMinutes = (Date.now() - loaded.unlockedAtTimestamp) / (1000 * 60);
+    if (elapsedMinutes >= loaded.sessionUnlockTimeoutMinutes) {
+      return {
+        ...loaded,
+        isSessionUnlocked: false,
+        unlockedAtTimestamp: null,
+      };
+    }
+  }
+  return loaded;
+};
 
 const DEFAULT_SLEEP_TIMER: SleepTimerState = {
   isActive: false,
@@ -151,6 +179,9 @@ export const usePlayerStore = create<AppState>((set, get) => ({
 
   // Audio Equalizer & Sound Normalization DSP
   audioDsp: readJsonFromStorage<AudioDspConfig>('iptv_audio_dsp_config', DEFAULT_DSP_CONFIG),
+
+  // Parental Controls & Content Security Engine
+  parentalControls: getInitialParentalControls(),
 
   // Country & EPG Backbone enhancements
   countrySections: buildCountrySections(INITIAL_FALLBACK_CHANNELS),
@@ -831,5 +862,175 @@ export const usePlayerStore = create<AppState>((set, get) => ({
     writeJsonToStorage('iptv_audio_dsp_config', updated);
     audioDspEngine.applyConfig(updated);
     set({ audioDsp: updated });
+  },
+
+  // Parental Controls Actions
+  setParentalPin: async (pin: string) => {
+    const pinHash = await hashPin(pin);
+    const updated: ParentalControlsConfig = {
+      ...get().parentalControls,
+      pinHash,
+      isEnabled: true,
+      isSessionUnlocked: true,
+      unlockedAtTimestamp: Date.now(),
+    };
+    writeJsonToStorage('iptv_parental_controls', updated);
+    set({ parentalControls: updated });
+  },
+
+  verifyParentalPin: async (pin: string) => {
+    const { pinHash } = get().parentalControls;
+    const isValid = await verifyPin(pin, pinHash);
+    if (isValid) {
+      const updated: ParentalControlsConfig = {
+        ...get().parentalControls,
+        isSessionUnlocked: true,
+        unlockedAtTimestamp: Date.now(),
+      };
+      writeJsonToStorage('iptv_parental_controls', updated);
+      set({ parentalControls: updated });
+    }
+    return isValid;
+  },
+
+  removeParentalPin: () => {
+    const updated: ParentalControlsConfig = {
+      ...get().parentalControls,
+      pinHash: null,
+      isEnabled: false,
+      isSessionUnlocked: false,
+      unlockedAtTimestamp: null,
+    };
+    writeJsonToStorage('iptv_parental_controls', updated);
+    set({ parentalControls: updated });
+  },
+
+  setParentalControlsEnabled: (enabled: boolean) => {
+    const updated: ParentalControlsConfig = {
+      ...get().parentalControls,
+      isEnabled: enabled,
+    };
+    writeJsonToStorage('iptv_parental_controls', updated);
+    set({ parentalControls: updated });
+  },
+
+  toggleChannelLock: (channelId: string) => {
+    const current = get().parentalControls.lockedChannelIds;
+    const normalized = channelId.toLowerCase().trim();
+    const exists = current.some((id) => id.toLowerCase().trim() === normalized);
+    const lockedChannelIds = exists
+      ? current.filter((id) => id.toLowerCase().trim() !== normalized)
+      : [...current, channelId];
+    const updated: ParentalControlsConfig = {
+      ...get().parentalControls,
+      lockedChannelIds,
+    };
+    writeJsonToStorage('iptv_parental_controls', updated);
+    set({ parentalControls: updated });
+  },
+
+  isChannelLocked: (channel: { id?: string; name: string; group?: string }) => {
+    const config = get().parentalControls;
+    if (!config.isEnabled || !config.pinHash) {
+      return false;
+    }
+
+    // Check session unlock state and expiration
+    if (config.isSessionUnlocked) {
+      if (config.sessionUnlockTimeoutMinutes > 0 && config.unlockedAtTimestamp) {
+        const elapsedMinutes = (Date.now() - config.unlockedAtTimestamp) / (1000 * 60);
+        if (elapsedMinutes >= config.sessionUnlockTimeoutMinutes) {
+          // Session expired, relock
+          const relocked: ParentalControlsConfig = {
+            ...config,
+            isSessionUnlocked: false,
+            unlockedAtTimestamp: null,
+          };
+          writeJsonToStorage('iptv_parental_controls', relocked);
+          set({ parentalControls: relocked });
+        } else {
+          return false;
+        }
+      } else {
+        return false;
+      }
+    }
+
+    // Check specific channel ID or normalized name
+    const normalizedName = channel.name.toLowerCase().replace(/[^a-z0-9]/g, '-');
+    const channelId = channel.id?.toLowerCase().trim();
+    const isIdLocked = config.lockedChannelIds.some((id) => {
+      const nid = id.toLowerCase().trim();
+      return (channelId && nid === channelId) || nid === normalizedName || nid === channel.name.toLowerCase().trim();
+    });
+
+    if (isIdLocked) return true;
+
+    // Check category/group or name matching locked categories
+    const groupLower = (channel.group || '').toLowerCase();
+    const nameLower = channel.name.toLowerCase();
+
+    for (const cat of config.lockedCategories) {
+      const catLower = cat.toLowerCase().trim();
+      if (!catLower) continue;
+      if (groupLower.includes(catLower) || nameLower.includes(catLower)) {
+        return true;
+      }
+    }
+
+    return false;
+  },
+
+  toggleCategoryLock: (category: string) => {
+    const current = get().parentalControls.lockedCategories;
+    const normalized = category.toLowerCase().trim();
+    const exists = current.some((cat) => cat.toLowerCase().trim() === normalized);
+    const lockedCategories = exists
+      ? current.filter((cat) => cat.toLowerCase().trim() !== normalized)
+      : [...current, category];
+    const updated: ParentalControlsConfig = {
+      ...get().parentalControls,
+      lockedCategories,
+    };
+    writeJsonToStorage('iptv_parental_controls', updated);
+    set({ parentalControls: updated });
+  },
+
+  setHideLockedChannels: (hide: boolean) => {
+    const updated: ParentalControlsConfig = {
+      ...get().parentalControls,
+      hideLockedChannelsInGuide: hide,
+    };
+    writeJsonToStorage('iptv_parental_controls', updated);
+    set({ parentalControls: updated });
+  },
+
+  setParentalSessionTimeout: (minutes: number) => {
+    const updated: ParentalControlsConfig = {
+      ...get().parentalControls,
+      sessionUnlockTimeoutMinutes: Math.max(0, minutes),
+    };
+    writeJsonToStorage('iptv_parental_controls', updated);
+    set({ parentalControls: updated });
+  },
+
+  lockParentalSession: () => {
+    const updated: ParentalControlsConfig = {
+      ...get().parentalControls,
+      isSessionUnlocked: false,
+      unlockedAtTimestamp: null,
+    };
+    writeJsonToStorage('iptv_parental_controls', updated);
+    set({ parentalControls: updated });
+  },
+
+  unlockParentalSession: () => {
+    const updated: ParentalControlsConfig = {
+      ...get().parentalControls,
+      isSessionUnlocked: true,
+      unlockedAtTimestamp: Date.now(),
+    };
+    writeJsonToStorage('iptv_parental_controls', updated);
+    set({ parentalControls: updated });
   },
 }));

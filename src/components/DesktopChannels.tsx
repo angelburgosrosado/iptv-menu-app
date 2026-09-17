@@ -28,7 +28,10 @@ import {
   PictureInPicture,
   SlidersHorizontal,
   HelpCircle,
-  X
+  X,
+  ShieldAlert,
+  Lock,
+  Unlock
 } from 'lucide-react';
 import { Channel } from '../types/iptv';
 import WebCinemaPlayer from './WebCinemaPlayer';
@@ -36,6 +39,7 @@ import CountryChannelSections from './CountryChannelSections';
 import { PageProtocolHeader } from './PageProtocolHeader';
 import { downloadM3UFile } from '../utils/m3uParser';
 import { ChannelTagModal } from './ChannelTagModal';
+import { ParentalPinModal } from './ParentalPinModal';
 import { parseSearchQuery, matchChannelWithQuery } from '../utils/searchQueryParser';
 import { 
   getCountryFlag, 
@@ -67,6 +71,9 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
     customTags,
     getAllUniqueCustomTags,
     openPiP,
+    parentalControls,
+    isChannelLocked,
+    toggleChannelLock,
     isLoading,
     error
   } = usePlayerStore();
@@ -78,6 +85,7 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
   const [sortMode, setSortMode] = React.useState<'default' | 'name-asc' | 'name-desc' | 'health' | 'country'>('default');
   const [selectedCustomTag, setSelectedCustomTag] = React.useState<string | null>(null);
   const [taggingChannel, setTaggingChannel] = React.useState<Channel | null>(null);
+  const [showParentalModal, setShowParentalModal] = React.useState(false);
 
   const parsedSearch = React.useMemo(() => parseSearchQuery(searchQuery), [searchQuery]);
 
@@ -156,8 +164,13 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
       list = [...list].sort((a, b) => (a.countryCode || 'ZZ').localeCompare(b.countryCode || 'ZZ'));
     }
 
+    // Parental Controls: Conceal locked channels if setting is enabled and session is locked
+    if (parentalControls.isEnabled && parentalControls.hideLockedChannelsInGuide && !parentalControls.isSessionUnlocked) {
+      list = list.filter((c) => !isChannelLocked({ id: c.id, name: c.name, group: c.group }));
+    }
+
     return list;
-  }, [channels, selectedCountry, selectedSubdivision, selectedGroup, selectedLanguage, selectedCustomTag, searchQuery, sortMode, customTags]);
+  }, [channels, selectedCountry, selectedSubdivision, selectedGroup, selectedLanguage, selectedCustomTag, searchQuery, sortMode, customTags, parentalControls, isChannelLocked]);
 
   const handlePlayInSimulator = (channel: Channel) => {
     simRouter.push(`/player/${channel.id}`);
@@ -311,6 +324,36 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
           >
             <Download className="w-3.5 h-3.5 text-cyan-400" />
             <span>Export M3U</span>
+          </button>
+
+          <button
+            onClick={() => setShowParentalModal(true)}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer ${
+              parentalControls.isEnabled
+                ? parentalControls.isSessionUnlocked
+                  ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30'
+                  : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                : 'bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border-white/10'
+            }`}
+            title="Parental Controls & Content Security PIN"
+            aria-label="Parental Controls"
+          >
+            {parentalControls.isEnabled ? (
+              parentalControls.isSessionUnlocked ? (
+                <Unlock className="w-3.5 h-3.5 text-amber-400" />
+              ) : (
+                <Lock className="w-3.5 h-3.5 text-emerald-400" />
+              )
+            ) : (
+              <ShieldAlert className="w-3.5 h-3.5 text-zinc-400" />
+            )}
+            <span>
+              {parentalControls.isEnabled
+                ? parentalControls.isSessionUnlocked
+                  ? 'Parental (Unlocked)'
+                  : 'Parental (Locked)'
+                : 'Parental PIN'}
+            </span>
           </button>
         </div>
 
@@ -712,6 +755,7 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 overflow-y-auto max-h-[520px] pr-2 scrollbar-thin">
           {filteredChannels.map((c) => {
             const isFav = favorites.includes(c.id);
+            const isLocked = isChannelLocked({ id: c.id, name: c.name, group: c.group });
             return (
               <div
                 key={c.id}
@@ -743,6 +787,11 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
                       <span className="truncate">{c.name}</span>
                     </h4>
                     <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                      {isLocked && (
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold flex items-center gap-0.5" title="Locked by Parental Controls">
+                          <Lock className="w-2.5 h-2.5" /> LOCKED
+                        </span>
+                      )}
                       <span className="inline-block text-[9px] px-2 py-0.5 bg-white/5 border border-white/10 rounded-full font-semibold text-zinc-400 uppercase tracking-wider">
                         {c.category || c.group}
                       </span>
@@ -781,6 +830,25 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
                 </div>
 
                 <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => {
+                      if (!parentalControls.pinHash) {
+                        setShowParentalModal(true);
+                      } else {
+                        toggleChannelLock(c.id);
+                      }
+                    }}
+                    className={`p-2 rounded-xl border transition-all cursor-pointer ${
+                      isLocked
+                        ? 'bg-rose-500/10 text-rose-400 border-rose-500/30 hover:bg-rose-500/20'
+                        : 'bg-white/5 text-zinc-400 border-transparent hover:bg-white/10 hover:text-white'
+                    }`}
+                    title={isLocked ? "Unlock Channel with PIN" : "Lock Channel with PIN"}
+                    aria-label="Parental Lock"
+                  >
+                    {isLocked ? <Lock className="w-3.5 h-3.5 text-rose-400" /> : <Unlock className="w-3.5 h-3.5" />}
+                  </button>
+
                   <button
                     onClick={() => setTaggingChannel(c)}
                     className={`p-2 rounded-xl border transition-all cursor-pointer ${
@@ -849,6 +917,7 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
           </div>
           {filteredChannels.map((c) => {
             const isFav = favorites.includes(c.id);
+            const isLocked = isChannelLocked({ id: c.id, name: c.name, group: c.group });
             return (
               <div
                 key={c.id}
@@ -877,6 +946,11 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
                       {c.countryFlag || getCountryFlag(c.countryCode)}
                     </span>
                     <h4 className="text-xs font-bold text-white truncate">{c.name}</h4>
+                    {isLocked && (
+                      <span className="text-[8px] px-1 py-0.2 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold flex items-center gap-0.5">
+                        <Lock className="w-2.5 h-2.5" /> LOCKED
+                      </span>
+                    )}
                     {c.healthStatus === 'blocked' && (
                       <span className="text-[8px] px-1 py-0.2 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 font-mono font-bold">
                         {c.blockedReason ? c.blockedReason.toUpperCase() : 'FLAGGED'}
@@ -907,6 +981,25 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
                 </div>
 
                 <div className="col-span-3 md:col-span-2 flex items-center justify-end gap-1.5">
+                  <button
+                    onClick={() => {
+                      if (!parentalControls.pinHash) {
+                        setShowParentalModal(true);
+                      } else {
+                        toggleChannelLock(c.id);
+                      }
+                    }}
+                    className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                      isLocked
+                        ? 'bg-rose-500/10 text-rose-400 border-rose-500/30 hover:bg-rose-500/20'
+                        : 'bg-white/5 text-zinc-400 border-transparent hover:bg-white/10 hover:text-white'
+                    }`}
+                    title={isLocked ? "Unlock Channel with PIN" : "Lock Channel with PIN"}
+                    aria-label="Parental Lock"
+                  >
+                    {isLocked ? <Lock className="w-3 h-3 text-rose-400" /> : <Unlock className="w-3 h-3" />}
+                  </button>
+
                   <button
                     onClick={() => setTaggingChannel(c)}
                     className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
@@ -979,6 +1072,13 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
         channel={taggingChannel}
         isOpen={!!taggingChannel}
         onClose={() => setTaggingChannel(null)}
+      />
+
+      {/* Parental Controls & PIN Management Modal */}
+      <ParentalPinModal
+        isOpen={showParentalModal}
+        onClose={() => setShowParentalModal(false)}
+        initialMode={parentalControls.pinHash ? (parentalControls.isSessionUnlocked ? 'settings' : 'unlock') : 'setup'}
       />
     </div>
   );

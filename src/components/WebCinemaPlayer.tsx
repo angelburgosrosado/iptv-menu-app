@@ -21,13 +21,17 @@ import {
   Layers,
   Sparkles,
   Moon,
-  Sliders
+  Sliders,
+  Lock,
+  Unlock,
+  ShieldAlert
 } from 'lucide-react';
 import { Channel } from '../types/iptv';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { VideoPlayer } from './VideoPlayer';
 import SleepTimerModal from './SleepTimerModal';
 import AudioEqualizerModal from './AudioEqualizerModal';
+import { ParentalPinModal } from './ParentalPinModal';
 
 interface WebCinemaPlayerProps {
   initialChannel: Channel;
@@ -40,13 +44,29 @@ export default function WebCinemaPlayer({
   onClose,
   onSwitchToMultiScreen
 }: WebCinemaPlayerProps) {
-  const { channels, favorites, toggleFavorite, addToHistory, openPiP, sleepTimer, audioDsp } = usePlayerStore();
+  const { 
+    channels, 
+    favorites, 
+    toggleFavorite, 
+    addToHistory, 
+    openPiP, 
+    sleepTimer, 
+    audioDsp,
+    parentalControls,
+    isChannelLocked,
+    toggleChannelLock
+  } = usePlayerStore();
   const [currentChannel, setCurrentChannel] = React.useState<Channel>(initialChannel);
   const [showChannelDrawer, setShowChannelDrawer] = React.useState(false);
   const [showSleepTimer, setShowSleepTimer] = React.useState(false);
   const [showEqualizer, setShowEqualizer] = React.useState(false);
+  const [showParentalModal, setShowParentalModal] = React.useState(false);
   const [drawerSearch, setDrawerSearch] = React.useState('');
   const [selectedGroup, setSelectedGroup] = React.useState<string | null>(null);
+
+  const isLocked = React.useMemo(() => {
+    return isChannelLocked({ id: currentChannel.id, name: currentChannel.name, group: currentChannel.group });
+  }, [isChannelLocked, currentChannel]);
 
   // Keep track of current index in channels array
   const currentIndex = React.useMemo(() => {
@@ -115,10 +135,17 @@ export default function WebCinemaPlayer({
       if ((e.key === 'q' || e.key === 'Q') && !(e.target instanceof HTMLInputElement)) {
         setShowEqualizer((prev) => !prev);
       }
+      if ((e.key === 'l' || e.key === 'L') && !(e.target instanceof HTMLInputElement)) {
+        if (!parentalControls.pinHash || isLocked) {
+          setShowParentalModal(true);
+        } else {
+          toggleChannelLock(currentChannel.id);
+        }
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose, showChannelDrawer, showSleepTimer, showEqualizer, currentChannel, openPiP]);
+  }, [onClose, showChannelDrawer, showSleepTimer, showEqualizer, showParentalModal, currentChannel, openPiP, parentalControls.pinHash, isLocked, toggleChannelLock]);
 
   // Filtered channels for drawer
   const filteredDrawerChannels = React.useMemo(() => {
@@ -267,6 +294,29 @@ export default function WebCinemaPlayer({
             <Sliders className={`w-4 h-4 ${audioDsp.enabled ? 'text-cyan-400' : 'text-zinc-400'}`} />
             <span className="text-xs font-bold hidden sm:inline">
               {audioDsp.enabled ? audioDsp.preset.toUpperCase() : 'EQ'}
+            </span>
+          </button>
+
+          {/* Parental Controls Lock Button */}
+          <button
+            onClick={() => {
+              if (!parentalControls.pinHash || isLocked) {
+                setShowParentalModal(true);
+              } else {
+                toggleChannelLock(currentChannel.id);
+              }
+            }}
+            className={`p-2 rounded-xl border transition-all flex items-center gap-1.5 cursor-pointer ${
+              isLocked
+                ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-md shadow-rose-500/10'
+                : 'bg-white/5 hover:bg-white/10 text-zinc-300 border-white/10 hover:text-white'
+            }`}
+            title={isLocked ? "Unlock Channel with PIN (L)" : "Lock Channel with PIN (L)"}
+            aria-label="Parental Lock"
+          >
+            {isLocked ? <Lock className="w-4 h-4 text-rose-400" /> : <Unlock className="w-4 h-4 text-zinc-400" />}
+            <span className="text-xs font-bold hidden sm:inline">
+              {isLocked ? 'Locked' : 'Lock'}
             </span>
           </button>
 
@@ -473,7 +523,7 @@ export default function WebCinemaPlayer({
         </div>
         <div className="flex items-center gap-4">
           <span className="hidden md:inline">
-            Shortcuts: <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">Space</kbd> Pause • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">F</kbd> Fullscreen • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">P</kbd> PiP • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">Z</kbd> Sleep • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">Q</kbd> EQ • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">E</kbd> Guide
+            Shortcuts: <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">Space</kbd> Pause • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">F</kbd> Fullscreen • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">P</kbd> PiP • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">Z</kbd> Sleep • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">Q</kbd> EQ • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">L</kbd> Lock • <kbd className="px-1.5 py-0.5 bg-white/10 rounded text-[10px] text-white">E</kbd> Guide
           </span>
           <span className="text-blue-400 font-mono text-[10px] font-bold">10-FOOT LEANBACK TV READY</span>
         </div>
@@ -484,6 +534,14 @@ export default function WebCinemaPlayer({
 
       {/* Audio Equalizer & Sound Normalization Modal */}
       <AudioEqualizerModal isOpen={showEqualizer} onClose={() => setShowEqualizer(false)} />
+
+      {/* Parental Controls PIN Modal */}
+      <ParentalPinModal 
+        isOpen={showParentalModal} 
+        onClose={() => setShowParentalModal(false)} 
+        channelName={currentChannel.name}
+        initialMode={parentalControls.pinHash ? (isLocked ? 'unlock' : 'settings') : 'setup'}
+      />
     </div>
   );
 }

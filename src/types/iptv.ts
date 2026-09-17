@@ -309,6 +309,20 @@ export interface AppState {
   toggleDialogueEnhancer: () => void;
   setPreampGain: (gain: number) => void;
   resetDsp: () => void;
+
+  // Parental Controls & Content Security Engine
+  parentalControls: ParentalControlsConfig;
+  setParentalPin: (pin: string) => Promise<void>;
+  verifyParentalPin: (pin: string) => Promise<boolean>;
+  removeParentalPin: () => void;
+  setParentalControlsEnabled: (enabled: boolean) => void;
+  toggleChannelLock: (channelId: string) => void;
+  isChannelLocked: (channel: { id?: string; name: string; group?: string }) => boolean;
+  toggleCategoryLock: (category: string) => void;
+  setHideLockedChannels: (hide: boolean) => void;
+  setParentalSessionTimeout: (minutes: number) => void;
+  lockParentalSession: () => void;
+  unlockParentalSession: () => void;
 }
 
 export type AudioDspPreset = 'flat' | 'bass_boost' | 'vocal_clarity' | 'night_mode' | 'treble_boost' | 'custom';
@@ -399,4 +413,16 @@ export interface AdSenseConfig {
   testMode?: boolean;
   updatedAt?: string;
   updatedBy?: string;
+}
+
+export interface ParentalControlsConfig {
+  isEnabled: boolean;
+  pinHash: string | null;
+  isSessionUnlocked: boolean;
+  sessionUnlockTimeoutMinutes: number; // e.g. 15, 30, 60, or 0 (until tab close)
+  unlockedAtTimestamp: number | null;
+  lockedChannelIds: string[];
+  lockedCategories: string[];
+  hideLockedChannelsInGuide: boolean;
+  requirePinForSettings: boolean;
 }
