@@ -86,20 +86,6 @@ export function VideoPlayer({
 
   // Compute actual active stream URL (either candidate or proxy wrapped)
   const activeRawUrl = streamCandidates[activeCandidateIndex] || streamUrl;
-  const activeEffectiveUrl = React.useMemo(() => {
-    let finalUrl = activeRawUrl;
-    if (isUsingProxyRelay && !activeRawUrl.includes('/api/stream/proxy')) {
-      finalUrl = `/api/stream/proxy?url=${encodeURIComponent(activeRawUrl)}`;
-      if (activeSubscriptionId) {
-        const sub = subscriptions.find(s => s.id === activeSubscriptionId);
-        if (sub?.userAgent) {
-          finalUrl += `&ua=${encodeURIComponent(sub.userAgent)}`;
-        }
-      }
-    }
-    return finalUrl;
-  }, [activeRawUrl, isUsingProxyRelay, activeSubscriptionId, subscriptions]);
-
   const [isPlaying, setIsPlaying] = React.useState(true);
   const [isMuted, setIsMuted] = React.useState(false);
   const [volume, setVolume] = React.useState(1.0);
@@ -136,6 +122,21 @@ export function VideoPlayer({
     cancelActiveRecording,
     subtitleConfig
   } = usePlayerStore();
+
+  const activeEffectiveUrl = React.useMemo(() => {
+    let finalUrl = activeRawUrl;
+    if (isUsingProxyRelay && !activeRawUrl.includes('/api/stream/proxy')) {
+      finalUrl = `/api/stream/proxy?url=${encodeURIComponent(activeRawUrl)}`;
+      if (activeSubscriptionId) {
+        const sub = subscriptions.find(s => s.id === activeSubscriptionId);
+        if (sub?.userAgent) {
+          finalUrl += `&ua=${encodeURIComponent(sub.userAgent)}`;
+        }
+      }
+    }
+    return finalUrl;
+  }, [activeRawUrl, isUsingProxyRelay, activeSubscriptionId, subscriptions]);
+
   const isBookmarked = isChannelBookmarked(channelName.toLowerCase().replace(/[^a-z0-9]/g, '-')) || isChannelBookmarked(channelName);
   const isLocked = isChannelLocked({ id: channelName, name: channelName, group: groupTitle });
 

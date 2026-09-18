@@ -226,6 +226,10 @@ export const usePlayerStore = create<AppState>((set, get) => ({
 
   // TMDB Metadata Enrichment
   tmdbApiKey: storage.getString('iptv_tmdb_api_key') || '62a8b1856bf0b85d7de04cde3050a69a',
+  setTmdbApiKey: (key: string) => {
+    storage.set('iptv_tmdb_api_key', key);
+    set({ tmdbApiKey: key });
+  },
 
   // M3U Feed Subscriptions & Auto-Sync Engine
   subscriptions: readJsonFromStorage<PlaylistSubscription[]>('iptv_playlist_subscriptions', DEFAULT_SUBSCRIPTIONS),
