@@ -341,7 +341,7 @@ export default function App() {
     { id: 'multiscreen', label: 'Quad Multi-Screen', icon: LayoutGrid },
     { id: 'epg', label: 'EPG Program Guide', icon: CalendarRange },
     { id: 'favorites', label: 'Favorites & History', icon: Heart },
-    { id: 'upload', label: 'M3U Playlist Manager', icon: UploadCloud },
+    { id: 'upload', label: 'Feeds, Proxies & Settings', icon: UploadCloud },
     { id: 'apk_builder', label: 'APK App Builder', icon: Sparkles },
     { id: 'remote_apps', label: 'Remote OTA Apps', icon: Radio },
     { id: 'xtream', label: 'Xtream / Stalker', icon: Server },

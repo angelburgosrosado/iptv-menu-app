@@ -76,7 +76,7 @@ export default function MarketingHero({
           transition={{ duration: 0.6, delay: 0.3 }}
           className="text-xs sm:text-sm md:text-base lg:text-lg text-zinc-300 font-medium max-w-3xl mx-auto leading-relaxed select-text"
         >
-          Parse M3U playlists, enrich streams with canonical <strong className="text-white">IPTV-Org metadata</strong>, partition feeds by <strong className="text-white">ISO country sections</strong>, and layer licensed schedules over <strong className="text-white">XMLTV EPG backbones</strong> — all through a high-performance CORS proxy gateway.
+          Parse M3U & Xtream playlists, bypass provider blocks with <strong className="text-white">Custom User-Agent Relays</strong>, enrich VODs with gorgeous <strong className="text-white">TMDB Cinematic Metadata</strong>, and default to built-in <strong className="text-white">Pluto TV FAST Channels</strong> out-of-the-box.
         </motion.p>
       </div>
 
@@ -125,13 +125,13 @@ export default function MarketingHero({
 
         <div className="p-3.5 rounded-2xl bg-white/[0.03] border border-white/10 hover:border-amber-500/30 transition-all group">
           <div className="text-[10px] font-mono text-amber-400 uppercase tracking-wider font-bold mb-1">
-            RFC 8216 Gateway
+            Bypass & Enrich
           </div>
           <h4 className="text-sm font-bold text-white group-hover:text-amber-300 transition-colors">
-            Universal Stream Relay
+            TMDB & Custom Proxy
           </h4>
           <p className="text-xs text-zinc-400 mt-1 leading-normal">
-            Server-side M3U8 & TS chunk proxying with CORS shielding, AES key rewrites, and SSRF loopback protections.
+            Bypass provider blocks with per-subscription User-Agents, and transform VODs with rich TMDB posters and synopses.
           </p>
         </div>
       </motion.div>
@@ -205,23 +205,23 @@ export default function MarketingHero({
             <div className="flex gap-8 items-center flex-shrink-0">
               <span className="flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 px-3 py-1 rounded-full whitespace-nowrap text-blue-400">
                 <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping" />
-                RFC 8216 HLS Compliant
+                Custom User-Agent Injection
               </span>
               <span className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full whitespace-nowrap text-emerald-400">
                 <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                XMLTV DTD EPG Backbone
+                Pluto TV FAST Built-In
               </span>
               <span className="flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 px-3 py-1 rounded-full whitespace-nowrap text-indigo-400">
                 <span className="w-2 h-2 rounded-full bg-indigo-400" />
-                ISO-3166-1 Regional Sections
+                TMDB Cinematic VOD Metadata
               </span>
               <span className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full whitespace-nowrap text-amber-400">
                 <span className="w-2 h-2 rounded-full bg-amber-400" />
-                IPTV-Org Canonical Metadata
+                Xtream Codes API Native
               </span>
               <span className="flex items-center gap-2 bg-cyan-500/10 border border-cyan-500/20 px-3 py-1 rounded-full whitespace-nowrap text-cyan-400">
                 <span className="w-2 h-2 rounded-full bg-cyan-400" />
-                SMPTE ST 2022-7 Quad Matrix
+                WebAudio Equalizer DSP
               </span>
             </div>
             
@@ -229,23 +229,23 @@ export default function MarketingHero({
             <div className="flex gap-8 items-center flex-shrink-0">
               <span className="flex items-center gap-2 bg-blue-500/10 border border-blue-500/20 px-3 py-1 rounded-full whitespace-nowrap text-blue-400">
                 <span className="w-2 h-2 rounded-full bg-blue-500 animate-ping" />
-                RFC 8216 HLS Compliant
+                Custom User-Agent Injection
               </span>
               <span className="flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1 rounded-full whitespace-nowrap text-emerald-400">
                 <span className="w-2 h-2 rounded-full bg-emerald-400" />
-                XMLTV DTD EPG Backbone
+                Pluto TV FAST Built-In
               </span>
               <span className="flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 px-3 py-1 rounded-full whitespace-nowrap text-indigo-400">
                 <span className="w-2 h-2 rounded-full bg-indigo-400" />
-                ISO-3166-1 Regional Sections
+                TMDB Cinematic VOD Metadata
               </span>
               <span className="flex items-center gap-2 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full whitespace-nowrap text-amber-400">
                 <span className="w-2 h-2 rounded-full bg-amber-400" />
-                IPTV-Org Canonical Metadata
+                Xtream Codes API Native
               </span>
               <span className="flex items-center gap-2 bg-cyan-500/10 border border-cyan-500/20 px-3 py-1 rounded-full whitespace-nowrap text-cyan-400">
                 <span className="w-2 h-2 rounded-full bg-cyan-400" />
-                SMPTE ST 2022-7 Quad Matrix
+                WebAudio Equalizer DSP
               </span>
             </div>
           </motion.div>

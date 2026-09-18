@@ -23,10 +23,10 @@ export default function PricingSection({
       priceMonthly: 0,
       priceYearly: 0,
       features: [
-        '1 M3U playlist upload & parser',
-        'Web TV stream preview simulator',
-        'Sample public IPTV channels',
-        'Standard latency buffer settings',
+        '1 M3U or Xtream playlist upload',
+        'Built-in Pluto TV FAST Channels',
+        'TMDB Cinematic VOD Enrichment',
+        'Custom User-Agent proxy injection',
         'Local M3U export & download'
       ],
       cta: 'Get Started Free',
@@ -44,10 +44,10 @@ export default function PricingSection({
       features: [
         'Everything in Free tier',
         'Up to 10 active playlists & 5 hosted remote URLs',
-        'Automated Stream Health Prober & dead link pruning',
-        '20 daily automated stream cleanups',
+        'WebAudio DSP Equalizer & Multi-track Subtitles',
+        'Floating Picture-in-Picture & 9-Screen Matrix',
         'Integrated live EPG (XMLTV) auto-feed',
-        'Fast global CDN caching & sync links'
+        'Hardware-accelerated DVR Recording'
       ],
       cta: 'Upgrade to Pro',
       icon: Sparkles,

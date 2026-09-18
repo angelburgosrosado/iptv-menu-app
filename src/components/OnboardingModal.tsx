@@ -150,7 +150,7 @@ export default function OnboardingModal({
                       <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
                         Pro Streamer
                       </h4>
-                      <p className="text-[11px] text-zinc-300">10 playlists, 20 daily link cleanups, Quad multi-screen</p>
+                      <p className="text-[11px] text-zinc-300">10 playlists, TMDB Cinematic VOD, FAST channels, Custom Proxies</p>
                     </div>
                   </div>
                   <span className="text-xs font-black text-cyan-400">$9.99 / mo</span>
@@ -180,23 +180,23 @@ export default function OnboardingModal({
           {step === 2 && (
             <div className="flex flex-col gap-4">
               <div>
-                <h3 className="text-lg font-bold text-white">Select Your Feed</h3>
+                <h3 className="text-lg font-bold text-white">Select Your Initial Feed</h3>
                 <p className="text-xs text-zinc-400 mt-1">
-                  Choose one of our verified public standby feeds to populate your channels instantly.
+                  Start with a default public feed. Our engine is natively pre-configured with Pluto TV FAST channels, but you can load M3U or Xtream API endpoints later.
                 </p>
               </div>
 
               <div className="flex flex-col gap-2.5">
                 {[
                   {
-                    name: "Global High-Definition Streams (Verified)",
-                    url: "https://iptv-org.github.io/iptv/countries/us.m3u",
-                    channels: "NASA TV, France 24, Red Bull Sports, DW News, Arirang",
+                    name: "Pluto TV FAST Channels (Built-In)",
+                    url: "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_pluto.m3u",
+                    channels: "Star Trek, Top Gear, Hell's Kitchen, CSI, Classic Movies, News",
                   },
                   {
-                    name: "Latin America Broadcast Feeds",
-                    url: "https://iptv-org.github.io/iptv/regions/latam.m3u",
-                    channels: "Regional news, cultural broadcasts, sports",
+                    name: "Global High-Definition Streams",
+                    url: "https://iptv-org.github.io/iptv/countries/us.m3u",
+                    channels: "NASA TV, France 24, Red Bull Sports, DW News",
                   },
                   {
                     name: "European Unified Free Feeds",
