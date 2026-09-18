@@ -57,6 +57,7 @@ import SystemAdminConsole from './components/admin/SystemAdminConsole';
 import XtreamConnector from './components/XtreamConnector';
 import MultiScreenMatrix from './components/MultiScreenMatrix';
 import MarketingHero from './components/MarketingHero';
+import WelcomeDashboard from './components/WelcomeDashboard';
 import PricingSection from './components/PricingSection';
 import CertifiedDevices from './components/CertifiedDevices';
 import AuthModal from './components/AuthModal';
@@ -123,7 +124,7 @@ export default function App() {
     }, 4000);
   };
 
-  const [activeMenu, setActiveMenu] = React.useState<string>('channels');
+  const [activeMenu, setActiveMenu] = React.useState<string>('welcome');
   const [layoutMode, setLayoutMode] = React.useState<'studio' | 'full'>(() => {
     try {
       const saved = localStorage.getItem('iptv_layout_mode');
@@ -336,6 +337,7 @@ export default function App() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  
   const SIDEBAR_ITEMS = [
     { id: 'channels', label: 'Live Channels', icon: Tv },
     { id: 'multiscreen', label: 'Quad Multi-Screen', icon: LayoutGrid },
@@ -348,14 +350,63 @@ export default function App() {
     { id: 'devices', label: 'Certified Devices', icon: ShieldCheck },
     { id: 'premium', label: 'Plans & Billing', icon: Crown },
     { id: 'settings', label: 'Settings', icon: Settings },
-    ...(auth.role === 'admin' ? [
-      { id: 'system_admin', label: 'Platform Admin', icon: ShieldAlert },
-      { id: 'home', label: 'Code Explorer', icon: Home },
-    ] : []),
   ];
-
-  const renderActiveSection = () => {
+  
+  const SIDEBAR_CATEGORIES = [
+    {
+      title: 'STREAMING',
+      items: [
+        { id: 'channels', label: 'Live Channels', icon: Tv },
+        { id: 'multiscreen', label: 'Quad Multi-Screen', icon: LayoutGrid },
+        { id: 'epg', label: 'EPG Program Guide', icon: CalendarRange },
+        { id: 'favorites', label: 'Favorites & History', icon: Heart },
+      ]
+    },
+    {
+      title: 'SOURCES & CONFIG',
+      items: [
+        { id: 'upload', label: 'Feeds, Proxies & Settings', icon: UploadCloud },
+        { id: 'xtream', label: 'Xtream / Stalker', icon: Server },
+      ]
+    },
+    {
+      title: 'DEVELOPER SUITE',
+      items: [
+        { id: 'apk_builder', label: 'APK App Builder', icon: Sparkles },
+        { id: 'remote_apps', label: 'Remote OTA Apps', icon: Radio },
+        { id: 'devices', label: 'Certified Devices', icon: ShieldCheck },
+      ]
+    },
+    {
+      title: 'ACCOUNT',
+      items: [
+        { id: 'premium', label: 'Plans & Billing', icon: Crown },
+        { id: 'settings', label: 'Settings', icon: Settings },
+      ]
+    }
+  ];
+const renderActiveSection = () => {
     switch (activeMenu) {
+      case 'welcome':
+        return (
+          <WelcomeDashboard
+            onBrowseChannels={() => setActiveMenu('channels')}
+            onLaunchSimulator={() => setActiveMenu('channels')}
+            onUploadM3u={() => setActiveMenu('upload')}
+            onViewPricing={() => {
+              document.getElementById('pricing-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }}
+            onSelectFree={() => setActiveMenu('channels')}
+            onSelectPro={() => {
+              if (!auth.isLoggedIn) setIsAuthModalOpen(true);
+              else setActiveMenu('premium');
+            }}
+            onSelectBuilder={() => {
+              if (!auth.isLoggedIn) setIsAuthModalOpen(true);
+              else setActiveMenu('premium');
+            }}
+          />
+        );
       case 'channels':
         return <DesktopChannels onSwitchToMultiScreen={() => setActiveMenu('multiscreen')} />;
       case 'multiscreen':
@@ -1315,59 +1366,6 @@ export default function App() {
       {/* 2. Primary Workspace Body with Sidebar Dock Integration */}
       <div className="flex-1 w-full max-w-[1600px] mx-auto p-4 md:p-6 lg:p-8 pb-24 md:pb-8 flex flex-col gap-8 relative z-10 min-h-0">
         
-        {/* Marketing Landing Hero Section */}
-        <MarketingHero 
-          onBrowseChannels={() => {
-            setActiveMenu('channels');
-            setTimeout(() => {
-              document.getElementById('workspace-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 50);
-          }}
-          onLaunchSimulator={() => {
-            setActiveMenu('channels');
-            document.getElementById('simulator-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }}
-          onUploadM3u={() => {
-            setActiveMenu('upload');
-            setTimeout(() => {
-              document.getElementById('workspace-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 100);
-          }}
-          onViewPricing={() => {
-            document.getElementById('pricing-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          }}
-        />
-
-        {/* Brand New Pricing Tier Grid Section */}
-        <PricingSection 
-          onSelectFree={() => {
-            setActiveMenu('channels');
-            setTimeout(() => {
-              document.getElementById('workspace-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 100);
-          }}
-          onSelectPro={() => {
-            if (!auth.isLoggedIn) {
-              setIsAuthModalOpen(true);
-            } else {
-              setActiveMenu('premium');
-              setTimeout(() => {
-                document.getElementById('workspace-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              }, 100);
-            }
-          }}
-          onSelectBuilder={() => {
-            if (!auth.isLoggedIn) {
-              setIsAuthModalOpen(true);
-            } else {
-              setActiveMenu('premium');
-              setTimeout(() => {
-                document.getElementById('workspace-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-              }, 100);
-            }
-          }}
-        />
-
         {/* Inner Content row enclosing Sidebar Navigation & Workspace Grid */}
         <div id="workspace-section" className="flex-1 flex flex-col md:flex-row gap-6 lg:gap-8 items-stretch min-h-0">
         
