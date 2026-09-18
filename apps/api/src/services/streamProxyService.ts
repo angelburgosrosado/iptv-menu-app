@@ -93,7 +93,8 @@ export function rewriteM3u8Manifest(
         const rewrittenTag = trimmed.replace(/URI="([^"]+)"/g, (_, uri) => {
           try {
             const absoluteUrl = new URL(uri, baseUrl).href;
-            return `URI="${proxyEndpoint}?url=${encodeURIComponent(absoluteUrl)}"`;
+            const uaParam = '&ua=' + encodeURIComponent(proxyEndpoint.includes('&ua=') ? new URL(proxyEndpoint, 'http://localhost').searchParams.get('ua') || '' : '');
+            return `URI="${proxyEndpoint.split('&ua=')[0]}?url=${encodeURIComponent(absoluteUrl)}${uaParam !== '&ua=' ? uaParam : ''}"`;
           } catch {
             return `URI="${uri}"`;
           }
@@ -106,7 +107,8 @@ export function rewriteM3u8Manifest(
       // Variant playlist URI or media chunk URL
       try {
         const absoluteUrl = new URL(trimmed, baseUrl).href;
-        rewrittenLines.push(`${proxyEndpoint}?url=${encodeURIComponent(absoluteUrl)}`);
+        const uaParam = '&ua=' + encodeURIComponent(proxyEndpoint.includes('&ua=') ? new URL(proxyEndpoint, 'http://localhost').searchParams.get('ua') || '' : '');
+        rewrittenLines.push(`${proxyEndpoint.split('&ua=')[0]}?url=${encodeURIComponent(absoluteUrl)}${uaParam !== '&ua=' ? uaParam : ''}`);
       } catch {
         rewrittenLines.push(trimmed);
       }
@@ -143,6 +145,8 @@ export async function handleStreamProxy(req: Request, res: Response): Promise<vo
     return;
   }
 
+  const customUserAgent = req.query.ua as string | undefined;
+
   const abortController = new AbortController();
   req.on('close', () => {
     abortController.abort();
@@ -150,7 +154,7 @@ export async function handleStreamProxy(req: Request, res: Response): Promise<vo
 
   try {
     const upstreamHeaders: Record<string, string> = {
-      'User-Agent': DEFAULT_UPSTREAM_USER_AGENT,
+      'User-Agent': customUserAgent || DEFAULT_UPSTREAM_USER_AGENT,
       'Accept': '*/*'
     };
 
@@ -185,7 +189,11 @@ export async function handleStreamProxy(req: Request, res: Response): Promise<vo
       const text = await upstreamResponse.text();
 
       if (text.trim().startsWith('#EXTM3U') || text.includes('#EXTINF')) {
-        const rewritten = rewriteM3u8Manifest(text, finalBaseUrl);
+        let proxyEndpointUrl = '/api/stream/proxy';
+        if (customUserAgent) {
+           proxyEndpointUrl += `&ua=${encodeURIComponent(customUserAgent)}`;
+        }
+        const rewritten = rewriteM3u8Manifest(text, finalBaseUrl, proxyEndpointUrl);
 
         res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');

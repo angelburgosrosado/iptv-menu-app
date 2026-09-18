@@ -40,6 +40,7 @@ import { PageProtocolHeader } from './PageProtocolHeader';
 import { downloadM3UFile } from '../utils/m3uParser';
 import { ChannelTagModal } from './ChannelTagModal';
 import { ParentalPinModal } from './ParentalPinModal';
+import { VODDetailModal } from './VODDetailModal';
 import { parseSearchQuery, matchChannelWithQuery } from '../utils/searchQueryParser';
 import { 
   getCountryFlag, 
@@ -97,6 +98,7 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
   const [sortMode, setSortMode] = React.useState<'default' | 'name-asc' | 'name-desc' | 'health' | 'country'>('default');
   const [selectedCustomTag, setSelectedCustomTag] = React.useState<string | null>(null);
   const [taggingChannel, setTaggingChannel] = React.useState<Channel | null>(null);
+  const [vodDetailChannel, setVodDetailChannel] = React.useState<Channel | null>(null);
   const [showParentalModal, setShowParentalModal] = React.useState(false);
 
   const parsedSearch = React.useMemo(() => parseSearchQuery(searchQuery), [searchQuery]);
@@ -184,12 +186,25 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
     return list;
   }, [channels, selectedCountry, selectedSubdivision, selectedGroup, selectedLanguage, selectedCustomTag, searchQuery, sortMode, customTags, parentalControls, isChannelLocked]);
 
+  const isVodChannel = (c: Channel) => {
+    const term = (c.category || c.group || '').toLowerCase();
+    return term.includes('movie') || term.includes('series') || term.includes('vod');
+  };
+
   const handlePlayInSimulator = (channel: Channel) => {
-    simRouter.push(`/player/${channel.id}`);
+    if (isVodChannel(channel)) {
+      setVodDetailChannel(channel);
+    } else {
+      simRouter.push(`/player/${channel.id}`);
+    }
   };
 
   const handleOpenCinema = (channel: Channel) => {
-    setCinemaChannel(channel);
+    if (isVodChannel(channel)) {
+      setVodDetailChannel(channel);
+    } else {
+      setCinemaChannel(channel);
+    }
   };
 
   const handleResetFilters = () => {
@@ -1114,11 +1129,24 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
       )}
 
       {/* Custom Channel Tagging Modal */}
-      <ChannelTagModal
-        channel={taggingChannel}
-        isOpen={!!taggingChannel}
-        onClose={() => setTaggingChannel(null)}
-      />
+      {taggingChannel && (
+        <ChannelTagModal
+          channel={taggingChannel}
+          isOpen={true}
+          onClose={() => setTaggingChannel(null)}
+        />
+      )}
+
+      {vodDetailChannel && (
+        <VODDetailModal
+          channel={vodDetailChannel}
+          onClose={() => setVodDetailChannel(null)}
+          onPlay={(c) => {
+            // After clicking "Play" inside the modal, send it directly to the cinema player
+            setCinemaChannel(c);
+          }}
+        />
+      )}
 
       {/* Parental Controls & PIN Management Modal */}
       <ParentalPinModal

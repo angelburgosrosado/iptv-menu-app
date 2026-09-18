@@ -87,11 +87,18 @@ export function VideoPlayer({
   // Compute actual active stream URL (either candidate or proxy wrapped)
   const activeRawUrl = streamCandidates[activeCandidateIndex] || streamUrl;
   const activeEffectiveUrl = React.useMemo(() => {
+    let finalUrl = activeRawUrl;
     if (isUsingProxyRelay && !activeRawUrl.includes('/api/stream/proxy')) {
-      return `/api/stream/proxy?url=${encodeURIComponent(activeRawUrl)}`;
+      finalUrl = `/api/stream/proxy?url=${encodeURIComponent(activeRawUrl)}`;
+      if (activeSubscriptionId) {
+        const sub = subscriptions.find(s => s.id === activeSubscriptionId);
+        if (sub?.userAgent) {
+          finalUrl += `&ua=${encodeURIComponent(sub.userAgent)}`;
+        }
+      }
     }
-    return activeRawUrl;
-  }, [activeRawUrl, isUsingProxyRelay]);
+    return finalUrl;
+  }, [activeRawUrl, isUsingProxyRelay, activeSubscriptionId, subscriptions]);
 
   const [isPlaying, setIsPlaying] = React.useState(true);
   const [isMuted, setIsMuted] = React.useState(false);
@@ -114,6 +121,8 @@ export function VideoPlayer({
     addBookmark, 
     removeBookmark, 
     isChannelBookmarked, 
+    activeSubscriptionId,
+    subscriptions,
     scheduleRecording, 
     sleepTimer, 
     audioDsp,

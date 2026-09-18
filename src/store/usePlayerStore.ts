@@ -224,6 +224,9 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   pipSize: readJsonFromStorage<'compact' | 'normal' | 'large'>('iptv_pip_size', 'normal'),
   isPiPMuted: false,
 
+  // TMDB Metadata Enrichment
+  tmdbApiKey: storage.getString('iptv_tmdb_api_key') || '62a8b1856bf0b85d7de04cde3050a69a',
+
   // M3U Feed Subscriptions & Auto-Sync Engine
   subscriptions: readJsonFromStorage<PlaylistSubscription[]>('iptv_playlist_subscriptions', DEFAULT_SUBSCRIPTIONS),
   activeSubscriptionId: storage.getString('iptv_active_subscription_id') || 'sub-fast-us-pluto',

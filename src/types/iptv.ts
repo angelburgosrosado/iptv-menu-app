@@ -244,6 +244,10 @@ export interface AppState {
   pipSize: 'compact' | 'normal' | 'large';
   isPiPMuted: boolean;
 
+  // TMDB Metadata Enrichment
+  tmdbApiKey: string;
+  setTmdbApiKey: (key: string) => void;
+
   // Actions
   setPlaylistUrl: (url: string) => void;
   loadPlaylist: (url?: string) => Promise<void>;
@@ -446,6 +450,7 @@ export interface PlaylistSubscription {
   status: 'synced' | 'syncing' | 'error';
   errorMessage?: string;
   colorTag?: string;
+  userAgent?: string;
 }
 
 export interface DvrRecording {
