@@ -54,6 +54,7 @@ import {
   RecoveryAction 
 } from '../utils/streamDispatcher';
 import { hostConnectivityGuard } from '../utils/hostConnectivityGuard';
+import { resolveStalkerStreamUrl } from '../utils/stalkerClient';
 import { RadioPlayerHero } from './RadioPlayerHero';
 
 interface VideoPlayerProps {
@@ -115,12 +116,29 @@ export function VideoPlayer({
     setIsRadioMode(isRadioChannel);
   }, [isRadioChannel]);
 
-  // Reset overrides when channel source changes
+  // Reset overrides and resolve Stalker links when channel source changes
   React.useEffect(() => {
     setFormatOverrideUrl(null);
     setDiagnostic(null);
     setHasAttemptedAutoTsFallback(false);
-  }, [streamUrl, activeCandidateIndex]);
+
+    // Stalker on-demand link resolution (create_link)
+    const matchingChannel = channels.find(c => c.name === channelName || c.url === streamUrl);
+    if (matchingChannel?.metadataSource === 'stalker' && matchingChannel.stalkerCmd) {
+      const portal = matchingChannel.stalkerPortalUrl || localStorage.getItem('iptv_stalker_portal_url') || '';
+      const mac = matchingChannel.stalkerMac || localStorage.getItem('iptv_stalker_mac') || '';
+      const token = localStorage.getItem('iptv_stalker_token') || '';
+      if (portal && mac) {
+        resolveStalkerStreamUrl(portal, mac, token, matchingChannel.stalkerCmd).then((liveUrl) => {
+          if (liveUrl && liveUrl !== matchingChannel.url && (liveUrl.startsWith('http://') || liveUrl.startsWith('https://'))) {
+            setFormatOverrideUrl(liveUrl);
+          }
+        }).catch((err) => {
+          console.warn('[VideoPlayer] Stalker link resolution failed:', err);
+        });
+      }
+    }
+  }, [streamUrl, activeCandidateIndex, channelName, channels]);
 
   const [isPlaying, setIsPlaying] = React.useState(true);
   const [isMuted, setIsMuted] = React.useState(false);
@@ -140,6 +158,7 @@ export function VideoPlayer({
   const [showSubtitleSettings, setShowSubtitleSettings] = React.useState(false);
 
   const { 
+    channels,
     addBookmark, 
     removeBookmark, 
     isChannelBookmarked, 

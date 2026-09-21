@@ -39,6 +39,11 @@ import {
   XtreamStreamItem,
   XtreamEpgListing
 } from '../utils/xtreamClient';
+import { 
+  authenticateStalkerPortal, 
+  fetchStalkerGenres, 
+  fetchStalkerChannels 
+} from '../utils/stalkerClient';
 import { buildCountrySections } from '../utils/channelEnrichment';
 import { PageProtocolHeader } from './PageProtocolHeader';
 import { Channel } from '../types/iptv';
@@ -111,6 +116,7 @@ export default function XtreamConnector() {
 
   const [savedAccounts, setSavedAccounts] = React.useState<SavedXtreamAccount[]>(getSavedAccounts);
   const [isLoading, setIsLoading] = React.useState(false);
+  const [connectionStep, setConnectionStep] = React.useState<string>('');
   const [error, setError] = React.useState<string | null>(null);
   const [successInfo, setSuccessInfo] = React.useState<any | null>(null);
 
@@ -152,45 +158,40 @@ export default function XtreamConnector() {
     setSuccessInfo(null);
 
     if (protocolType === 'stalker') {
-      if (!stalkerPortalUrl || !stalkerMac) {
+      const targetPortal = customAccount ? customAccount.serverUrl : stalkerPortalUrl;
+      const targetMac = customAccount ? (customAccount.macAddress || customAccount.username.replace(/^MAC:\s*/i, '')) : stalkerMac;
+
+      if (!targetPortal || !targetMac) {
         setError('Please provide both Stalker Portal URL and MAC Address.');
         setIsLoading(false);
         return;
       }
 
       try {
-        localStorage.setItem('iptv_stalker_portal_url', stalkerPortalUrl);
-        localStorage.setItem('iptv_stalker_mac', stalkerMac);
-        localStorage.setItem('iptv_stalker_token', stalkerToken);
+        localStorage.setItem('iptv_stalker_portal_url', targetPortal);
+        localStorage.setItem('iptv_stalker_mac', targetMac);
 
-        // Stalker Middleware handshake simulation
-        await new Promise(r => setTimeout(r, 900));
+        setConnectionStep('Performing MAG250 STB Handshake...');
+        const authRes = await authenticateStalkerPortal(targetPortal, targetMac);
+        if (!authRes.success || !authRes.token) {
+          throw new Error(authRes.error || 'Stalker portal rejected handshake. Check MAC address.');
+        }
 
-        const mockStalkerChannels: Channel[] = [
-          {
-            id: `stk_${Date.now()}_1`,
-            name: 'Stalker Premier HD (ABC News)',
-            logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/63/ABC_News_Live_logo_2021.svg/960px-ABC_News_Live_logo_2021.svg.png',
-            url: 'https://abcnews-streams.akamaized.net/hls/live/2023560/abcnewshudson1/master.m3u8',
-            group: 'Stalker Live',
-            tvgId: 'stalker_premier_hd',
-            countryCode: 'US',
-            metadataSource: 'stalker' as any,
-          },
-          {
-            id: `stk_${Date.now()}_2`,
-            name: 'Stalker 24/7 (CBS News)',
-            logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/CBS_News_247_logo.svg/960px-CBS_News_247_logo.svg.png',
-            url: 'https://lineup.cbsivideo.com/playout/8877a7d5-b094-4ac8-bc72-75a5fed68e5b/index.m3u8',
-            group: 'News',
-            tvgId: 'stalker_cbs_news',
-            countryCode: 'US',
-            metadataSource: 'stalker' as any,
-          }
-        ];
+        localStorage.setItem('iptv_stalker_token', authRes.token);
+        setStalkerToken(authRes.token);
+
+        setConnectionStep('Cataloging Genres & Categories...');
+        const genres = await fetchStalkerGenres(targetPortal, targetMac, authRes.token);
+
+        setConnectionStep('Importing Channel Lineup...');
+        const stalkerChannels = await fetchStalkerChannels(targetPortal, targetMac, authRes.token, genres);
+
+        if (stalkerChannels.length === 0) {
+          throw new Error('No active channels returned from Stalker Portal.');
+        }
 
         usePlayerStore.setState(state => {
-          const merged = [...mockStalkerChannels, ...state.channels.filter(c => !mockStalkerChannels.some(m => m.id === c.id))];
+          const merged = [...stalkerChannels, ...state.channels.filter(c => !stalkerChannels.some(m => m.id === c.id))];
           return {
             channels: merged,
             groups: Array.from(new Set(merged.map(c => c.group))).sort(),
@@ -200,29 +201,30 @@ export default function XtreamConnector() {
 
         const stalkerAccount: SavedXtreamAccount = {
           id: `stalker-${Date.now()}`,
-          serverUrl: stalkerPortalUrl,
-          username: `MAC: ${stalkerMac}`,
-          macAddress: stalkerMac,
+          serverUrl: targetPortal,
+          username: `MAC: ${targetMac}`,
+          macAddress: targetMac,
           status: 'Active',
-          channelCount: mockStalkerChannels.length,
+          channelCount: stalkerChannels.length,
           lastConnected: new Date().toLocaleDateString(),
           type: 'stalker'
         };
 
-        const updated = [stalkerAccount, ...savedAccounts.filter(a => a.serverUrl !== stalkerPortalUrl)].slice(0, 5);
+        const updated = [stalkerAccount, ...savedAccounts.filter(a => a.serverUrl !== targetPortal)].slice(0, 5);
         setSavedAccounts(updated);
         localStorage.setItem('iptv_xtream_accounts', JSON.stringify(updated));
 
         setSuccessInfo({
           title: 'Stalker Portal Authenticated',
-          server: stalkerPortalUrl,
-          channels: mockStalkerChannels.length,
-          mac: stalkerMac
+          server: targetPortal,
+          channels: stalkerChannels.length,
+          mac: targetMac
         });
       } catch (err: any) {
         setError(err.message || 'Stalker authentication timed out.');
       } finally {
         setIsLoading(false);
+        setConnectionStep('');
       }
       return;
     }
@@ -501,7 +503,7 @@ export default function XtreamConnector() {
               aria-label="Authenticate and Ingest Streams"
             >
               <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-              {isLoading ? 'Connecting & Parsing Manifests...' : `Authenticate & Import ${protocolType === 'xtream' ? 'Xtream' : 'Stalker'} Channels`}
+              {isLoading ? (connectionStep || 'Connecting & Parsing Manifests...') : `Authenticate & Import ${protocolType === 'xtream' ? 'Xtream' : 'Stalker'} Channels`}
             </button>
           </form>
 

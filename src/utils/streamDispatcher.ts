@@ -79,8 +79,12 @@ export function resolvePlaybackUrlSourceKind(url: string, isRadio = false): Play
     return 'hls';
   }
 
-  if (clean.includes('/ts/') || clean.includes('output=ts')) {
+  if (clean.includes('/ts/') || clean.includes('output=ts') || clean.includes('/ch/')) {
     return 'mpegts';
+  }
+
+  if (clean.includes('/stalker') || clean.includes('/cmd/')) {
+    return clean.includes('.m3u8') ? 'hls' : 'mpegts';
   }
 
   // Default to HLS for modern IPTV playlists

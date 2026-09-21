@@ -21,14 +21,17 @@ export interface Channel {
   timezone?: string;
   subdivision?: string;
   epgChannelId?: string;
-  metadataSource?: 'playlist' | 'iptv-org' | 'manual';
+  metadataSource?: 'playlist' | 'iptv-org' | 'manual' | 'xtream' | 'stalker';
   resolution?: string; // 4K, 1080p, 720p, SD
   bitrate?: string;    // e.g., 4.5 Mbps
   fps?: number;        // e.g., 60, 30
   pingMs?: number;     // live latency ms
   codec?: string;      // H.264 / AAC / HEVC
   streamType?: 'live' | 'vod' | 'series';
-  directSource?: 'm3u' | 'xtream';
+  directSource?: 'm3u' | 'xtream' | 'stalker';
+  stalkerCmd?: string;
+  stalkerPortalUrl?: string;
+  stalkerMac?: string;
   healthStatus?: 'online' | 'degraded' | 'blocked' | 'offline';
   blockedReason?: string;
   blockedRef?: string;
@@ -167,6 +170,17 @@ export interface XtreamAccount {
   status: 'connected' | 'error' | 'idle';
   expirationDate?: string;
   maxConnections?: number;
+}
+
+export interface StalkerAccount {
+  portalUrl: string;
+  macAddress: string;
+  token?: string;
+  deviceId?: string;
+  deviceSignature?: string;
+  status: 'connected' | 'error' | 'idle';
+  expirationDate?: string;
+  channelCount?: number;
 }
 
 export interface XtreamVodItem {
