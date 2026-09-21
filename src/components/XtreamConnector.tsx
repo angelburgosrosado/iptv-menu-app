@@ -61,10 +61,10 @@ const DEFAULT_SAVED_ACCOUNTS: SavedXtreamAccount[] = [
   {
     id: 'melhata-primary',
     serverUrl: MELHATA_XTREAM_CONFIG.serverUrl,
-    username: '8rxzieximl',
-    password: 'h1usotpevd',
+    username: '2fc163abd9',
+    password: '8b1b9283c02f',
     status: 'Active',
-    channelCount: MELHATA_CHANNELS.length,
+    channelCount: 7399,
     lastConnected: 'Today',
     type: 'xtream'
   },
@@ -86,7 +86,7 @@ const getSavedAccounts = (): SavedXtreamAccount[] => {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        if (!parsed.some(a => a.username === '8rxzieximl')) {
+        if (!parsed.some(a => a.username === '2fc163abd9')) {
           return [DEFAULT_SAVED_ACCOUNTS[0], ...parsed];
         }
         return parsed;
