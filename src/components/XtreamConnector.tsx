@@ -70,7 +70,7 @@ const DEFAULT_SAVED_ACCOUNTS: SavedXtreamAccount[] = [
   },
   {
     id: 'melhata-backup',
-    serverUrl: 'http://line.dndnscloud.ru',
+    serverUrl: 'http://line.melhata.org',
     username: 'adc7b14f9b',
     password: '8ed764a258b7',
     status: 'Line 1',
