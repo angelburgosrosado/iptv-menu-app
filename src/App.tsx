@@ -38,6 +38,7 @@ import {
 } from 'lucide-react';
 import { Stack } from 'expo-router';
 import { motion, AnimatePresence } from 'motion/react';
+import { Analytics } from '@vercel/analytics/react';
 import HomeScreen from './app/index';
 import PlayerScreen from './app/player/[id]';
 import { EXPO_CODEBASE } from './data/rawExpoCode';
@@ -1796,6 +1797,9 @@ const renderActiveSection = () => {
           <span className="text-[10px] text-zinc-400 font-mono hidden sm:inline">(D-Pad / Arrows Navigate • Enter Selects)</span>
         </div>
       )}
+
+      {/* Vercel Web Analytics */}
+      <Analytics />
 
     </div>
   );
