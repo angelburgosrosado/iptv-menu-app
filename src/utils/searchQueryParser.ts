@@ -21,6 +21,27 @@ export interface ParsedSearchQuery {
 }
 
 /**
+ * Canonical Unicode search folding across all languages.
+ * Extracted from IPTVnator's foldSearchText algorithm.
+ * 
+ * Performs lowercase conversion, Unicode NFD decomposition, strips combining diacritics,
+ * normalizes language-specific characters (German ß, Scandinavian æ/ø, Turkish İ),
+ * and re-composes with NFC.
+ */
+export function foldSearchText(text: string): string {
+  if (!text) return '';
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '') // Strip combining accent marks
+    .replace(/ß/g, 'ss')
+    .replace(/æ/g, 'ae')
+    .replace(/ø/g, 'o')
+    .normalize('NFC')
+    .trim();
+}
+
+/**
  * Tokenizes a query string while respecting quotes.
  * Example: 'country:us "news 24" tag:sports' -> ['country:us', 'news 24', 'tag:sports']
  */
@@ -93,22 +114,22 @@ export function parseSearchQuery(query: string): ParsedSearchQuery {
       continue;
     }
     if (lower.startsWith('lang:') || lower.startsWith('language:')) {
-      const val = token.substring(token.indexOf(':') + 1).trim().toLowerCase();
+      const val = foldSearchText(token.substring(token.indexOf(':') + 1));
       if (val) languages.push(val);
       continue;
     }
     if (lower.startsWith('group:') || lower.startsWith('cat:') || lower.startsWith('category:')) {
-      const val = token.substring(token.indexOf(':') + 1).trim().toLowerCase();
+      const val = foldSearchText(token.substring(token.indexOf(':') + 1));
       if (val) groups.push(val);
       continue;
     }
     if (lower.startsWith('sub:') || lower.startsWith('subdivision:')) {
-      const val = token.substring(token.indexOf(':') + 1).trim().toLowerCase();
+      const val = foldSearchText(token.substring(token.indexOf(':') + 1));
       if (val) subdivisions.push(val);
       continue;
     }
     if (lower.startsWith('tag:')) {
-      const val = token.substring(token.indexOf(':') + 1).trim().toLowerCase();
+      const val = foldSearchText(token.substring(token.indexOf(':') + 1));
       if (val) tags.push(val);
       continue;
     }
@@ -123,9 +144,10 @@ export function parseSearchQuery(query: string): ParsedSearchQuery {
       continue;
     }
 
-    // Free text
+    // Free text (folded for universal accent-insensitive matching)
     if (token.trim()) {
-      freeTerms.push(token.trim().toLowerCase());
+      const folded = foldSearchText(token);
+      if (folded) freeTerms.push(folded);
     }
   }
 
@@ -159,6 +181,7 @@ export function parseSearchQuery(query: string): ParsedSearchQuery {
 
 /**
  * Determines whether a channel matches the parsed search query.
+ * Uses foldSearchText for universal Unicode diacritic normalization.
  */
 export function matchChannelWithQuery(
   channel: Channel,
@@ -186,7 +209,7 @@ export function matchChannelWithQuery(
   // 3. Country Filter
   if (parsed.countries.length > 0) {
     const cCode = (channel.countryCode || '').toUpperCase();
-    const cName = (channel.countryName || '').toUpperCase();
+    const cName = foldSearchText(channel.countryName || '').toUpperCase();
     const matchesCountry = parsed.countries.some((c) => {
       if (cCode === c) return true;
       if (c.length <= 3) return cCode === c || cName === c;
@@ -195,37 +218,37 @@ export function matchChannelWithQuery(
     if (!matchesCountry) return false;
   }
 
-  // 4. Language Filter
+  // 4. Language Filter (Folded for accents)
   if (parsed.languages.length > 0) {
-    const cLang = (channel.language || '').toLowerCase();
-    const cLangName = (channel.languageName || '').toLowerCase();
+    const cLang = foldSearchText(channel.language || '');
+    const cLangName = foldSearchText(channel.languageName || '');
     const matchesLang = parsed.languages.some(
       (l) => cLang === l || cLang.startsWith(l) || cLangName.includes(l)
     );
     if (!matchesLang) return false;
   }
 
-  // 5. Group / Category Filter
+  // 5. Group / Category Filter (Folded for accents)
   if (parsed.groups.length > 0) {
-    const cGroup = (channel.group || '').toLowerCase();
-    const cCat = (channel.category || '').toLowerCase();
+    const cGroup = foldSearchText(channel.group || '');
+    const cCat = foldSearchText(channel.category || '');
     const matchesGroup = parsed.groups.some(
       (g) => cGroup.includes(g) || cCat.includes(g)
     );
     if (!matchesGroup) return false;
   }
 
-  // 6. Subdivision Filter
+  // 6. Subdivision Filter (Folded for accents)
   if (parsed.subdivisions.length > 0) {
-    const cSub = (channel.subdivision || '').toLowerCase();
+    const cSub = foldSearchText(channel.subdivision || '');
     const matchesSub = parsed.subdivisions.some((s) => cSub.includes(s));
     if (!matchesSub) return false;
   }
 
-  // 7. Custom Tags Filter
+  // 7. Custom Tags Filter (Folded for accents)
   if (parsed.tags.length > 0) {
-    const lowerTags = channelCustomTags.map((t) => t.toLowerCase());
-    const matchesTag = parsed.tags.some((t) => lowerTags.includes(t));
+    const foldedTags = channelCustomTags.map((t) => foldSearchText(t));
+    const matchesTag = parsed.tags.some((t) => foldedTags.includes(t));
     if (!matchesTag) return false;
   }
 
@@ -250,9 +273,9 @@ export function matchChannelWithQuery(
     if (!matchesStatus) return false;
   }
 
-  // 10. Free text terms (AND logic across all free terms)
+  // 10. Free text terms (Universal Unicode accent-folded AND logic across all terms)
   if (parsed.freeTerms.length > 0) {
-    const searchableText = [
+    const rawSearchable = [
       channel.name,
       channel.group,
       channel.category || '',
@@ -264,7 +287,9 @@ export function matchChannelWithQuery(
       channel.subdivision || '',
       channel.resolution || '',
       ...channelCustomTags
-    ].join(' ').toLowerCase();
+    ].join(' ');
+
+    const searchableText = foldSearchText(rawSearchable);
 
     const matchesAllTerms = parsed.freeTerms.every((term) => searchableText.includes(term));
     if (!matchesAllTerms) return false;

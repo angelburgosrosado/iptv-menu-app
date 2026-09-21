@@ -1,8 +1,16 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import * as React from 'react';
+import { resolvePlaybackUrlSourceKind } from '../utils/streamDispatcher';
 
 export interface VideoSource {
   uri: string;
 }
+
+export type PlaybackEngineType = 'auto' | 'hls' | 'mpegts' | 'native';
 
 export function useVideoPlayer(source: VideoSource | string, setup?: (player: any) => void) {
   const uri = typeof source === 'string' ? source : source?.uri;
@@ -15,15 +23,23 @@ export function useVideoPlayer(source: VideoSource | string, setup?: (player: an
   const [currentAudioTrack, setCurrentAudioTrack] = React.useState<number>(-1);
   const [subtitleTracks, setSubtitleTracks] = React.useState<{ id: number; name: string; lang?: string }[]>([]);
   const [currentSubtitleTrack, setCurrentSubtitleTrack] = React.useState<number>(-1);
+  const [activeEngine, setActiveEngine] = React.useState<'hls' | 'mpegts' | 'native'>('hls');
+  const [engineOverride, setEngineOverride] = React.useState<PlaybackEngineType>('auto');
 
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
   const subscribersRef = React.useRef(new Set<(el: HTMLVideoElement | null) => void>());
   const hlsRef = React.useRef<any>(null);
+  const mpegtsRef = React.useRef<any>(null);
 
   const player = React.useMemo(() => {
     return {
       _uri: uri,
       _videoRef: videoRef,
+      _engineOverride: engineOverride,
+      activeEngine,
+      setEngine: (engine: PlaybackEngineType) => {
+        setEngineOverride(engine);
+      },
       _attachVideo: (el: HTMLVideoElement | null) => {
         videoRef.current = el;
         subscribersRef.current.forEach((sub) => {
@@ -36,6 +52,12 @@ export function useVideoPlayer(source: VideoSource | string, setup?: (player: an
       },
       _attachHls: (hlsInstance: any) => {
         hlsRef.current = hlsInstance;
+      },
+      _attachMpegts: (mpegtsInstance: any) => {
+        mpegtsRef.current = mpegtsInstance;
+      },
+      _setActiveEngine: (engine: 'hls' | 'mpegts' | 'native') => {
+        setActiveEngine(engine);
       },
       subscribe: (callback: (el: HTMLVideoElement | null) => void) => {
         subscribersRef.current.add(callback);
@@ -180,7 +202,7 @@ export function useVideoPlayer(source: VideoSource | string, setup?: (player: an
         isMuted
       }
     };
-  }, [uri, isPlaying, currentTime, duration, volume, isMuted, audioTracks, currentAudioTrack, subtitleTracks, currentSubtitleTrack]);
+  }, [uri, isPlaying, currentTime, duration, volume, isMuted, audioTracks, currentAudioTrack, subtitleTracks, currentSubtitleTrack, activeEngine, engineOverride]);
 
   // Handle source callbacks
   React.useEffect(() => {
@@ -192,9 +214,36 @@ export function useVideoPlayer(source: VideoSource | string, setup?: (player: an
   return player;
 }
 
+// Helpers for loading external MSE libraries dynamically
+function loadScript(src: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (document.querySelector(`script[src="${src}"]`)) {
+      resolve();
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = src;
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error(`Failed to load script ${src}`));
+    document.body.appendChild(script);
+  });
+}
+
+function loadHlsScript(): Promise<void> {
+  if ((window as any).Hls) return Promise.resolve();
+  return loadScript('https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js');
+}
+
+function loadMpegtsScript(): Promise<void> {
+  if ((window as any).mpegts) return Promise.resolve();
+  return loadScript('https://cdn.jsdelivr.net/npm/mpegts.js@1.7.3/dist/mpegts.min.js');
+}
+
 export const VideoView = ({ player, style, startsInFullscreen = false, ...props }: any) => {
   const localVideoRef = React.useRef<HTMLVideoElement | null>(null);
   const activeHlsRef = React.useRef<any>(null);
+  const activeMpegtsRef = React.useRef<any>(null);
 
   React.useEffect(() => {
     if (!player || !localVideoRef.current) return;
@@ -210,137 +259,248 @@ export const VideoView = ({ player, style, startsInFullscreen = false, ...props 
       ? `/api/stream/proxy?url=${encodeURIComponent(rawUri)}`
       : rawUri;
 
-    // Clean up previous Hls instance
-    if (activeHlsRef.current) {
-      activeHlsRef.current.destroy();
-      activeHlsRef.current = null;
+    // Clean up previous instances
+    cleanupCurrentEngines();
+
+    // Determine target engine based on override or auto-detection
+    const override = player._engineOverride || 'auto';
+    let targetEngine: 'hls' | 'mpegts' | 'native';
+
+    if (override !== 'auto') {
+      targetEngine = override;
+    } else {
+      const kind = resolvePlaybackUrlSourceKind(initialStreamUrl);
+      if (kind === 'mpegts') {
+        targetEngine = 'mpegts';
+      } else if (kind === 'native') {
+        targetEngine = 'native';
+      } else {
+        targetEngine = 'hls';
+      }
     }
 
-    if (initialStreamUrl.includes('.m3u8') || initialStreamUrl.includes('/api/stream/proxy')) {
-      if ((window as any).Hls) {
-        initHls(initialStreamUrl);
-      } else {
-        const script = document.createElement('script');
-        script.src = 'https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js';
-        script.async = true;
-        script.onload = () => initHls(initialStreamUrl);
-        document.body.appendChild(script);
-      }
+    if (targetEngine === 'mpegts') {
+      initMpegts(initialStreamUrl);
+    } else if (targetEngine === 'hls') {
+      initHls(initialStreamUrl);
     } else {
-      localVideoRef.current.src = initialStreamUrl;
-      const playPromise = localVideoRef.current.play();
+      initNativeVideo(initialStreamUrl);
+    }
+
+    function cleanupCurrentEngines() {
+      if (activeHlsRef.current) {
+        try {
+          activeHlsRef.current.destroy();
+        } catch (e) {
+          console.warn('Hls cleanup error:', e);
+        }
+        activeHlsRef.current = null;
+      }
+      if (activeMpegtsRef.current) {
+        try {
+          activeMpegtsRef.current.pause?.();
+          activeMpegtsRef.current.unload?.();
+          activeMpegtsRef.current.detachMediaElement?.();
+          activeMpegtsRef.current.destroy?.();
+        } catch (e) {
+          console.warn('mpegts cleanup error:', e);
+        }
+        activeMpegtsRef.current = null;
+      }
+    }
+
+    function initNativeVideo(streamUrl: string) {
+      const video = localVideoRef.current;
+      if (!video) return;
+      player._setActiveEngine?.('native');
+      video.src = streamUrl;
+      const playPromise = video.play();
       if (playPromise !== undefined) {
         playPromise.catch((err) => {
           console.log('Direct video autoplay blocked, falling back to muted:', err);
-          if (localVideoRef.current) {
-            localVideoRef.current.muted = true;
-            localVideoRef.current.play().catch(() => {});
+          if (video) {
+            video.muted = true;
+            video.play().catch(() => {});
           }
         });
       }
+    }
+
+    function initMpegts(streamUrl: string, isFallback = false) {
+      const video = localVideoRef.current;
+      if (!video) return;
+
+      loadMpegtsScript().then(() => {
+        const mpegts = (window as any).mpegts;
+        if (!mpegts || !mpegts.isSupported()) {
+          console.warn('mpegts.js is not supported, falling back to HLS or native');
+          if (!isFallback) {
+            initHls(streamUrl, true);
+          } else {
+            initNativeVideo(streamUrl);
+          }
+          return;
+        }
+
+        player._setActiveEngine?.('mpegts');
+
+        const mpegtsPlayer = mpegts.createPlayer({
+          type: 'mse',
+          isLive: true,
+          url: streamUrl
+        }, {
+          enableWorker: true,
+          lazyLoadMaxDuration: 3 * 60,
+          seekType: 'range',
+          liveBufferLatencyChasing: true,
+          liveBufferLatencyMaxLatency: 2.0,
+          liveBufferLatencyMinRemain: 0.5
+        });
+
+        activeMpegtsRef.current = mpegtsPlayer;
+        player._attachMpegts?.(mpegtsPlayer);
+
+        mpegtsPlayer.attachMediaElement(video);
+        mpegtsPlayer.load();
+        
+        const playPromise = mpegtsPlayer.play();
+        if (playPromise !== undefined) {
+          playPromise.catch((err: any) => {
+            console.log('mpegts autoplay blocked, falling back to muted:', err);
+            if (video) {
+              video.muted = true;
+              video.play().catch(() => {});
+            }
+          });
+        }
+
+        mpegtsPlayer.on(mpegts.Events.ERROR, (errorType: any, errorDetail: any, errorInfo: any) => {
+          console.warn('mpegts.js playback error:', errorType, errorDetail, errorInfo);
+          video.dispatchEvent(new CustomEvent('error', { 
+            detail: { engine: 'mpegts', type: errorType, detail: errorDetail, info: errorInfo } 
+          }));
+        });
+      }).catch((err) => {
+        console.error('Failed to load mpegts.js script:', err);
+        initNativeVideo(streamUrl);
+      });
     }
 
     function initHls(streamUrl: string, isFallbackAttempt = false) {
       const video = localVideoRef.current;
       if (!video) return;
 
-      if ((window as any).Hls?.isSupported()) {
-        const hls = new (window as any).Hls({
-          enableWorker: true,
-          lowLatencyMode: true,
-          backBufferLength: 30,
-          liveSyncDurationCount: 3,
-          liveMaxLatencyDurationCount: 5,
-          maxLiveSyncPlaybackRate: 1.1,
-        });
-        activeHlsRef.current = hls;
-        player._attachHls?.(hls);
+      loadHlsScript().then(() => {
+        const Hls = (window as any).Hls;
+        if (Hls?.isSupported()) {
+          player._setActiveEngine?.('hls');
+          const hls = new Hls({
+            enableWorker: true,
+            lowLatencyMode: true,
+            backBufferLength: 30,
+            liveSyncDurationCount: 3,
+            liveMaxLatencyDurationCount: 5,
+            maxLiveSyncPlaybackRate: 1.1,
+          });
+          activeHlsRef.current = hls;
+          player._attachHls?.(hls);
 
-        const syncTracks = () => {
-          if (!hls) return;
-          const aTracks = (hls.audioTracks || []).map((t: any, idx: number) => ({
-            id: idx,
-            name: t.name || t.lang || `Track ${idx + 1}`,
-            lang: t.lang || ''
-          }));
-          player._updateAudioTracks?.(aTracks, hls.audioTrack ?? -1);
+          const syncTracks = () => {
+            if (!hls) return;
+            const aTracks = (hls.audioTracks || []).map((t: any, idx: number) => ({
+              id: idx,
+              name: t.name || t.lang || `Track ${idx + 1}`,
+              lang: t.lang || ''
+            }));
+            player._updateAudioTracks?.(aTracks, hls.audioTrack ?? -1);
 
-          const sTracks = (hls.subtitleTracks || []).map((t: any, idx: number) => ({
-            id: idx,
-            name: t.name || t.lang || `Subtitle ${idx + 1}`,
-            lang: t.lang || ''
-          }));
-          player._updateSubtitleTracks?.(sTracks, hls.subtitleTrack ?? -1);
-        };
+            const sTracks = (hls.subtitleTracks || []).map((t: any, idx: number) => ({
+              id: idx,
+              name: t.name || t.lang || `Subtitle ${idx + 1}`,
+              lang: t.lang || ''
+            }));
+            player._updateSubtitleTracks?.(sTracks, hls.subtitleTrack ?? -1);
+          };
 
-        hls.loadSource(streamUrl);
-        hls.attachMedia(video);
+          hls.loadSource(streamUrl);
+          hls.attachMedia(video);
 
-        hls.on((window as any).Hls.Events.MANIFEST_PARSED, () => {
-          syncTracks();
-          const playPromise = video.play();
-          if (playPromise !== undefined) {
-            playPromise.catch((err) => {
-              console.log('hls unmuted autoplay suppressed by browser policy, trying muted:', err);
-              video.muted = true;
-              video.play().catch(e => console.log('hls muted autoplay also suppressed:', e));
-            });
-          }
-        });
+          hls.on(Hls.Events.MANIFEST_PARSED, () => {
+            syncTracks();
+            const playPromise = video.play();
+            if (playPromise !== undefined) {
+              playPromise.catch((err: any) => {
+                console.log('hls unmuted autoplay suppressed by browser policy, trying muted:', err);
+                video.muted = true;
+                video.play().catch(e => console.log('hls muted autoplay also suppressed:', e));
+              });
+            }
+          });
 
-        hls.on((window as any).Hls.Events.AUDIO_TRACKS_UPDATED, syncTracks);
-        hls.on((window as any).Hls.Events.AUDIO_TRACK_SWITCHED, syncTracks);
-        hls.on((window as any).Hls.Events.SUBTITLE_TRACKS_UPDATED, syncTracks);
-        hls.on((window as any).Hls.Events.SUBTITLE_TRACK_SWITCH, syncTracks);
+          hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, syncTracks);
+          hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, syncTracks);
+          hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, syncTracks);
+          hls.on(Hls.Events.SUBTITLE_TRACK_SWITCH, syncTracks);
 
-        hls.on((window as any).Hls.Events.ERROR, (event: any, data: any) => {
-          if (data.fatal) {
-            switch (data.type) {
-              case (window as any).Hls.ErrorTypes.NETWORK_ERROR:
-                // Auto-fallback to backend proxy relay if direct stream fails with CORS or network drop
-                if (!isFallbackAttempt && !streamUrl.includes('/api/stream/proxy')) {
-                  console.log('Direct HLS blocked or network error. Switching to backend stream proxy relay...');
+          hls.on(Hls.Events.ERROR, (event: any, data: any) => {
+            if (data.fatal) {
+              switch (data.type) {
+                case Hls.ErrorTypes.NETWORK_ERROR:
+                  // Auto-fallback to backend proxy relay if direct stream fails with CORS or network drop
+                  if (!isFallbackAttempt && !streamUrl.includes('/api/stream/proxy')) {
+                    console.log('Direct HLS blocked or network error. Switching to backend stream proxy relay...');
+                    hls.destroy();
+                    activeHlsRef.current = null;
+                    const proxyUrl = `/api/stream/proxy?url=${encodeURIComponent(rawUri)}`;
+                    initHls(proxyUrl, true);
+                    return;
+                  }
+                  // Auto-fallback to mpegts.js if HLS manifest fails on a URL that might be raw TS
+                  if (!isFallbackAttempt && (streamUrl.includes('.ts') || !streamUrl.includes('.m3u8'))) {
+                    console.log('HLS manifest fatal error on possible TS stream, attempting mpegts.js fallback...');
+                    hls.destroy();
+                    activeHlsRef.current = null;
+                    initMpegts(streamUrl, true);
+                    return;
+                  }
+                  video.dispatchEvent(new CustomEvent('error', { detail: { engine: 'hls', ...data } }));
+                  hls.startLoad();
+                  break;
+                case Hls.ErrorTypes.MEDIA_ERROR:
+                  hls.recoverMediaError();
+                  break;
+                default:
+                  video.dispatchEvent(new CustomEvent('error', { detail: { engine: 'hls', ...data } }));
                   hls.destroy();
                   activeHlsRef.current = null;
-                  const proxyUrl = `/api/stream/proxy?url=${encodeURIComponent(rawUri)}`;
-                  initHls(proxyUrl, true);
-                  return;
-                }
-                // Both direct and proxy failed or recurring network error
-                video.dispatchEvent(new CustomEvent('error', { detail: data }));
-                hls.startLoad();
-                break;
-              case (window as any).Hls.ErrorTypes.MEDIA_ERROR:
-                hls.recoverMediaError();
-                break;
-              default:
-                video.dispatchEvent(new CustomEvent('error', { detail: data }));
-                hls.destroy();
-                activeHlsRef.current = null;
-                break;
+                  break;
+              }
             }
-          }
-        });
-      } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-        // Native Apple Safari HLS support
-        video.src = streamUrl;
-        const playPromise = video.play();
-        if (playPromise !== undefined) {
-          playPromise.catch(() => {
-            video.muted = true;
-            video.play().catch(() => {});
           });
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          // Native Apple Safari HLS support
+          player._setActiveEngine?.('native');
+          video.src = streamUrl;
+          const playPromise = video.play();
+          if (playPromise !== undefined) {
+            playPromise.catch(() => {
+              video.muted = true;
+              video.play().catch(() => {});
+            });
+          }
+        } else {
+          initNativeVideo(streamUrl);
         }
-      }
+      }).catch((err) => {
+        console.error('Failed to load Hls script:', err);
+        initNativeVideo(streamUrl);
+      });
     }
 
     return () => {
-      if (activeHlsRef.current) {
-        activeHlsRef.current.destroy();
-        activeHlsRef.current = null;
-      }
+      cleanupCurrentEngines();
     };
-  }, [player, player?._uri]);
+  }, [player, player?._uri, player?._engineOverride]);
 
   return (
     <video

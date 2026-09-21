@@ -16,6 +16,7 @@ import {
   normalizeCategory,
   getChannelAvatarDataUri
 } from '../utils/channelEnrichment';
+import { foldSearchText } from '../utils/searchQueryParser';
 import { Play, Heart, Smartphone, Globe, Search, Tv, MapPin } from 'lucide-react';
 import { ScrollView as RNScrollView, Text as RNText, View as RNView, Image as RNImage } from 'react-native';
 import { ChannelCard } from './ChannelCard';
@@ -33,18 +34,18 @@ export function DesktopCountryChannelSections({
   const [filterQuery, setFilterQuery] = useState('');
   const [selectedCountry, setSelectedCountry] = useState<string | null>(null);
 
-  // Filter channels based on query
+  // Filter channels based on query with Unicode accent folding
   const filteredChannels = useMemo(() => {
     if (!filterQuery.trim()) return channels;
-    const q = filterQuery.toLowerCase();
-    return channels.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        (c.group && c.group.toLowerCase().includes(q)) ||
-        (c.category && c.category.toLowerCase().includes(q)) ||
-        (c.countryCode && c.countryCode.toLowerCase().includes(q)) ||
-        (c.countryName && c.countryName.toLowerCase().includes(q))
-    );
+    const q = foldSearchText(filterQuery);
+    return channels.filter((c) => {
+      const name = foldSearchText(c.name);
+      const group = foldSearchText(c.group || '');
+      const cat = foldSearchText(c.category || '');
+      const code = foldSearchText(c.countryCode || '');
+      const countryName = foldSearchText(c.countryName || '');
+      return name.includes(q) || group.includes(q) || cat.includes(q) || code.includes(q) || countryName.includes(q);
+    });
   }, [channels, filterQuery]);
 
   // Group channels by country

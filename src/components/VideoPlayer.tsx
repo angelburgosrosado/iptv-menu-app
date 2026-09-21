@@ -32,7 +32,10 @@ import {
   Moon,
   Lock,
   Unlock,
-  Square
+  Square,
+  Zap,
+  Disc3,
+  RotateCw
 } from 'lucide-react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { streamRecorder, formatBytes, formatDuration } from '../utils/streamRecorderEngine';
@@ -43,6 +46,15 @@ import { ParentalPinModal } from './ParentalPinModal';
 import { SubtitleSettingsModal } from './SubtitleSettingsModal';
 import { audioDspEngine } from '../utils/audioDspEngine';
 import { applySubtitleStylesToDom } from '../utils/subtitleEngine';
+import { 
+  resolvePlaybackUrlSourceKind, 
+  deriveAlternativeStreamFormat, 
+  analyzePlaybackError, 
+  PlaybackDiagnostic, 
+  RecoveryAction 
+} from '../utils/streamDispatcher';
+import { hostConnectivityGuard } from '../utils/hostConnectivityGuard';
+import { RadioPlayerHero } from './RadioPlayerHero';
 
 interface VideoPlayerProps {
   streamUrl: string;
@@ -83,9 +95,33 @@ export function VideoPlayer({
 
   const [activeCandidateIndex, setActiveCandidateIndex] = React.useState(0);
   const [isUsingProxyRelay, setIsUsingProxyRelay] = React.useState(corsProxyRecommended);
+  const [formatOverrideUrl, setFormatOverrideUrl] = React.useState<string | null>(null);
+  const [diagnostic, setDiagnostic] = React.useState<PlaybackDiagnostic | null>(null);
+  const [hasAttemptedAutoTsFallback, setHasAttemptedAutoTsFallback] = React.useState(false);
 
   // Compute actual active stream URL (either candidate or proxy wrapped)
   const activeRawUrl = streamCandidates[activeCandidateIndex] || streamUrl;
+  const baseStreamUrl = formatOverrideUrl || activeRawUrl;
+
+  const isRadioChannel = React.useMemo(() => {
+    return (groupTitle || '').toLowerCase().includes('radio') || 
+           (channelName || '').toLowerCase().includes('radio') ||
+           resolvePlaybackUrlSourceKind(activeRawUrl) === 'radio';
+  }, [groupTitle, channelName, activeRawUrl]);
+
+  const [isRadioMode, setIsRadioMode] = React.useState(isRadioChannel);
+
+  React.useEffect(() => {
+    setIsRadioMode(isRadioChannel);
+  }, [isRadioChannel]);
+
+  // Reset overrides when channel source changes
+  React.useEffect(() => {
+    setFormatOverrideUrl(null);
+    setDiagnostic(null);
+    setHasAttemptedAutoTsFallback(false);
+  }, [streamUrl, activeCandidateIndex]);
+
   const [isPlaying, setIsPlaying] = React.useState(true);
   const [isMuted, setIsMuted] = React.useState(false);
   const [volume, setVolume] = React.useState(1.0);
@@ -124,9 +160,9 @@ export function VideoPlayer({
   } = usePlayerStore();
 
   const activeEffectiveUrl = React.useMemo(() => {
-    let finalUrl = activeRawUrl;
-    if (isUsingProxyRelay && !activeRawUrl.includes('/api/stream/proxy')) {
-      finalUrl = `/api/stream/proxy?url=${encodeURIComponent(activeRawUrl)}`;
+    let finalUrl = baseStreamUrl;
+    if (isUsingProxyRelay && !baseStreamUrl.includes('/api/stream/proxy')) {
+      finalUrl = `/api/stream/proxy?url=${encodeURIComponent(baseStreamUrl)}`;
       if (activeSubscriptionId) {
         const sub = subscriptions.find(s => s.id === activeSubscriptionId);
         if (sub?.userAgent) {
@@ -135,7 +171,7 @@ export function VideoPlayer({
       }
     }
     return finalUrl;
-  }, [activeRawUrl, isUsingProxyRelay, activeSubscriptionId, subscriptions]);
+  }, [baseStreamUrl, isUsingProxyRelay, activeSubscriptionId, subscriptions]);
 
   const isBookmarked = isChannelBookmarked(channelName.toLowerCase().replace(/[^a-z0-9]/g, '-')) || isChannelBookmarked(channelName);
   const isLocked = isChannelLocked({ id: channelName, name: channelName, group: groupTitle });
@@ -302,17 +338,58 @@ export function VideoPlayer({
     onStreamSourceChange?.(targetRaw, nextIndex, useProxy);
   };
 
-  // Perform HLS Stream Error Recovery / Reload / Cascade
+  // Perform Multi-Engine Stream Error Recovery / Reload / Cascade
   const handleReloadStream = () => {
     setHasError(false);
     setIsLoading(true);
     setRetryCount((prev) => prev + 1);
     
+    // Explicit user reload: reset circuit breaker for this origin
+    if (activeEffectiveUrl) {
+      hostConnectivityGuard.resetHost(activeEffectiveUrl);
+    }
+
     // Force native stream reload
     const decodedUrl = decodeURI(activeEffectiveUrl);
     player.replace({ uri: decodedUrl });
     player.play();
     setIsPlaying(true);
+  };
+
+  // Execute 1-click recovery actions recommended by diagnostics
+  const handleExecuteRecovery = (action: RecoveryAction) => {
+    triggerChannelHud(`Recovering: ${action.label}`);
+    setHasError(false);
+    setIsLoading(true);
+
+    switch (action.type) {
+      case 'SWITCH_ENGINE':
+        if ((player as any).setEngine) {
+          (player as any).setEngine(action.targetValue);
+          handleReloadStream();
+        }
+        break;
+      case 'SWITCH_FORMAT':
+        if (action.targetValue) {
+          setFormatOverrideUrl(action.targetValue);
+          if (action.targetValue.endsWith('.ts') && (player as any).setEngine) {
+            (player as any).setEngine('mpegts');
+          }
+          handleReloadStream();
+        }
+        break;
+      case 'TOGGLE_PROXY':
+        setIsUsingProxyRelay((prev) => !prev);
+        handleReloadStream();
+        break;
+      case 'TRY_CANDIDATE':
+        handleTryNextCandidate();
+        break;
+      case 'RETRY':
+      default:
+        handleReloadStream();
+        break;
+    }
   };
 
   // Attempt next alternate feed candidate on failure
@@ -412,6 +489,28 @@ export function VideoPlayer({
       console.warn('IPTV Stream Error:', e);
       setIsLoading(false);
       setHasError(true);
+
+      const diag = analyzePlaybackError(
+        e?.detail || e,
+        (player as any)?.activeEngine || 'hls',
+        activeEffectiveUrl,
+        streamCandidates.length > 1,
+        isUsingProxyRelay
+      );
+      setDiagnostic(diag);
+
+      // Auto-fallback check for Xtream .m3u8 -> .ts if not already tried
+      if (!hasAttemptedAutoTsFallback && diag.alternativeFormatUrl && (player as any)?.activeEngine !== 'mpegts') {
+        setHasAttemptedAutoTsFallback(true);
+        triggerChannelHud('Auto-recovering: Trying MPEG-TS format...');
+        handleExecuteRecovery({
+          id: 'auto-ts-fallback',
+          label: 'Auto MPEG-TS Fallback',
+          description: 'Automatic format switch to .ts stream',
+          type: 'SWITCH_FORMAT',
+          targetValue: diag.alternativeFormatUrl
+        });
+      }
     };
 
     const onLoad = () => {
@@ -535,12 +634,33 @@ export function VideoPlayer({
       style={styles.container} 
       onTouchStart={resetControlsTimer}
     >
-      {/* 1. Underlying Native Video View */}
+      {/* 1. Underlying Native / Multi-Engine Video View */}
       <VideoView
         player={player}
-        style={styles.videoStyle}
+        style={isRadioMode ? { position: 'absolute', width: 1, height: 1, opacity: 0 } : styles.videoStyle}
         startsInFullscreen={false}
       />
+
+      {/* Dedicated Cinematic Radio Player Hero View */}
+      {isRadioMode && (
+        <RadioPlayerHero
+          channelName={channelName}
+          groupTitle={groupTitle}
+          isPlaying={isPlaying}
+          isMuted={isMuted}
+          volume={volume}
+          activeEngine={(player as any)?.activeEngine || 'hls'}
+          onTogglePlay={togglePlayPause}
+          onToggleMute={toggleMute}
+          onVolumeChange={(vol) => {
+            player.setVolume(vol);
+            setVolume(vol);
+            if (vol > 0 && isMuted) setIsMuted(false);
+          }}
+          onOpenEqualizer={() => setShowEqualizer(true)}
+          onSwitchToVideoMode={() => setIsRadioMode(false)}
+        />
+      )}
 
       {/* Parental Controls Security Scrim Barrier */}
       {isLocked && !parentalControls.isSessionUnlocked && (
@@ -618,16 +738,60 @@ export function VideoPlayer({
         </View>
       )}
 
-      {/* 4. Error Recovery Overlay */}
-      {hasError && (
+      {/* 4. Interactive Error Recovery Overlay */}
+      {hasError && !isRadioMode && (
         <View style={styles.errorOverlay}>
-          <AlertCircle size={42} color="#ef4444" />
-          <Text style={styles.errorText}>Stream Temporarily Offline</Text>
-          <Text style={styles.errorDetails}>
-            {streamCandidates.length > 1
-              ? `Feed ${activeCandidateIndex + 1} of ${streamCandidates.length} is unreachable. You can switch to an alternate broadcast feed or route through the proxy relay.`
-              : 'This upstream feed is currently unreachable or locked by the provider (e.g. connection limit, IP restriction, or stream offline).'}
+          <AlertCircle size={40} color="#ef4444" />
+          <Text style={styles.errorText}>
+            {diagnostic?.message || 'Stream Temporarily Offline'}
           </Text>
+          <Text style={styles.errorDetails}>
+            {diagnostic?.details || (streamCandidates.length > 1
+              ? `Feed ${activeCandidateIndex + 1} of ${streamCandidates.length} is unreachable. You can switch to an alternate broadcast feed or route through the proxy relay.`
+              : 'This upstream feed is currently unreachable or locked by the provider (e.g. connection limit, IP restriction, or stream offline).')}
+          </Text>
+
+          {/* Diagnostic Category Badge */}
+          {diagnostic && (
+            <View style={{ marginBottom: 12 }}>
+              <Text style={{ 
+                fontSize: 10, 
+                fontWeight: '800', 
+                color: '#f87171', 
+                backgroundColor: 'rgba(239, 68, 68, 0.15)', 
+                borderColor: 'rgba(239, 68, 68, 0.3)',
+                borderWidth: 1,
+                paddingVertical: 3, 
+                paddingHorizontal: 8, 
+                borderRadius: 6,
+                letterSpacing: 0.5 
+              }}>
+                DIAGNOSIS: {diagnostic.category} • CURRENT ENGINE: {((player as any)?.activeEngine || 'HLS').toUpperCase()}
+              </Text>
+            </View>
+          )}
+
+          {/* 1-Click Ranked Recovery Recommendations */}
+          {diagnostic?.recoveryActions && diagnostic.recoveryActions.length > 0 && (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginBottom: 14, maxWidth: 520 }}>
+              {diagnostic.recoveryActions.map((action) => (
+                <TouchableOpacity
+                  key={action.id}
+                  style={[
+                    styles.retryButton,
+                    action.primary 
+                      ? { backgroundColor: '#e11d48', borderColor: '#fb7185', borderWidth: 1 } 
+                      : { backgroundColor: '#1e293b' }
+                  ]}
+                  onPress={() => handleExecuteRecovery(action)}
+                  activeOpacity={0.7}
+                >
+                  <Zap size={14} color={action.primary ? '#fef08a' : '#ffffff'} />
+                  <Text style={styles.retryButtonText}>{action.label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
 
           {/* Alternate candidate quick pills if multiple feeds are available */}
           {streamCandidates.length > 1 && (
@@ -655,19 +819,6 @@ export function VideoPlayer({
           )}
 
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center', marginTop: 4 }}>
-            {streamCandidates.length > 1 && (
-              <TouchableOpacity
-                style={[styles.retryButton, { backgroundColor: '#0284c7' }]}
-                onPress={handleTryNextCandidate}
-                activeOpacity={0.7}
-              >
-                <Layers size={16} color="#ffffff" />
-                <Text style={styles.retryButtonText}>
-                  {activeCandidateIndex + 1 < streamCandidates.length ? 'Try Next Feed' : 'Try Feed 1 via Proxy'}
-                </Text>
-              </TouchableOpacity>
-            )}
-
             <TouchableOpacity
               style={[
                 styles.retryButton,
@@ -1089,15 +1240,33 @@ export function VideoPlayer({
         </View>
       )}
 
-      {/* 6. Stream Telemetry & Bitrate Diagnostics Overlay */}
+      {/* 6. Stream Telemetry & Multi-Engine Diagnostics Overlay */}
       {showDiagnostics && (
         <DiagnosticsHUD
           streamUrl={activeEffectiveUrl}
           channelName={channelName}
           groupTitle={groupTitle}
           isProxy={isUsingProxyRelay}
+          activeEngine={(player as any)?.activeEngine || 'hls'}
           audioTracksCount={player.audioTracks ? player.audioTracks.length : 1}
           subtitleTracksCount={player.subtitleTracks ? player.subtitleTracks.length : 0}
+          diagnostic={diagnostic}
+          onSwitchEngine={(eng) => {
+            (player as any).setEngine?.(eng);
+            handleReloadStream();
+          }}
+          onToggleProxy={() => {
+            setIsUsingProxyRelay((prev) => !prev);
+            handleReloadStream();
+          }}
+          onSwapFormat={(newUrl) => {
+            setFormatOverrideUrl(newUrl);
+            if (newUrl.endsWith('.ts') && (player as any).setEngine) {
+              (player as any).setEngine('mpegts');
+            }
+            handleReloadStream();
+          }}
+          onExecuteRecovery={handleExecuteRecovery}
           onClose={() => setShowDiagnostics(false)}
         />
       )}

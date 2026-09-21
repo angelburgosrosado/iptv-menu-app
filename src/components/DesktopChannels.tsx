@@ -41,7 +41,7 @@ import { downloadM3UFile } from '../utils/m3uParser';
 import { ChannelTagModal } from './ChannelTagModal';
 import { ParentalPinModal } from './ParentalPinModal';
 import { VODDetailModal } from './VODDetailModal';
-import { parseSearchQuery, matchChannelWithQuery } from '../utils/searchQueryParser';
+import { parseSearchQuery, matchChannelWithQuery, foldSearchText } from '../utils/searchQueryParser';
 import { 
   getCountryFlag, 
   normalizeCategory, 
@@ -130,32 +130,33 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
       list = list.filter((c) => (c.countryCode || '').toUpperCase() === selectedCountry.toUpperCase());
     }
     if (selectedSubdivision) {
-      const subTarget = selectedSubdivision.toLowerCase();
+      const subTarget = foldSearchText(selectedSubdivision);
       list = list.filter((c) => {
-        const cSub = (c.subdivision || '').toLowerCase();
-        const cName = c.name.toLowerCase();
+        const cSub = foldSearchText(c.subdivision || '');
+        const cName = foldSearchText(c.name);
         return cSub === subTarget || cName.includes(subTarget);
       });
     }
     if (selectedGroup) {
+      const groupTarget = foldSearchText(selectedGroup);
       list = list.filter((c) => {
-        const cat = c.category || normalizeCategory(c.group);
-        return c.group === selectedGroup || cat === selectedGroup;
+        const cat = foldSearchText(c.category || normalizeCategory(c.group));
+        return foldSearchText(c.group) === groupTarget || cat === groupTarget;
       });
     }
     if (selectedLanguage && selectedLanguage !== 'ALL') {
-      const target = selectedLanguage.toLowerCase();
+      const target = foldSearchText(selectedLanguage);
       list = list.filter((c) => {
-        const lang = (c.language || '').toLowerCase();
-        const langName = (c.languageName || '').toLowerCase();
+        const lang = foldSearchText(c.language || '');
+        const langName = foldSearchText(c.languageName || '');
         return lang === target || lang.startsWith(target) || target.startsWith(lang) || langName.includes(target);
       });
     }
     if (selectedCustomTag) {
-      const targetTag = selectedCustomTag.toLowerCase();
+      const targetTag = foldSearchText(selectedCustomTag);
       list = list.filter((c) => {
         const tags = customTags[c.id] || [];
-        return tags.some((t) => t.toLowerCase() === targetTag);
+        return tags.some((t) => foldSearchText(t) === targetTag);
       });
     }
     if (searchQuery.trim()) {

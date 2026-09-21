@@ -18,16 +18,32 @@ import {
   Gauge, 
   ShieldCheck, 
   Maximize, 
-  Radio
+  Radio,
+  Zap,
+  RotateCw,
+  AlertTriangle,
+  Play
 } from 'lucide-react';
+import { 
+  PlaybackDiagnostic, 
+  RecoveryAction, 
+  deriveAlternativeStreamFormat 
+} from '../utils/streamDispatcher';
+import { hostConnectivityGuard } from '../utils/hostConnectivityGuard';
 
 interface DiagnosticsHUDProps {
   streamUrl: string;
   channelName: string;
   groupTitle?: string;
   isProxy: boolean;
+  activeEngine?: 'hls' | 'mpegts' | 'native';
   audioTracksCount?: number;
   subtitleTracksCount?: number;
+  diagnostic?: PlaybackDiagnostic | null;
+  onSwitchEngine?: (engine: 'hls' | 'mpegts' | 'native') => void;
+  onToggleProxy?: () => void;
+  onSwapFormat?: (newUrl: string) => void;
+  onExecuteRecovery?: (action: RecoveryAction) => void;
   onClose: () => void;
 }
 
@@ -36,8 +52,14 @@ export function DiagnosticsHUD({
   channelName,
   groupTitle,
   isProxy,
+  activeEngine = 'hls',
   audioTracksCount = 1,
   subtitleTracksCount = 0,
+  diagnostic,
+  onSwitchEngine,
+  onToggleProxy,
+  onSwapFormat,
+  onExecuteRecovery,
   onClose
 }: DiagnosticsHUDProps) {
   const [uptimeSeconds, setUptimeSeconds] = React.useState(0);
@@ -46,6 +68,11 @@ export function DiagnosticsHUD({
   const [pingMs, setPingMs] = React.useState<number>(45);
   const [bitrateMbps, setBitrateMbps] = React.useState<number>(4.85);
   const [bufferLengthSec, setBufferLengthSec] = React.useState<number>(12.4);
+
+  // Alternative format if available (e.g. Xtream .ts <-> .m3u8)
+  const altFormat = React.useMemo(() => {
+    return deriveAlternativeStreamFormat(streamUrl);
+  }, [streamUrl]);
 
   // Parse CDN / Host domain
   const hostDomain = React.useMemo(() => {
@@ -56,6 +83,9 @@ export function DiagnosticsHUD({
       return 'direct-edge-origin';
     }
   }, [streamUrl]);
+
+  // Circuit breaker state for active host
+  const [breakerRecord, setBreakerRecord] = React.useState(() => hostConnectivityGuard.getHostRecord(streamUrl));
 
   // Dynamic session timer and slight realistic telemetry jitter
   React.useEffect(() => {
@@ -77,6 +107,9 @@ export function DiagnosticsHUD({
         const jitter = Math.round((Math.random() - 0.5) * 6);
         return Math.max(22, Math.min(85, prev + jitter));
       });
+
+      // Poll breaker status
+      setBreakerRecord(hostConnectivityGuard.getHostRecord(streamUrl));
     }, 1000);
 
     return () => clearInterval(timer);
@@ -98,175 +131,284 @@ export function DiagnosticsHUD({
       timestamp: new Date().toISOString(),
       channel: channelName,
       group: groupTitle || 'General',
-      streamUrl,
-      transport: isProxy ? 'HTTP Proxy Relay (CORS Gateway)' : 'Direct HLS Edge Transport',
-      cdnHost: hostDomain,
-      uptime: formatUptime(uptimeSeconds),
-      metrics: {
-        resolution: '1920x1080 (16:9)',
-        fps: 60,
-        bitrateMbps,
-        bufferHealthSec: bufferLengthSec,
-        pingLatencyMs: pingMs,
-        droppedFrames: 0,
-        videoCodec: 'H.264 / AVC High@L4.2',
-        audioCodec: 'AAC-LC (48kHz, Stereo)',
-        dataConsumedMb: estimatedDownloadedMb
-      },
-      tracks: {
-        audio: audioTracksCount,
-        subtitles: subtitleTracksCount
-      }
+      activeEngine,
+      host: hostDomain,
+      streamUrl: streamUrl.replace(/(user|pass|password)=[^&]*/gi, '$1=REDACTED'),
+      isProxy,
+      pingMs,
+      bitrateMbps,
+      bufferLengthSec,
+      uptimeSeconds,
+      audioTracksCount,
+      subtitleTracksCount,
+      diagnostic: diagnostic ? {
+        category: diagnostic.category,
+        message: diagnostic.message,
+        details: diagnostic.details
+      } : null
     };
 
     navigator.clipboard.writeText(JSON.stringify(report, null, 2));
     setCopyToast(true);
-    setTimeout(() => setCopyToast(false), 2500);
+    setTimeout(() => setCopyToast(false), 2000);
   };
 
   return (
-    <div 
-      className={`absolute top-4 right-4 z-40 transition-all duration-300 pointer-events-auto ${
-        isCompact ? 'w-72' : 'w-96'
-      }`}
-      onClick={(e) => e.stopPropagation()}
-    >
-      <div className="bg-[#0b0c10]/90 backdrop-blur-xl border border-cyan-500/30 rounded-2xl shadow-2xl p-4 text-white flex flex-col gap-3 font-sans">
-        {/* HUD Header */}
-        <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
-          <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
-            <span className="text-xs font-black tracking-wider uppercase text-cyan-300 flex items-center gap-1.5 font-mono">
-              <Activity className="w-3.5 h-3.5" />
-              Stream Telemetry HUD
+    <div className={`absolute top-16 right-4 z-50 transition-all duration-300 ${
+      isCompact ? 'w-64' : 'w-96'
+    } bg-slate-950/95 border border-slate-700/80 rounded-2xl shadow-2xl backdrop-blur-xl text-slate-200 overflow-hidden`}>
+      {/* Header Bar */}
+      <div className="flex items-center justify-between px-4 py-3 bg-slate-900/90 border-b border-slate-800">
+        <div className="flex items-center gap-2">
+          <Activity size={16} className="text-cyan-400 animate-pulse" />
+          <span className="text-xs font-bold tracking-wider text-slate-100 uppercase">
+            Multi-Engine Diagnostics HUD
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setIsCompact(!isCompact)}
+            className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white transition-colors"
+            title={isCompact ? "Expand View" : "Compact View"}
+          >
+            <Maximize size={13} />
+          </button>
+          <button
+            onClick={handleCopyReport}
+            className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-white transition-colors relative"
+            title="Copy Telemetry Report"
+          >
+            <Copy size={13} />
+            {copyToast && (
+              <span className="absolute -bottom-7 right-0 text-[10px] bg-cyan-600 text-white font-bold py-0.5 px-2 rounded shadow-md whitespace-nowrap">
+                Copied!
+              </span>
+            )}
+          </button>
+          <button
+            onClick={onClose}
+            className="p-1 hover:bg-slate-800 rounded text-slate-400 hover:text-rose-400 transition-colors"
+          >
+            <X size={15} />
+          </button>
+        </div>
+      </div>
+
+      <div className="p-4 space-y-4 max-h-[80vh] overflow-y-auto">
+        {/* Active Decoding Engine & Switcher */}
+        <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+              Decoding Engine
+            </span>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 font-bold uppercase">
+              {activeEngine}
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5">
-            <button
-              onClick={() => setIsCompact((prev) => !prev)}
-              className="p-1 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white transition-colors cursor-pointer"
-              title={isCompact ? 'Expand HUD' : 'Collapse HUD'}
-            >
-              <Maximize className="w-3 h-3" />
-            </button>
-            <button
-              onClick={handleCopyReport}
-              className="p-1 rounded-lg bg-white/5 hover:bg-cyan-500/20 text-zinc-400 hover:text-cyan-300 transition-colors cursor-pointer"
-              title="Copy Diagnostics JSON Dump"
-            >
-              <Copy className="w-3 h-3" />
-            </button>
-            <button
-              onClick={onClose}
-              className="p-1 rounded-lg bg-white/5 hover:bg-red-500/20 text-zinc-400 hover:text-red-400 transition-colors cursor-pointer"
-              title="Close HUD (D)"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          </div>
+          {onSwitchEngine && (
+            <div className="grid grid-cols-3 gap-1.5 mt-2">
+              <button
+                onClick={() => onSwitchEngine('hls')}
+                className={`py-1.5 px-2 rounded-lg text-xs font-semibold transition-all ${
+                  activeEngine === 'hls'
+                    ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30'
+                    : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300'
+                }`}
+              >
+                HLS.js
+              </button>
+              <button
+                onClick={() => onSwitchEngine('mpegts')}
+                className={`py-1.5 px-2 rounded-lg text-xs font-semibold transition-all ${
+                  activeEngine === 'mpegts'
+                    ? 'bg-purple-600 text-white shadow-md shadow-purple-600/30'
+                    : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300'
+                }`}
+              >
+                mpegts.js
+              </button>
+              <button
+                onClick={() => onSwitchEngine('native')}
+                className={`py-1.5 px-2 rounded-lg text-xs font-semibold transition-all ${
+                  activeEngine === 'native'
+                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30'
+                    : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300'
+                }`}
+              >
+                Native
+              </button>
+            </div>
+          )}
         </div>
 
-        {copyToast && (
-          <div className="bg-emerald-500/20 border border-emerald-500/40 rounded-xl px-2.5 py-1 text-[11px] text-emerald-300 font-semibold flex items-center gap-1.5">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>Diagnostics report copied to clipboard!</span>
-          </div>
-        )}
-
-        {/* Essential Quick Metrics Grid */}
-        <div className="grid grid-cols-2 gap-2">
-          <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/5 flex flex-col justify-between">
-            <div className="flex items-center justify-between text-[10px] text-zinc-400 font-medium">
-              <span>Bitrate</span>
-              <Gauge className="w-3 h-3 text-cyan-400" />
-            </div>
-            <div className="mt-1 flex items-baseline gap-1">
-              <span className="text-base font-bold font-mono text-cyan-300">{bitrateMbps}</span>
-              <span className="text-[10px] text-zinc-400">Mbps</span>
-            </div>
-          </div>
-
-          <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/5 flex flex-col justify-between">
-            <div className="flex items-center justify-between text-[10px] text-zinc-400 font-medium">
-              <span>Latency (RTT)</span>
-              <Wifi className="w-3 h-3 text-emerald-400" />
-            </div>
-            <div className="mt-1 flex items-baseline gap-1">
-              <span className="text-base font-bold font-mono text-emerald-300">{pingMs}</span>
-              <span className="text-[10px] text-zinc-400">ms</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Buffer Health Gauge Bar */}
-        <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/5 space-y-1.5">
-          <div className="flex items-center justify-between text-[10px]">
-            <span className="text-zinc-400 font-medium flex items-center gap-1">
-              <HardDrive className="w-3 h-3 text-purple-400" />
-              Buffer Health Ahead
-            </span>
-            <span className="font-mono font-bold text-purple-300">{bufferLengthSec}s / 20s Max</span>
-          </div>
-          <div className="w-full h-1.5 bg-black/60 rounded-full overflow-hidden">
-            <div 
-              className="h-full bg-gradient-to-r from-purple-500 to-cyan-400 rounded-full transition-all duration-300"
-              style={{ width: `${Math.min(100, Math.round((bufferLengthSec / 20) * 100))}%` }}
-            />
-          </div>
-        </div>
-
-        {/* Detailed Telemetry (Expanded Mode Only) */}
-        {!isCompact && (
-          <div className="space-y-1.5 border-t border-white/5 pt-2 text-[11px] font-mono">
-            <div className="flex items-center justify-between text-zinc-300">
-              <span className="text-zinc-400 font-sans">Resolution / FPS:</span>
-              <span className="text-white font-semibold">1920x1080@60fps (1080p)</span>
-            </div>
-
-            <div className="flex items-center justify-between text-zinc-300">
-              <span className="text-zinc-400 font-sans">Video / Audio Codec:</span>
-              <span className="text-cyan-400 font-semibold">AVC / AAC-LC Stereo</span>
-            </div>
-
-            <div className="flex items-center justify-between text-zinc-300">
-              <span className="text-zinc-400 font-sans">Transport Pipeline:</span>
-              <span className={isProxy ? "text-purple-400 font-semibold" : "text-emerald-400 font-semibold"}>
-                {isProxy ? "CORS Proxy Gateway" : "Direct HLS Stream"}
+        {/* Xtream Format Swapper (If applicable) */}
+        {altFormat && onSwapFormat && (
+          <div className="flex items-center justify-between bg-blue-950/40 border border-blue-800/40 rounded-xl p-2.5">
+            <div className="flex items-center gap-2">
+              <RotateCw size={14} className="text-blue-400" />
+              <span className="text-xs text-slate-300 font-medium">
+                Switch to <span className="font-bold text-blue-400 uppercase">{altFormat.format}</span>
               </span>
             </div>
-
-            <div className="flex items-center justify-between text-zinc-300">
-              <span className="text-zinc-400 font-sans">Dropped Frames:</span>
-              <span className="text-emerald-400 font-semibold">0 frames (0.00%)</span>
-            </div>
-
-            <div className="flex items-center justify-between text-zinc-300">
-              <span className="text-zinc-400 font-sans">Edge CDN Host:</span>
-              <span className="text-zinc-300 truncate max-w-[170px]" title={hostDomain}>{hostDomain}</span>
-            </div>
-
-            <div className="flex items-center justify-between text-zinc-300">
-              <span className="text-zinc-400 font-sans">Data Consumed:</span>
-              <span className="text-zinc-200">{estimatedDownloadedMb} MB</span>
-            </div>
-
-            <div className="flex items-center justify-between text-zinc-300">
-              <span className="text-zinc-400 font-sans">Stream Session Uptime:</span>
-              <span className="text-white font-bold">{formatUptime(uptimeSeconds)}</span>
-            </div>
+            <button
+              onClick={() => onSwapFormat(altFormat.url)}
+              className="px-2.5 py-1 text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white rounded-lg transition-colors shadow-sm"
+            >
+              Swap to .{altFormat.format}
+            </button>
           </div>
         )}
 
-        {/* Footer Hint */}
-        <div className="flex items-center justify-between text-[10px] text-zinc-400 border-t border-white/5 pt-2">
-          <span>Press <kbd className="px-1.5 py-0.5 bg-white/10 rounded font-mono text-white text-[9px]">D</kbd> to toggle HUD</span>
-          <span className="inline-flex items-center gap-1 text-emerald-400">
-            <CheckCircle2 className="w-3 h-3" />
-            <span>Optimal</span>
-          </span>
+        {/* Diagnostic Recovery Alert (When error/diagnostic is active) */}
+        {diagnostic && (
+          <div className="bg-rose-950/30 border border-rose-800/50 rounded-xl p-3 space-y-2.5">
+            <div className="flex items-center gap-2 text-rose-400">
+              <AlertTriangle size={15} />
+              <span className="text-xs font-bold uppercase tracking-wider">
+                {diagnostic.message}
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-300 leading-relaxed">
+              {diagnostic.details}
+            </p>
+
+            {diagnostic.recoveryActions.length > 0 && onExecuteRecovery && (
+              <div className="space-y-1.5 pt-1">
+                <span className="text-[10px] font-semibold text-slate-400 uppercase">
+                  Ranked Recovery Actions:
+                </span>
+                {diagnostic.recoveryActions.map((action) => (
+                  <button
+                    key={action.id}
+                    onClick={() => onExecuteRecovery(action)}
+                    className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-semibold transition-all ${
+                      action.primary
+                        ? 'bg-rose-600 hover:bg-rose-500 text-white shadow-md'
+                        : 'bg-slate-800 hover:bg-slate-700 text-slate-200'
+                    }`}
+                  >
+                    <span>{action.label}</span>
+                    <Zap size={12} className={action.primary ? 'text-amber-300' : 'text-slate-400'} />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Live Network & Telemetry Grid */}
+        <div className="grid grid-cols-2 gap-2 text-xs">
+          <div className="bg-slate-900/40 border border-slate-800 p-2.5 rounded-xl">
+            <div className="flex items-center gap-1.5 text-slate-400 mb-1">
+              <Gauge size={13} className="text-cyan-400" />
+              <span>Bitrate</span>
+            </div>
+            <span className="text-base font-bold font-mono text-slate-100">{bitrateMbps}</span>
+            <span className="text-[10px] text-slate-400 ml-1">Mbps</span>
+          </div>
+
+          <div className="bg-slate-900/40 border border-slate-800 p-2.5 rounded-xl">
+            <div className="flex items-center gap-1.5 text-slate-400 mb-1">
+              <Wifi size={13} className="text-emerald-400" />
+              <span>Edge Latency</span>
+            </div>
+            <span className="text-base font-bold font-mono text-slate-100">{pingMs}</span>
+            <span className="text-[10px] text-slate-400 ml-1">ms</span>
+          </div>
+
+          <div className="bg-slate-900/40 border border-slate-800 p-2.5 rounded-xl">
+            <div className="flex items-center gap-1.5 text-slate-400 mb-1">
+              <HardDrive size={13} className="text-amber-400" />
+              <span>Buffer Head</span>
+            </div>
+            <span className="text-base font-bold font-mono text-slate-100">{bufferLengthSec}</span>
+            <span className="text-[10px] text-slate-400 ml-1">sec</span>
+          </div>
+
+          <div className="bg-slate-900/40 border border-slate-800 p-2.5 rounded-xl">
+            <div className="flex items-center gap-1.5 text-slate-400 mb-1">
+              <Clock size={13} className="text-indigo-400" />
+              <span>Session Time</span>
+            </div>
+            <span className="text-base font-bold font-mono text-slate-100">{formatUptime(uptimeSeconds)}</span>
+          </div>
+        </div>
+
+        {/* Stream Origin & Proxy Status */}
+        <div className="bg-slate-900/40 border border-slate-800 rounded-xl p-3 space-y-2 text-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-slate-400">Upstream Host</span>
+            <span className="font-mono text-slate-200 truncate max-w-[180px]" title={hostDomain}>
+              {hostDomain}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <span className="text-slate-400">Host Circuit</span>
+            <div className="flex items-center gap-1.5">
+              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                !breakerRecord || breakerRecord.state === 'CLOSED'
+                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                  : breakerRecord.state === 'HALF_OPEN'
+                  ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                  : 'bg-rose-500/20 text-rose-400 border border-rose-500/30 animate-pulse'
+              }`}>
+                {!breakerRecord || breakerRecord.state === 'CLOSED' ? 'Closed (Healthy)' : breakerRecord.state === 'HALF_OPEN' ? 'Half-Open (Trial)' : 'Tripped (Fast-Fail)'}
+              </span>
+              {breakerRecord && breakerRecord.state === 'OPEN' && (
+                <button
+                  onClick={() => {
+                    hostConnectivityGuard.resetHost(streamUrl);
+                    setBreakerRecord(hostConnectivityGuard.getHostRecord(streamUrl));
+                  }}
+                  className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300"
+                  title="Reset circuit breaker for this origin"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <span className="text-slate-400">Tunnel / Proxy</span>
+            {onToggleProxy ? (
+              <button
+                onClick={onToggleProxy}
+                className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase transition-colors ${
+                  isProxy 
+                    ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40' 
+                    : 'bg-slate-800 text-slate-400 hover:text-white'
+                }`}
+              >
+                {isProxy ? 'Proxy Active' : 'Direct (Click to Proxy)'}
+              </button>
+            ) : (
+              <span className={`font-semibold ${isProxy ? 'text-purple-400' : 'text-slate-400'}`}>
+                {isProxy ? 'CORS Relay Active' : 'Direct Edge'}
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between">
+            <span className="text-slate-400">Audio / CC Tracks</span>
+            <span className="text-slate-200">
+              {audioTracksCount} Audio • {subtitleTracksCount} CC
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <span className="text-slate-400">Data Transferred</span>
+            <span className="font-mono text-slate-300">
+              {estimatedDownloadedMb} MB
+            </span>
+          </div>
         </div>
       </div>
     </div>
   );
 }
+
+export default DiagnosticsHUD;

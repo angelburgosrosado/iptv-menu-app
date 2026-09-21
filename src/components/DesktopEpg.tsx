@@ -31,6 +31,7 @@ import { Channel } from '../types/iptv';
 import { PageProtocolHeader } from './PageProtocolHeader';
 import { getCountryFlag, getLanguageName, formatUtcOffset } from '../utils/channelEnrichment';
 import { DvrModal } from './DvrModal';
+import { foldSearchText } from '../utils/searchQueryParser';
 
 interface Show {
   title: string;
@@ -73,9 +74,11 @@ export default function DesktopEpg() {
   }, [channels]);
 
   const guideChannels = React.useMemo(() => {
+    const foldedSearch = foldSearchText(searchTerm);
+    const foldedCat = foldSearchText(selectedCategory);
     return channels.filter((c) => {
-      const matchCat = selectedCategory === 'all' || (c.group || '').toLowerCase() === selectedCategory.toLowerCase();
-      const matchSearch = !searchTerm || c.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchCat = selectedCategory === 'all' || foldSearchText(c.group || '') === foldedCat;
+      const matchSearch = !foldedSearch || foldSearchText(c.name).includes(foldedSearch);
       return matchCat && matchSearch;
     }).slice(0, 100);
   }, [channels, selectedCategory, searchTerm]);
@@ -391,7 +394,7 @@ export default function DesktopEpg() {
         {/* Category Pills & Count */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0 scrollbar-none">
           {categories.slice(0, 7).map((cat) => {
-            const isActive = selectedCategory.toLowerCase() === cat.toLowerCase();
+            const isActive = foldSearchText(selectedCategory) === foldSearchText(cat);
             return (
               <button
                 key={cat}

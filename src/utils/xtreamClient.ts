@@ -1,5 +1,6 @@
 import { Channel, XtreamAccount } from '../types/iptv';
 import { parseM3U } from './m3uParser';
+import { hostConnectivityGuard, HostConnectivityFastFailError } from './hostConnectivityGuard';
 
 export interface XtreamCategory {
   category_id: string;
@@ -21,6 +22,30 @@ export interface XtreamStreamItem {
   direct_source: string;
 }
 
+/**
+ * Executes a network fetch guarded by HostConnectivityGuard circuit breaker.
+ * Employs direct hit with automatic CORS proxy fallback.
+ */
+async function guardedFetch(
+  url: string,
+  timeoutMs = 8000,
+  proxyTimeoutMs = 10000,
+  skipBreaker = false
+): Promise<Response> {
+  return hostConnectivityGuard.executeWithBreaker(
+    url,
+    async () => {
+      try {
+        return await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
+      } catch (directErr) {
+        const proxyUrl = `/api/stream/proxy?url=${encodeURIComponent(url)}`;
+        return await fetch(proxyUrl, { signal: AbortSignal.timeout(proxyTimeoutMs) });
+      }
+    },
+    { skipBreaker }
+  );
+}
+
 export async function authenticateXtreamCodes(account: XtreamAccount): Promise<{
   success: boolean;
   userInfo?: any;
@@ -35,19 +60,19 @@ export async function authenticateXtreamCodes(account: XtreamAccount): Promise<{
     // Strip trailing slash
     baseUrl = baseUrl.replace(/\/+$/, '');
 
+    // Reset circuit breaker state for explicit user test connection
+    hostConnectivityGuard.resetHost(baseUrl);
+
     const authUrl = `${baseUrl}/player_api.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password)}`;
     
-    // Attempt direct fetch, fallback to server proxy if CORS prevents direct browser hitting
     let res: Response;
     try {
-      res = await fetch(authUrl, { signal: AbortSignal.timeout(6000) });
-    } catch (directErr) {
-      try {
-        const proxyUrl = `/api/stream/proxy?url=${encodeURIComponent(authUrl)}`;
-        res = await fetch(proxyUrl, { signal: AbortSignal.timeout(7000) });
-      } catch (proxyErr: any) {
-        throw new Error(`Unable to reach server ${baseUrl}. Please verify the host portal and port.`);
+      res = await guardedFetch(authUrl, 6000, 7000, true);
+    } catch (err: any) {
+      if (err instanceof HostConnectivityFastFailError) {
+        return { success: false, error: err.message };
       }
+      return { success: false, error: `Unable to reach server ${baseUrl}. Please verify the host portal and port.` };
     }
 
     if (!res.ok) {
@@ -93,12 +118,7 @@ export async function fetchXtreamCategories(account: XtreamAccount): Promise<Rec
   }
   const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password)}&action=get_live_categories`;
   try {
-    let res: Response;
-    try {
-      res = await fetch(url, { signal: AbortSignal.timeout(6000) });
-    } catch {
-      res = await fetch(`/api/stream/proxy?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(7000) });
-    }
+    const res = await guardedFetch(url, 6000, 7000);
     if (res.ok) {
       const data = await res.json().catch(() => null);
       if (Array.isArray(data)) {
@@ -111,8 +131,12 @@ export async function fetchXtreamCategories(account: XtreamAccount): Promise<Rec
         return catMap;
       }
     }
-  } catch (e) {
-    console.warn('Could not fetch Xtream categories', e);
+  } catch (e: any) {
+    if (e instanceof HostConnectivityFastFailError) {
+      console.warn(`[XtreamClient] Categories fast-failed: ${e.message}`);
+    } else {
+      console.warn('Could not fetch Xtream categories', e);
+    }
   }
   return {};
 }
@@ -124,20 +148,19 @@ export async function fetchXtreamStreams(account: XtreamAccount): Promise<Xtream
   }
   const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password)}&action=get_live_streams`;
   try {
-    let res: Response;
-    try {
-      res = await fetch(url, { signal: AbortSignal.timeout(20000) });
-    } catch {
-      res = await fetch(`/api/stream/proxy?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(25000) });
-    }
+    const res = await guardedFetch(url, 15000, 20000);
     if (res.ok) {
       const data = await res.json().catch(() => null);
       if (Array.isArray(data)) {
         return data;
       }
     }
-  } catch (e) {
-    console.warn('Could not fetch Xtream live streams', e);
+  } catch (e: any) {
+    if (e instanceof HostConnectivityFastFailError) {
+      console.warn(`[XtreamClient] Live streams fast-failed: ${e.message}`);
+    } else {
+      console.warn('Could not fetch Xtream live streams', e);
+    }
   }
   return [];
 }
@@ -149,12 +172,7 @@ export async function fetchXtreamM3uChannels(account: XtreamAccount): Promise<Ch
   }
   const url = `${baseUrl}/get.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password)}&type=m3u_plus&output=m3u8`;
   try {
-    let res: Response;
-    try {
-      res = await fetch(url, { signal: AbortSignal.timeout(20000) });
-    } catch {
-      res = await fetch(`/api/stream/proxy?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(25000) });
-    }
+    const res = await guardedFetch(url, 15000, 20000);
     if (res.ok) {
       const text = await res.text();
       if (text.includes('#EXTM3U')) {
@@ -165,8 +183,12 @@ export async function fetchXtreamM3uChannels(account: XtreamAccount): Promise<Ch
         }));
       }
     }
-  } catch (e) {
-    console.warn('Could not fetch Xtream M3U fallback playlist', e);
+  } catch (e: any) {
+    if (e instanceof HostConnectivityFastFailError) {
+      console.warn(`[XtreamClient] M3U fallback fast-failed: ${e.message}`);
+    } else {
+      console.warn('Could not fetch Xtream M3U fallback playlist', e);
+    }
   }
   return [];
 }
@@ -210,12 +232,7 @@ export async function fetchXtreamVodCategories(account: XtreamAccount): Promise<
   }
   const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password)}&action=get_vod_categories`;
   try {
-    let res: Response;
-    try {
-      res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-    } catch {
-      res = await fetch(`/api/stream/proxy?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(9000) });
-    }
+    const res = await guardedFetch(url, 8000, 9000);
     if (res.ok) {
       const data = await res.json().catch(() => null);
       if (Array.isArray(data)) {
@@ -228,8 +245,12 @@ export async function fetchXtreamVodCategories(account: XtreamAccount): Promise<
         return catMap;
       }
     }
-  } catch (e) {
-    console.warn('Could not fetch Xtream VOD categories', e);
+  } catch (e: any) {
+    if (e instanceof HostConnectivityFastFailError) {
+      console.warn(`[XtreamClient] VOD categories fast-failed: ${e.message}`);
+    } else {
+      console.warn('Could not fetch Xtream VOD categories', e);
+    }
   }
   return {};
 }
@@ -244,20 +265,19 @@ export async function fetchXtreamVodStreams(account: XtreamAccount, categoryId?:
     url += `&category_id=${encodeURIComponent(categoryId)}`;
   }
   try {
-    let res: Response;
-    try {
-      res = await fetch(url, { signal: AbortSignal.timeout(20000) });
-    } catch {
-      res = await fetch(`/api/stream/proxy?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(25000) });
-    }
+    const res = await guardedFetch(url, 15000, 20000);
     if (res.ok) {
       const data = await res.json().catch(() => null);
       if (Array.isArray(data)) {
         return data;
       }
     }
-  } catch (e) {
-    console.warn('Could not fetch Xtream VOD streams', e);
+  } catch (e: any) {
+    if (e instanceof HostConnectivityFastFailError) {
+      console.warn(`[XtreamClient] VOD streams fast-failed: ${e.message}`);
+    } else {
+      console.warn('Could not fetch Xtream VOD streams', e);
+    }
   }
   return [];
 }
@@ -272,20 +292,19 @@ export async function fetchXtreamSeries(account: XtreamAccount, categoryId?: str
     url += `&category_id=${encodeURIComponent(categoryId)}`;
   }
   try {
-    let res: Response;
-    try {
-      res = await fetch(url, { signal: AbortSignal.timeout(20000) });
-    } catch {
-      res = await fetch(`/api/stream/proxy?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(25000) });
-    }
+    const res = await guardedFetch(url, 15000, 20000);
     if (res.ok) {
       const data = await res.json().catch(() => null);
       if (Array.isArray(data)) {
         return data;
       }
     }
-  } catch (e) {
-    console.warn('Could not fetch Xtream series', e);
+  } catch (e: any) {
+    if (e instanceof HostConnectivityFastFailError) {
+      console.warn(`[XtreamClient] Series fast-failed: ${e.message}`);
+    } else {
+      console.warn('Could not fetch Xtream series', e);
+    }
   }
   return [];
 }
@@ -352,12 +371,7 @@ export async function fetchXtreamShortEpg(
   const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password)}&action=get_short_epg&stream_id=${encodeURIComponent(streamId)}&limit=${limit}`;
 
   try {
-    let res: Response;
-    try {
-      res = await fetch(url, { signal: AbortSignal.timeout(6000) });
-    } catch {
-      res = await fetch(`/api/stream/proxy?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(8000) });
-    }
+    const res = await guardedFetch(url, 6000, 8000);
     if (res.ok) {
       const data = await res.json().catch(() => null);
       if (data && Array.isArray(data.epg_listings)) {
@@ -367,8 +381,12 @@ export async function fetchXtreamShortEpg(
         return data;
       }
     }
-  } catch (e) {
-    console.warn(`Could not fetch short EPG for stream ${streamId}`, e);
+  } catch (e: any) {
+    if (e instanceof HostConnectivityFastFailError) {
+      console.warn(`[XtreamClient] Short EPG fast-failed for ${streamId}: ${e.message}`);
+    } else {
+      console.warn(`Could not fetch short EPG for stream ${streamId}`, e);
+    }
   }
   return [];
 }
@@ -387,12 +405,7 @@ export async function fetchXtreamFullEpg(
   const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password)}&action=get_simple_data_table&stream_id=${encodeURIComponent(streamId)}`;
 
   try {
-    let res: Response;
-    try {
-      res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-    } catch {
-      res = await fetch(`/api/stream/proxy?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(10000) });
-    }
+    const res = await guardedFetch(url, 8000, 10000);
     if (res.ok) {
       const data = await res.json().catch(() => null);
       if (data && Array.isArray(data.epg_listings)) {
@@ -402,8 +415,12 @@ export async function fetchXtreamFullEpg(
         return data;
       }
     }
-  } catch (e) {
-    console.warn(`Could not fetch full EPG for stream ${streamId}`, e);
+  } catch (e: any) {
+    if (e instanceof HostConnectivityFastFailError) {
+      console.warn(`[XtreamClient] Full EPG fast-failed for ${streamId}: ${e.message}`);
+    } else {
+      console.warn(`Could not fetch full EPG for stream ${streamId}`, e);
+    }
   }
   return [];
 }
@@ -442,5 +459,3 @@ export function generateXtreamCatchupUrl(
 
   return `${baseUrl}/timeshift/${encodeURIComponent(account.username)}/${encodeURIComponent(account.password)}/${durationMinutes}/${formattedStart}/${streamId}.m3u8`;
 }
-
-

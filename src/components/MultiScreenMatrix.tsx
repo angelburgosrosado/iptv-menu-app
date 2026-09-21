@@ -27,6 +27,7 @@ import {
 import { Channel, MatrixLayoutMode } from '../types/iptv';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { PageProtocolHeader } from './PageProtocolHeader';
+import { resolvePlaybackUrlSourceKind } from '../utils/streamDispatcher';
 
 interface MatrixSlotVideoProps {
   channel: Channel;
@@ -39,6 +40,7 @@ interface MatrixSlotVideoProps {
 function MatrixSlotVideo({ channel, isMuted, volume, slotIdx, onRetry }: MatrixSlotVideoProps) {
   const videoRef = React.useRef<HTMLVideoElement | null>(null);
   const hlsRef = React.useRef<any>(null);
+  const mpegtsRef = React.useRef<any>(null);
   const [hasError, setHasError] = React.useState(false);
   const [isBuffering, setIsBuffering] = React.useState(true);
   const [retryCount, setRetryCount] = React.useState(0);
@@ -58,8 +60,17 @@ function MatrixSlotVideo({ channel, isMuted, volume, slotIdx, onRetry }: MatrixS
     setIsBuffering(true);
 
     if (hlsRef.current) {
-      hlsRef.current.destroy();
+      try { hlsRef.current.destroy(); } catch {}
       hlsRef.current = null;
+    }
+    if (mpegtsRef.current) {
+      try {
+        mpegtsRef.current.pause?.();
+        mpegtsRef.current.unload?.();
+        mpegtsRef.current.detachMediaElement?.();
+        mpegtsRef.current.destroy?.();
+      } catch {}
+      mpegtsRef.current = null;
     }
 
     const rawUrl = channel.url;
@@ -80,7 +91,35 @@ function MatrixSlotVideo({ channel, isMuted, volume, slotIdx, onRetry }: MatrixS
     video.addEventListener('waiting', handleWaiting);
     video.addEventListener('error', handleError);
 
-    if (effectiveUrl.includes('.m3u8') || effectiveUrl.includes('/api/stream/proxy')) {
+    const kind = resolvePlaybackUrlSourceKind(effectiveUrl);
+
+    if (kind === 'mpegts' && (window as any).mpegts?.isSupported()) {
+      try {
+        const mpegtsPlayer = (window as any).mpegts.createPlayer({
+          type: 'mse',
+          isLive: true,
+          url: effectiveUrl
+        }, {
+          enableWorker: true,
+          lazyLoadMaxDuration: 60,
+          seekType: 'range'
+        });
+        mpegtsRef.current = mpegtsPlayer;
+        mpegtsPlayer.attachMediaElement(video);
+        mpegtsPlayer.load();
+        mpegtsPlayer.play().catch(() => {
+          video.muted = true;
+          video.play().catch(() => {});
+        });
+        mpegtsPlayer.on((window as any).mpegts.Events.ERROR, () => {
+          setHasError(true);
+          setIsBuffering(false);
+        });
+      } catch {
+        video.src = effectiveUrl;
+        video.play().catch(() => {});
+      }
+    } else if (effectiveUrl.includes('.m3u8') || effectiveUrl.includes('/api/stream/proxy')) {
       const HlsClass = (window as any).Hls;
       if (HlsClass?.isSupported()) {
         const hls = new HlsClass({
@@ -139,8 +178,17 @@ function MatrixSlotVideo({ channel, isMuted, volume, slotIdx, onRetry }: MatrixS
       video.removeEventListener('waiting', handleWaiting);
       video.removeEventListener('error', handleError);
       if (hlsRef.current) {
-        hlsRef.current.destroy();
+        try { hlsRef.current.destroy(); } catch {}
         hlsRef.current = null;
+      }
+      if (mpegtsRef.current) {
+        try {
+          mpegtsRef.current.pause?.();
+          mpegtsRef.current.unload?.();
+          mpegtsRef.current.detachMediaElement?.();
+          mpegtsRef.current.destroy?.();
+        } catch {}
+        mpegtsRef.current = null;
       }
     };
   }, [channel?.url, retryCount]);
