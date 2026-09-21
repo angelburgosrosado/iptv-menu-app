@@ -32,6 +32,11 @@ export interface Channel {
   stalkerCmd?: string;
   stalkerPortalUrl?: string;
   stalkerMac?: string;
+  catchup?: 'default' | 'append' | 'shift' | 'flussonic';
+  catchupDays?: number;
+  catchupSource?: string;
+  tvArchive?: boolean;
+  tvArchiveDuration?: number;
   healthStatus?: 'online' | 'degraded' | 'blocked' | 'offline';
   blockedReason?: string;
   blockedRef?: string;

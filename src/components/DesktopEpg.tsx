@@ -25,13 +25,16 @@ import {
   Globe,
   MapPin,
   Film,
-  Bookmark as BookmarkIcon
+  Bookmark as BookmarkIcon,
+  RotateCcw,
+  ChevronLeft
 } from 'lucide-react';
 import { Channel } from '../types/iptv';
 import { PageProtocolHeader } from './PageProtocolHeader';
 import { getCountryFlag, getLanguageName, formatUtcOffset } from '../utils/channelEnrichment';
 import { DvrModal } from './DvrModal';
 import { foldSearchText } from '../utils/searchQueryParser';
+import { isCatchupSupported, buildCatchupUrl } from '../utils/catchupEngine';
 
 interface Show {
   title: string;
@@ -40,6 +43,9 @@ interface Show {
   progress: number;
   description: string;
   isLive: boolean;
+  isPast?: boolean;
+  startTimestamp?: Date;
+  isCatchupAvailable?: boolean;
 }
 
 export default function DesktopEpg() {
@@ -64,6 +70,7 @@ export default function DesktopEpg() {
   const [searchTerm, setSearchTerm] = React.useState('');
   const [selectedCategory, setSelectedCategory] = React.useState('all');
   const [showDvrModal, setShowDvrModal] = React.useState(false);
+  const [timelineOffsetHours, setTimelineOffsetHours] = React.useState<number>(0);
 
   const categories = React.useMemo(() => {
     const set = new Set<string>();
@@ -103,9 +110,21 @@ export default function DesktopEpg() {
     }
   }, [now, selectedTimezone]);
 
-  const slot1Label = `Now (${formatHour(currentHour)})`;
-  const slot2Label = formatHour(currentHour + 1);
-  const slot3Label = formatHour(currentHour + 2);
+  const getSlotHeader = (offset: number) => {
+    const targetH = currentHour + offset;
+    const formatted = formatHour(targetH);
+    if (offset === 0) {
+      return { label: `LIVE NOW (${formatted})`, isLive: true, isPast: false };
+    }
+    if (offset < 0) {
+      return { label: `${formatted} (${Math.abs(offset)}h ago)`, isLive: false, isPast: true };
+    }
+    return { label: `${formatted} (+${offset}h)`, isLive: false, isPast: false };
+  };
+
+  const slot1Meta = getSlotHeader(timelineOffsetHours);
+  const slot2Meta = getSlotHeader(timelineOffsetHours + 1);
+  const slot3Meta = getSlotHeader(timelineOffsetHours + 2);
 
   const getProgramsForChannel = React.useCallback((channel: Channel): Show[] => {
     const currentMinutes = now.getMinutes();
@@ -113,166 +132,122 @@ export default function DesktopEpg() {
     const elapsedInSlot = currentMinutes % slotDuration;
     const currentProgress = Math.round((elapsedInSlot / slotDuration) * 100);
 
-    const slot1Time = `${formatHour(currentHour)} - ${formatHour(currentHour + 1)}`;
-    const slot2Time = `${formatHour(currentHour + 1)} - ${formatHour(currentHour + 2)}`;
-    const slot3Time = `${formatHour(currentHour + 2)} - ${formatHour(currentHour + 3)}`;
-
-    // 1. Check real store EPG programs
-    const channelKey = channel.tvgId || channel.epgChannelId || channel.id;
-    const storePrograms = epgByChannel?.[channelKey];
-
-    if (storePrograms && storePrograms.length > 0) {
-      const p1 = storePrograms[0];
-      const p2 = storePrograms[1];
-      const p3 = storePrograms[2];
-
-      const formatTimeRange = (startStr?: string, stopStr?: string, fallback: string = 'LIVE') => {
-        if (!startStr) return fallback;
-        try {
-          const s = new Date(startStr);
-          const e = stopStr ? new Date(stopStr) : new Date(s.getTime() + 3600000);
-          const tzOpt = selectedTimezone && selectedTimezone !== 'local' ? { timeZone: selectedTimezone } : {};
-          return `${s.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', ...tzOpt })} - ${e.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', ...tzOpt })}`;
-        } catch {
-          return fallback;
-        }
-      };
-
-      return [
-        {
-          title: p1?.title || `${channel.name} Live Broadcast`,
-          time: formatTimeRange(p1?.start, p1?.stop, slot1Time),
-          duration: slotDuration,
-          progress: currentProgress,
-          description: p1?.description || p1?.desc || `Live official transmission broadcast from ${channel.name}. High definition real-time network stream.`,
-          isLive: true
-        },
-        {
-          title: p2?.title || `${channel.name} Scheduled Segment`,
-          time: formatTimeRange(p2?.start, p2?.stop, slot2Time),
-          duration: slotDuration,
-          progress: 0,
-          description: p2?.description || p2?.desc || `Upcoming featured telecast on ${channel.name} continuing the daily broadcasting schedule.`,
-          isLive: false
-        },
-        {
-          title: p3?.title || `${channel.name} Evening Prime`,
-          time: formatTimeRange(p3?.start, p3?.stop, slot3Time),
-          duration: slotDuration,
-          progress: 0,
-          description: p3?.description || p3?.desc || `Curated evening programming block and signature coverage broadcast by ${channel.name}.`,
-          isLive: false
-        }
-      ];
-    }
-
-    // 2. High-fidelity channel-specific broadcast fallback
     const chName = channel.name.trim();
     const chGroup = (channel.group || '').toLowerCase();
+    const channelSupportsCatchup = isCatchupSupported(channel);
+
+    const channelKey = channel.tvgId || channel.epgChannelId || channel.id;
+    const storePrograms = epgByChannel?.[channelKey];
 
     const getProgramDetails = (slotOffset: number) => {
       if (chName.toLowerCase().includes('nasa')) {
         const nasaSchedule = [
           { t: "NASA Live: ISS Expedition Earth View & Telemetry", d: "High-definition real-time live video downlinks directly from the International Space Station in low Earth orbit." },
           { t: "Artemis & Deep Space Exploration Briefing", d: "Technical progress briefing on lunar orbital architecture, SLS rocketry, and upcoming crewed exploration missions." },
-          { t: "Hubble & James Webb Deep-Field Astrophysics", d: "Spectroscopic data analysis and deep universe imaging releases from cosmic infrared and space-based observatories." }
+          { t: "Hubble & James Webb Deep-Field Astrophysics", d: "Spectroscopic data analysis and deep universe imaging releases from cosmic infrared and space-based observatories." },
+          { t: "Astronaut Training & Neutral Buoyancy Lab", d: "Spacewalk training underwater simulation and orbital mechanics preparation." },
+          { t: "Solar System Horizons & Deep Space Network", d: "Telemetry links with Voyager, New Horizons, and Mars rovers across interplanetary space." }
         ];
-        return nasaSchedule[slotOffset % nasaSchedule.length];
+        return nasaSchedule[((slotOffset % nasaSchedule.length) + nasaSchedule.length) % nasaSchedule.length];
       }
 
       if (chName.toLowerCase().includes('dw') || chName.toLowerCase().includes('deutsche')) {
         const dwSchedule = [
           { t: "DW News Live: Global Geopolitics & Headlines", d: "Comprehensive international news coverage, European economic analysis, and investigative journalism live from Berlin." },
           { t: "Conflict Zone: In-Depth Political Interviews", d: "Hard-hitting global interviews questioning world leaders, diplomats, and policy architects on burning global events." },
-          { t: "Made in Germany: Technology & Industry Report", d: "Global economic trends, green energy transitions, and technological innovation shaping worldwide markets." }
+          { t: "Made in Germany: Technology & Industry Report", d: "Global economic trends, green energy transitions, and technological innovation shaping worldwide markets." },
+          { t: "DW Documentaries: Human Perspectives", d: "In-depth investigative reports examining society, technology, and ecology across continents." },
+          { t: "Global 3000: The Globalization Program", d: "Exploring the people and ideas shaping global economy and sustainable development." }
         ];
-        return dwSchedule[slotOffset % dwSchedule.length];
+        return dwSchedule[((slotOffset % dwSchedule.length) + dwSchedule.length) % dwSchedule.length];
       }
 
       if (chName.toLowerCase().includes('sky news')) {
         const skySchedule = [
           { t: "Sky News Live: Breaking Headlines & Analysis", d: "Continuous rolling live breaking news, press conferences, financial developments, and field reports from worldwide correspondents." },
           { t: "The Daily with Sky News: Politics Live", d: "Westminster and international political debate, parliamentary cross-examination, and editorial insight." },
-          { t: "Sky World News Tonight", d: "Extensive evening round-up analyzing global diplomacy, climate policy, and international humanitarian developments." }
+          { t: "Sky World News Tonight", d: "Extensive evening round-up analyzing global diplomacy, climate policy, and international humanitarian developments." },
+          { t: "Sky Financial Markets Review", d: "Global equity markets, currency movements, central bank interest rates, and commodity tracking." }
         ];
-        return skySchedule[slotOffset % skySchedule.length];
-      }
-
-      if (chName.toLowerCase().includes('france 24')) {
-        const franceSchedule = [
-          { t: "France 24 Live: International News in English", d: "Worldwide perspectives, French diplomatic coverage, and comprehensive African & European geopolitical reporting." },
-          { t: "The Debate: Global Affairs Round Table", d: "Panels of international journalists and diplomats debating international diplomacy, multilateral treaties, and global flashpoints." },
-          { t: "Eye on the Americas & Perspective", d: "Culture, technology, and transatlantic economic cooperation in-depth feature broadcasts." }
-        ];
-        return franceSchedule[slotOffset % franceSchedule.length];
-      }
-
-      if (chName.toLowerCase().includes('red bull')) {
-        const redbullSchedule = [
-          { t: "Red Bull Action Sports: Rampage & Downhill Live", d: "High-octane extreme sports coverage, downhill mountain biking finals, and wingsuit cliff descents." },
-          { t: "Mind of the Athlete: Pushing Human Endurance", d: "Sports science documentary examining psychological resilience, high-altitude acclimatization, and reflex training." },
-          { t: "World of Red Bull: Global Expeditions", d: "Spectacular cinematic journeys across remote mountain ranges, arctic surf breaks, and desert rallies." }
-        ];
-        return redbullSchedule[slotOffset % redbullSchedule.length];
+        return skySchedule[((slotOffset % skySchedule.length) + skySchedule.length) % skySchedule.length];
       }
 
       if (chGroup.includes('news')) {
         const newsTitles = [
           { t: `${chName} Rolling News Live`, d: `Live rolling news updates, field dispatches, and breaking analytical commentary curated by ${chName}.` },
           { t: `${chName} Global Financial & Market Hour`, d: `Real-time macroeconomic tracking, market indices, commodities, and currency movements broadcast by ${chName}.` },
-          { t: `${chName} Nightly World Report`, d: `Comprehensive daily wrap-up reviewing international diplomacy, investigative journalism, and cultural features.` }
+          { t: `${chName} Nightly World Report`, d: `Comprehensive daily wrap-up reviewing international diplomacy, investigative journalism, and cultural features.` },
+          { t: `${chName} Prime Headlines & Debate`, d: `Panel analysis and editorial debrief of leading breaking world headlines.` }
         ];
-        return newsTitles[slotOffset % newsTitles.length];
+        return newsTitles[((slotOffset % newsTitles.length) + newsTitles.length) % newsTitles.length];
       }
 
       if (chGroup.includes('sport')) {
         const sportsTitles = [
           { t: `${chName} Matchday Live & Highlights`, d: `Live match telecasts, tactical formation breakdowns, and post-game player interviews on ${chName}.` },
           { t: `${chName} Sports Center & Global League Review`, d: `Scores, standings, injury reports, and expert studio analysis across premier continental leagues.` },
-          { t: `${chName} Classic Encounters & Documentaries`, d: `Historical tournament retrospectives and archival footage celebrating memorable sports championship moments.` }
+          { t: `${chName} Classic Encounters & Documentaries`, d: `Historical tournament retrospectives and archival footage celebrating memorable sports championship moments.` },
+          { t: `${chName} European Championship Hour`, d: `High-definition sports coverage and tactical debate across continental championships.` }
         ];
-        return sportsTitles[slotOffset % sportsTitles.length];
+        return sportsTitles[((slotOffset % sportsTitles.length) + sportsTitles.length) % sportsTitles.length];
       }
 
       const genericBroadcasts = [
         { t: `${chName} Live Broadcast Stream`, d: `Official live feed and primary continuous transmission delivered by ${chName} in full resolution.` },
         { t: `${chName} Scheduled Showcase`, d: `Curated programming segment featuring documentary highlights and weekly special features on ${chName}.` },
-        { t: `${chName} Late Prime Sequence`, d: `Evening programming block delivering archival recordings, culture, and signature network features.` }
+        { t: `${chName} Late Prime Sequence`, d: `Evening programming block delivering archival recordings, culture, and signature network features.` },
+        { t: `${chName} Morning Spectrum`, d: `Morning telecast review covering culture, technology, and regional spotlight telecasts.` }
       ];
-      return genericBroadcasts[slotOffset % genericBroadcasts.length];
+      return genericBroadcasts[((slotOffset % genericBroadcasts.length) + genericBroadcasts.length) % genericBroadcasts.length];
     };
 
-    const p1 = getProgramDetails(0);
-    const p2 = getProgramDetails(1);
-    const p3 = getProgramDetails(2);
+    const slots: Show[] = [];
+    for (let sidx = 0; sidx < 3; sidx++) {
+      const effectiveOffset = timelineOffsetHours + sidx;
+      const isPast = effectiveOffset < 0;
+      const isLive = effectiveOffset === 0;
+      const progress = isLive ? currentProgress : isPast ? 100 : 0;
+      const isCatchupAvailable = isPast && channelSupportsCatchup;
 
-    return [
-      {
-        title: p1.t,
-        time: slot1Time,
-        duration: slotDuration,
-        progress: currentProgress,
-        description: p1.d,
-        isLive: true
-      },
-      {
-        title: p2.t,
-        time: slot2Time,
-        duration: slotDuration,
-        progress: 0,
-        description: p2.d,
-        isLive: false
-      },
-      {
-        title: p3.t,
-        time: slot3Time,
-        duration: slotDuration,
-        progress: 0,
-        description: p3.d,
-        isLive: false
+      const showStart = new Date(now.getTime() + effectiveOffset * 3600000);
+      showStart.setMinutes(0, 0, 0);
+
+      const slotTime = `${formatHour(currentHour + effectiveOffset)} - ${formatHour(currentHour + effectiveOffset + 1)}`;
+
+      // Check if store program matches
+      let title = '';
+      let description = '';
+
+      if (storePrograms && storePrograms.length > 0) {
+        const pIdx = Math.max(0, Math.min(storePrograms.length - 1, sidx + Math.max(0, timelineOffsetHours)));
+        const p = storePrograms[pIdx];
+        if (p) {
+          title = p.title || '';
+          description = p.description || p.desc || '';
+        }
       }
-    ];
-  }, [currentHour, epgByChannel]);
+
+      if (!title) {
+        const p = getProgramDetails(effectiveOffset);
+        title = isPast ? `[Archived] ${p.t}` : p.t;
+        description = p.d;
+      }
+
+      slots.push({
+        title,
+        time: slotTime,
+        duration: slotDuration,
+        progress,
+        description,
+        isLive,
+        isPast,
+        startTimestamp: showStart,
+        isCatchupAvailable
+      });
+    }
+
+    return slots;
+  }, [currentHour, timelineOffsetHours, epgByChannel, now]);
 
   // Auto-select first channel and first show for immediate inspector preview
   React.useEffect(() => {
@@ -447,6 +422,75 @@ export default function DesktopEpg() {
           )}
         </div>
       ) : (
+        {/* HORIZONTAL TIMELINE SCRUBBER RIBBON */}
+        <div className="bg-[#121316] border border-white/10 rounded-2xl p-3 flex flex-col md:flex-row items-center justify-between gap-3 shadow-lg">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setTimelineOffsetHours(prev => Math.max(-12, prev - 1))}
+              className="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+              title="Rewind timetable 1 hour"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+              <span>Earlier</span>
+            </button>
+
+            {/* Quick Timeline Hour Jumpers */}
+            <div className="flex items-center gap-1 overflow-x-auto scrollbar-none py-0.5">
+              {[-3, -2, -1, 0, 1, 2, 3].map((offset) => {
+                const isSelected = timelineOffsetHours === offset;
+                const isLiveHour = offset === 0;
+                const h = currentHour + offset;
+                const label = isLiveHour ? 'LIVE' : formatHour(h).split(' ')[0];
+                return (
+                  <button
+                    key={offset}
+                    onClick={() => setTimelineOffsetHours(offset)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold font-mono transition-all cursor-pointer ${
+                      isSelected
+                        ? isLiveHour
+                          ? 'bg-emerald-500 text-black shadow-md shadow-emerald-500/25 font-black'
+                          : 'bg-cyan-500 text-black shadow-md shadow-cyan-500/25 font-black'
+                        : isLiveHour
+                        ? 'bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/30'
+                        : offset < 0
+                        ? 'bg-purple-950/30 text-purple-300 hover:bg-purple-900/40 border border-purple-800/30'
+                        : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={() => setTimelineOffsetHours(prev => Math.min(12, prev + 1))}
+              className="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+              title="Advance timetable 1 hour"
+            >
+              <span>Later</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {timelineOffsetHours !== 0 && (
+              <button
+                onClick={() => setTimelineOffsetHours(0)}
+                className="px-3 py-1.5 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm cursor-pointer"
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
+                <span>Jump to Live Now</span>
+              </button>
+            )}
+
+            <div className="flex items-center gap-1 text-[11px] text-zinc-400 font-mono bg-white/5 px-2.5 py-1 rounded-xl border border-white/5">
+              <Clock className="w-3 h-3 text-cyan-400" />
+              <span>Timezone: {selectedTimezone === 'local' || !selectedTimezone ? 'Local' : selectedTimezone.split('/').pop()?.replace(/_/g, ' ')}</span>
+            </div>
+          </div>
+        </div>
+
         /* TIMELINE GRID & INSPECTOR SPLIT */
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-stretch">
           {/* Main Grid View */}
@@ -457,17 +501,35 @@ export default function DesktopEpg() {
                 <Tv className="w-3.5 h-3.5 text-cyan-400" />
                 <span>Network Feed</span>
               </div>
-              <div className="col-span-3 flex items-center gap-1.5 text-cyan-300">
-                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping inline-block" />
-                <span>{slot1Label}</span>
+              <div className={`col-span-3 flex items-center gap-1.5 ${slot1Meta.isLive ? 'text-emerald-300' : slot1Meta.isPast ? 'text-purple-300' : 'text-zinc-300'}`}>
+                {slot1Meta.isLive ? (
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
+                ) : slot1Meta.isPast ? (
+                  <RotateCcw className="w-3.5 h-3.5 text-purple-400" />
+                ) : (
+                  <Clock className="w-3.5 h-3.5 text-zinc-400" />
+                )}
+                <span>{slot1Meta.label}</span>
               </div>
-              <div className="col-span-3 flex items-center gap-1.5 text-zinc-300">
-                <Clock className="w-3.5 h-3.5 text-zinc-400" />
-                <span>{slot2Label}</span>
+              <div className={`col-span-3 flex items-center gap-1.5 ${slot2Meta.isLive ? 'text-emerald-300' : slot2Meta.isPast ? 'text-purple-300' : 'text-zinc-300'}`}>
+                {slot2Meta.isLive ? (
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
+                ) : slot2Meta.isPast ? (
+                  <RotateCcw className="w-3.5 h-3.5 text-purple-400" />
+                ) : (
+                  <Clock className="w-3.5 h-3.5 text-zinc-400" />
+                )}
+                <span>{slot2Meta.label}</span>
               </div>
-              <div className="col-span-3 flex items-center gap-1.5 text-zinc-300">
-                <Clock className="w-3.5 h-3.5 text-zinc-400" />
-                <span>{slot3Label}</span>
+              <div className={`col-span-3 flex items-center gap-1.5 ${slot3Meta.isLive ? 'text-emerald-300' : slot3Meta.isPast ? 'text-purple-300' : 'text-zinc-300'}`}>
+                {slot3Meta.isLive ? (
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
+                ) : slot3Meta.isPast ? (
+                  <RotateCcw className="w-3.5 h-3.5 text-purple-400" />
+                ) : (
+                  <Clock className="w-3.5 h-3.5 text-zinc-400" />
+                )}
+                <span>{slot3Meta.label}</span>
               </div>
             </div>
 
@@ -530,6 +592,10 @@ export default function DesktopEpg() {
                               ? isShowSelected
                                 ? 'bg-cyan-950/60 border-cyan-400 ring-2 ring-cyan-400/40'
                                 : 'bg-gradient-to-br from-cyan-950/30 to-zinc-900/90 border-cyan-500/40 hover:border-cyan-400 hover:bg-cyan-950/40'
+                              : show.isPast
+                              ? isShowSelected
+                                ? 'bg-purple-950/50 border-purple-400 ring-2 ring-purple-400/40'
+                                : 'bg-zinc-900/50 border-purple-900/20 hover:border-purple-700/40 hover:bg-purple-950/20'
                               : isShowSelected
                                 ? 'bg-zinc-800 border-cyan-400 ring-2 ring-cyan-400/40'
                                 : 'bg-zinc-900/80 border-white/10 hover:bg-zinc-800/90 hover:border-white/20'
@@ -543,6 +609,17 @@ export default function DesktopEpg() {
                               {show.isLive && (
                                 <span className="text-[8px] font-black px-1.5 py-0.2 bg-emerald-500/20 text-emerald-300 rounded border border-emerald-500/30 uppercase tracking-wide">
                                   LIVE
+                                </span>
+                              )}
+                              {show.isPast && show.isCatchupAvailable && (
+                                <span className="text-[8px] font-black px-1.5 py-0.2 bg-amber-500/20 text-amber-300 rounded border border-amber-500/30 uppercase tracking-wide flex items-center gap-0.5">
+                                  <RotateCcw className="w-2.5 h-2.5" />
+                                  <span>REPLAY</span>
+                                </span>
+                              )}
+                              {show.isPast && !show.isCatchupAvailable && (
+                                <span className="text-[8px] font-bold px-1 py-0.2 text-zinc-500 uppercase tracking-wider">
+                                  ENDED
                                 </span>
                               )}
                             </div>
@@ -722,15 +799,35 @@ export default function DesktopEpg() {
                   </button>
                 </div>
 
-                {/* Launch Button */}
-                <button
-                  onClick={() => handlePlayInSimulator(selectedChannel)}
-                  className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-xl shadow-cyan-500/25 transition-all cursor-pointer transform active:scale-[0.99]"
-                  aria-label="Launch stream in simulator"
-                >
-                  <Play className="w-4 h-4 fill-current" />
-                  <span>Launch Stream in Simulator</span>
-                </button>
+                {/* Launch / Catch-Up Replay Button */}
+                {selectedShow.isPast && selectedShow.isCatchupAvailable ? (
+                  <button
+                    onClick={() => {
+                      const catchupUrl = buildCatchupUrl(
+                        selectedChannel,
+                        selectedShow.startTimestamp || new Date(),
+                        selectedShow.duration,
+                        { serverTimezone: selectedChannel.timezone || selectedTimezone }
+                      );
+                      const targetUrl = catchupUrl || selectedChannel.url;
+                      simRouter.push(`/player/${selectedChannel.id}?catchupUrl=${encodeURIComponent(targetUrl)}&catchupTitle=${encodeURIComponent(selectedShow.title)}`);
+                    }}
+                    className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-xl shadow-amber-500/25 transition-all cursor-pointer transform active:scale-[0.99]"
+                    aria-label="Play Catch-Up Replay in simulator"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    <span>Watch Catch-Up Replay</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => handlePlayInSimulator(selectedChannel)}
+                    className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-xl shadow-cyan-500/25 transition-all cursor-pointer transform active:scale-[0.99]"
+                    aria-label="Launch stream in simulator"
+                  >
+                    <Play className="w-4 h-4 fill-current" />
+                    <span>Launch Stream in Simulator</span>
+                  </button>
+                )}
               </div>
             ) : (
               <div className="border border-white/10 rounded-3xl p-6 h-full min-h-[300px] flex flex-col items-center justify-center text-center bg-[#121316]">

@@ -96,9 +96,15 @@ export function VideoPlayer({
 
   const [activeCandidateIndex, setActiveCandidateIndex] = React.useState(0);
   const [isUsingProxyRelay, setIsUsingProxyRelay] = React.useState(corsProxyRecommended);
-  const [formatOverrideUrl, setFormatOverrideUrl] = React.useState<string | null>(null);
   const [diagnostic, setDiagnostic] = React.useState<PlaybackDiagnostic | null>(null);
   const [hasAttemptedAutoTsFallback, setHasAttemptedAutoTsFallback] = React.useState(false);
+  const [catchupTitle, setCatchupTitle] = React.useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('catchupTitle');
+    }
+    return null;
+  });
 
   // Compute actual active stream URL (either candidate or proxy wrapped)
   const activeRawUrl = streamCandidates[activeCandidateIndex] || streamUrl;
@@ -116,11 +122,23 @@ export function VideoPlayer({
     setIsRadioMode(isRadioChannel);
   }, [isRadioChannel]);
 
-  // Reset overrides and resolve Stalker links when channel source changes
+  // Reset overrides and resolve Stalker/Catchup links when channel source changes
   React.useEffect(() => {
     setFormatOverrideUrl(null);
     setDiagnostic(null);
     setHasAttemptedAutoTsFallback(false);
+
+    // Check catchupUrl query param
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const cUrl = params.get('catchupUrl');
+      const cTitle = params.get('catchupTitle');
+      if (cUrl) {
+        setFormatOverrideUrl(decodeURIComponent(cUrl));
+        if (cTitle) setCatchupTitle(decodeURIComponent(cTitle));
+        return;
+      }
+    }
 
     // Stalker on-demand link resolution (create_link)
     const matchingChannel = channels.find(c => c.name === channelName || c.url === streamUrl);
@@ -177,6 +195,14 @@ export function VideoPlayer({
     cancelActiveRecording,
     subtitleConfig
   } = usePlayerStore();
+
+  const isCatchupStream = React.useMemo(() => {
+    return Boolean(catchupTitle) || 
+           baseStreamUrl.includes('/timeshift/') || 
+           baseStreamUrl.includes('/archive-') ||
+           baseStreamUrl.includes('utc=') ||
+           baseStreamUrl.includes('timeshift=');
+  }, [baseStreamUrl, catchupTitle]);
 
   const activeEffectiveUrl = React.useMemo(() => {
     let finalUrl = baseStreamUrl;
@@ -890,11 +916,21 @@ export function VideoPlayer({
               </TouchableOpacity>
             )}
             <View style={styles.titleContainer}>
-              <Text numberOfLines={1} style={styles.hudTitle}>
-                {channelName}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text numberOfLines={1} style={styles.hudTitle}>
+                  {channelName}
+                </Text>
+                {isCatchupStream && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(245, 158, 11, 0.2)', borderColor: 'rgba(245, 158, 11, 0.4)', borderWidth: 1, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 999 }}>
+                    <RotateCcw size={10} color="#f59e0b" />
+                    <Text style={{ color: '#fcd34d', fontSize: 10, fontWeight: '700' }}>
+                      REPLAY{catchupTitle ? `: ${catchupTitle}` : ''}
+                    </Text>
+                  </View>
+                )}
+              </View>
               <Text style={styles.hudSubtitle}>
-                {groupTitle ? `${groupTitle} • ` : ''}Live HLS Stream
+                {groupTitle ? `${groupTitle} • ` : ''}{isCatchupStream ? 'Timeshift DVR Archive Stream' : 'Live HLS Stream'}
               </Text>
             </View>
 
