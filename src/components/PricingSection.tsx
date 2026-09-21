@@ -14,6 +14,18 @@ export default function PricingSection({
   onSelectBuilder
 }: PricingSectionProps) {
   const [isYearly, setIsYearly] = React.useState(false);
+  const [pricingVariant, setPricingVariant] = React.useState<'subscription' | 'lifetime'>('subscription');
+
+  React.useEffect(() => {
+    const stored = localStorage.getItem('iptv_pricing_ab_variant');
+    if (stored === 'lifetime' || stored === 'subscription') {
+      setPricingVariant(stored);
+    } else {
+      const variant = Math.random() < 0.5 ? 'subscription' : 'lifetime';
+      localStorage.setItem('iptv_pricing_ab_variant', variant);
+      setPricingVariant(variant);
+    }
+  }, []);
 
   const plans = [
     {
@@ -112,6 +124,7 @@ export default function PricingSection({
       </div>
 
       {/* Monthly vs Yearly Toggle Switcher */}
+      {pricingVariant === 'subscription' && (
       <div className="relative z-10 flex items-center gap-3 bg-zinc-900/60 p-1 border border-white/15 rounded-2xl mb-12 select-none">
         <button
           type="button"
@@ -135,13 +148,20 @@ export default function PricingSection({
           </span>
         </button>
       </div>
+      )}
 
       {/* Pricing Grid */}
       <div className="relative z-10 w-full grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 max-w-6xl items-stretch">
         {plans.map((plan) => {
           const PlanIcon = plan.icon;
-          const currentPrice = isYearly ? plan.priceYearly : plan.priceMonthly;
-          const isFree = plan.priceMonthly === 0;
+                    const isFree = plan.priceMonthly === 0;
+          let currentPrice = isYearly ? plan.priceYearly : plan.priceMonthly;
+          let billingText = isYearly ? `Billed annually (${(plan.priceMonthly * 12 * 0.8).toFixed(2)}/yr)` : '/ month';
+            
+          if (pricingVariant === 'lifetime' && !isFree) {
+            currentPrice = plan.id === 'pro' ? 99 : 299;
+            billingText = 'One-time payment (Lifetime access)';
+          }
 
           return (
             <div
@@ -195,14 +215,14 @@ export default function PricingSection({
                         {isFree ? '0' : currentPrice.toFixed(2)}
                       </motion.span>
                     </AnimatePresence>
-                    {!isFree && (
+                    {!isFree && pricingVariant === 'subscription' && (
                       <span className="text-[10px] text-zinc-500 font-bold ml-1">/ month</span>
                     )}
                   </div>
-                  {isYearly && !isFree && (
+                  {!isFree && (
                     <p className="text-[9px] text-emerald-400 font-bold mt-1.5 flex items-center gap-1">
-                      <Gift className="w-3 h-3" />
-                      Billed annually (${(currentPrice * 12).toFixed(2)}/yr)
+                      {pricingVariant === 'subscription' && isYearly && <Gift className="w-3 h-3" />}
+                      {billingText}
                     </p>
                   )}
                   {isFree && (

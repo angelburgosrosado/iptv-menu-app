@@ -27,22 +27,26 @@ export async function createCheckoutSession(
   priceId: string,
   successUrl: string,
   cancelUrl: string,
-  metadata: Record<string, string>
+  metadata: Record<string, string>,
+  mode: 'subscription' | 'payment' = 'subscription'
 ): Promise<string> {
   try {
     const stripe = getStripeClient();
     
     const sessionParams: Stripe.Checkout.SessionCreateParams = {
-      mode: 'subscription',
+      mode,
       payment_method_types: ['card'],
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: successUrl,
       cancel_url: cancelUrl,
       metadata,
-      subscription_data: {
-        metadata,
-      },
     };
+
+    if (mode === 'subscription') {
+      sessionParams.subscription_data = {
+        metadata,
+      };
+    }
 
     if (customerId) {
       sessionParams.customer = customerId;
@@ -51,7 +55,7 @@ export async function createCheckoutSession(
     }
 
     const session = await stripe.checkout.sessions.create(sessionParams);
-    logger.info(`Stripe checkout session created successfully`, { sessionId: session.id, email: userEmail });
+    logger.info(`Stripe checkout session created successfully`, { sessionId: session.id, email: userEmail, mode });
     return session.url!;
   } catch (error) {
     logger.error('Failed to create checkout session', error);

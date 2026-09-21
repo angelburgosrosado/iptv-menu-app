@@ -13,6 +13,12 @@ export interface AppEnvConfig {
   FIREBASE_STORAGE_BUCKET: string;
   STRIPE_SECRET_KEY: string;
   STRIPE_WEBHOOK_SECRET: string;
+  STRIPE_PRICE_PRO_MONTHLY?: string;
+  STRIPE_PRICE_PRO_YEARLY?: string;
+  STRIPE_PRICE_PRO_LIFETIME?: string;
+  STRIPE_PRICE_BUILDER_MONTHLY?: string;
+  STRIPE_PRICE_BUILDER_YEARLY?: string;
+  STRIPE_PRICE_BUILDER_LIFETIME?: string;
   GCS_UPLOAD_BUCKET: string;
   GCS_OUTPUT_BUCKET: string;
   GCS_BUILD_BUCKET: string;
@@ -35,6 +41,12 @@ export const config: AppEnvConfig = {
   FIREBASE_STORAGE_BUCKET: process.env.FIREBASE_STORAGE_BUCKET || `${process.env.FIREBASE_PROJECT_ID}.appspot.com`,
   STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY || '',
   STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET || '',
+  STRIPE_PRICE_PRO_MONTHLY: process.env.STRIPE_PRICE_PRO_MONTHLY || 'price_1UHwUyKXruwBPCzFT7aMvpJ6',
+  STRIPE_PRICE_PRO_YEARLY: process.env.STRIPE_PRICE_PRO_YEARLY || 'price_1UHwUzKXruwBPCzF2iAGrzwY',
+  STRIPE_PRICE_PRO_LIFETIME: process.env.STRIPE_PRICE_PRO_LIFETIME || 'price_1UHwUzKXruwBPCzFk6J0hUie',
+  STRIPE_PRICE_BUILDER_MONTHLY: process.env.STRIPE_PRICE_BUILDER_MONTHLY || 'price_1UHwUzKXruwBPCzFCGewmHQf',
+  STRIPE_PRICE_BUILDER_YEARLY: process.env.STRIPE_PRICE_BUILDER_YEARLY || 'price_1UHwUzKXruwBPCzF4WJ4W6hQ',
+  STRIPE_PRICE_BUILDER_LIFETIME: process.env.STRIPE_PRICE_BUILDER_LIFETIME || 'price_1UHwUzKXruwBPCzFfophCqlM',
   GCS_UPLOAD_BUCKET: process.env.GCS_UPLOAD_BUCKET || 'iptv-menu-prod-user-uploads',
   GCS_OUTPUT_BUCKET: process.env.GCS_OUTPUT_BUCKET || 'iptv-menu-prod-generated-assets',
   GCS_BUILD_BUCKET: process.env.GCS_BUILD_BUCKET || 'iptv-menu-prod-build-artifacts',

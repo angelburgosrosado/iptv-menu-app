@@ -31,7 +31,7 @@ VALUES (
 
 ### Method B: Via REST API
 ```bash
-curl -X PATCH https://api.iptv.menu/api/admin/users/<TARGET_UID>/role \
+curl -X PATCH https://iptv.menu/api/admin/users/<TARGET_UID>/role \
   -H "Authorization: Bearer <ADMIN_ID_TOKEN>" \
   -H "Content-Type: application/json" \
   -d '{"role": "admin"}'
@@ -55,7 +55,7 @@ When a user violates platform guidelines, suspend their account and drop active 
    ```
 2. **Revoke Auth Tokens via REST API**:
    ```bash
-   curl -X PATCH https://api.iptv.menu/api/admin/users/<TARGET_UID>/status \
+   curl -X PATCH https://iptv.menu/api/admin/users/<TARGET_UID>/status \
      -H "Authorization: Bearer <ADMIN_ID_TOKEN>" \
      -H "Content-Type: application/json" \
      -d '{"status": "suspended"}'

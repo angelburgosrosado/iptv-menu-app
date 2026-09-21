@@ -30,11 +30,25 @@ interface PlanConfirmData {
   priceId: string;
   priceFormatted: string;
   tier: 'pro' | 'builder';
+  mode: 'subscription' | 'payment';
 }
 
 export default function DesktopPremium({ onTriggerAuth }: DesktopPremiumProps) {
   const auth = useAuth();
   const [billingCycle, setBillingCycle] = React.useState<'monthly' | 'yearly'>('monthly');
+  const [pricingVariant, setPricingVariant] = React.useState<'subscription' | 'lifetime'>('subscription');
+
+  React.useEffect(() => {
+    // A/B Test initialization
+    const stored = localStorage.getItem('iptv_pricing_ab_variant');
+    if (stored === 'lifetime' || stored === 'subscription') {
+      setPricingVariant(stored);
+    } else {
+      const variant = Math.random() < 0.5 ? 'subscription' : 'lifetime';
+      localStorage.setItem('iptv_pricing_ab_variant', variant);
+      setPricingVariant(variant);
+    }
+  }, []);
   const [selectedPlan, setSelectedPlan] = React.useState<string | null>(null);
   const [showCheckoutSuccess, setShowCheckoutSuccess] = React.useState(false);
   const [isProcessing, setIsProcessing] = React.useState(false);
@@ -43,16 +57,31 @@ export default function DesktopPremium({ onTriggerAuth }: DesktopPremiumProps) {
 
   const discountFactor = billingCycle === 'yearly' ? 0.8 : 1.0;
 
-  const handleOpenConfirm = (planName: string, basePriceId: string, priceFormatted: string, tier: 'pro' | 'builder') => {
+  const handleOpenConfirm = (planName: string, basePriceId: string, monthlyPrice: number, yearlyPrice: number, tier: 'pro' | 'builder') => {
     if (!auth.isLoggedIn) {
       onTriggerAuth();
       return;
     }
+    
+    let priceId = '';
+    let priceFormatted = '';
+    let mode: 'subscription' | 'payment' = 'subscription';
+
+    if (pricingVariant === 'lifetime') {
+      priceId = `${basePriceId}_lifetime`;
+      priceFormatted = `${tier === 'pro' ? '$99.00' : '$299.00'} Lifetime`;
+      mode = 'payment';
+    } else {
+      priceId = billingCycle === 'yearly' ? `${basePriceId}_yearly` : `${basePriceId}_monthly`;
+      priceFormatted = billingCycle === 'yearly' ? `$${yearlyPrice.toFixed(2)}/yr` : `$${monthlyPrice.toFixed(2)}/mo`;
+    }
+
     setConfirmModalData({
       planName,
-      priceId: billingCycle === 'yearly' ? `${basePriceId}_yearly` : `${basePriceId}_monthly`,
+      priceId,
       priceFormatted,
       tier,
+      mode
     });
   };
 
@@ -66,7 +95,8 @@ export default function DesktopPremium({ onTriggerAuth }: DesktopPremiumProps) {
         body: JSON.stringify({
           priceId: planData.priceId,
           successUrl: `${window.location.origin}?checkout=success`,
-          cancelUrl: `${window.location.origin}?checkout=cancel`
+          cancelUrl: `${window.location.origin}?checkout=cancel`,
+          mode: planData.mode
         })
       });
 
@@ -141,6 +171,7 @@ export default function DesktopPremium({ onTriggerAuth }: DesktopPremiumProps) {
         badgeColor="cyan"
       >
         {/* Monthly/Yearly toggle with 20% discount indicator */}
+        {pricingVariant === 'subscription' && (
         <div className="flex items-center gap-3">
           <div className="flex bg-black/50 p-1 border border-white/10 rounded-xl">
             <button
@@ -166,6 +197,7 @@ export default function DesktopPremium({ onTriggerAuth }: DesktopPremiumProps) {
             </button>
           </div>
         </div>
+        )}
       </PageProtocolHeader>
 
       {/* Inline Error alert if needed */}
@@ -307,8 +339,9 @@ export default function DesktopPremium({ onTriggerAuth }: DesktopPremiumProps) {
             <button
               onClick={() => handleOpenConfirm(
                 "Pro Streamer", 
-                "price_pro_subscription", 
-                `$${(9.99 * discountFactor).toFixed(2)} / month`, 
+                "price_pro", 
+                9.99,
+                95.88,
                 "pro"
               )}
               disabled={isProcessing}
@@ -372,8 +405,9 @@ export default function DesktopPremium({ onTriggerAuth }: DesktopPremiumProps) {
             <button
               onClick={() => handleOpenConfirm(
                 "App Builder Suite", 
-                "price_builder_subscription", 
-                `$${(29.99 * discountFactor).toFixed(2)} / month`, 
+                "price_builder", 
+                29.99,
+                287.88,
                 "builder"
               )}
               disabled={isProcessing}

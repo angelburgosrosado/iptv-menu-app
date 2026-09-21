@@ -44,7 +44,12 @@ export default function AuthModal({ isOpen, onClose, triggerToast }: AuthModalPr
     setAuthError(null);
 
     try {
-      const user = await authStore.login(email, password);
+      let user;
+      if (isSignUp) {
+        user = await authStore.register(email, password);
+      } else {
+        user = await authStore.login(email, password);
+      }
       
       if (typeof window !== 'undefined' && window.dataLayer && isSignUp) {
         window.dataLayer.push({

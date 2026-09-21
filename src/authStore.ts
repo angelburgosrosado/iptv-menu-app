@@ -51,7 +51,7 @@ export const authStore = {
     }
     listeners.forEach((listener) => listener());
   },
-  async login(emailInput: string, passwordInput: string): Promise<UserState> {
+  async register(emailInput: string, passwordInput: string): Promise<UserState> {
     const email = emailInput.trim().toLowerCase();
     const password = passwordInput.trim();
 
@@ -68,95 +68,62 @@ export const authStore = {
       throw new Error('Password must be at least 6 characters long.');
     }
 
-    // Direct Administrator Credentials Check
-    if (email === 'angelburgosrosado@gmail.com') {
-      if (password !== 'Admin123') {
-        throw new Error('Invalid credentials for administrator account. Check your password.');
-      }
+    const response = await fetch('/api/public/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
 
-      const uid = 'admin_angelburgos';
-      const tokenPayload = {
-        uid,
-        sub: uid,
-        email: 'angelburgosrosado@gmail.com',
-        name: 'Angel Burgos',
-        role: 'admin',
-        subscriptionTier: 'builder',
-        accountStatus: 'active'
-      };
-      const token = btoa(JSON.stringify(tokenPayload));
+    const data = await response.json();
 
-      const adminState: UserState = {
-        isLoggedIn: true,
-        email: 'angelburgosrosado@gmail.com',
-        displayName: 'Angel Burgos (CEO)',
-        role: 'admin',
-        isPremium: true,
-        token
-      };
-
-      authStore.setState(adminState);
-
-      // Async backend sync if server is reachable
-      try {
-        fetch('/api/public/auth/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password })
-        }).catch(() => null);
-      } catch (e) {
-        // Backend sync optional
-      }
-
-      return adminState;
+    if (!response.ok) {
+      throw new Error(data.error || 'Registration failed');
     }
 
-    // Standard user login / registration
-    const uid = `usr_${btoa(email).replace(/=/g, '').slice(0, 10)}`;
-    const tokenPayload = {
-      uid,
-      sub: uid,
-      email,
-      name: email.split('@')[0],
-      role: 'user',
-      subscriptionTier: 'free',
-      accountStatus: 'active'
-    };
-    const token = btoa(JSON.stringify(tokenPayload));
-
-    // Preserve premium status if this user already paid
-    const existing = authStore.getState();
-    const isReturningPremium = existing.email === email && existing.isPremium;
-
-    const standardState: UserState = {
+    const newState: UserState = {
       isLoggedIn: true,
-      email,
-      displayName: email.split('@')[0],
-      role: isReturningPremium ? existing.role : 'user',
-      isPremium: isReturningPremium,
-      token
+      email: data.user.email,
+      displayName: data.user.displayName,
+      role: data.user.role,
+      isPremium: data.user.isPremium,
+      token: data.token
     };
 
-    authStore.setState(standardState);
+    authStore.setState(newState);
+    return newState;
+  },
 
-    // Sync profile & entitlement with backend
-    try {
-      fetch('/api/me', {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-        .then(res => res.json())
-        .then(profile => {
-          if (profile && profile.role) {
-            authStore.setState({
-              role: profile.role,
-              isPremium: profile.role !== 'user' || profile.subscriptionTier !== 'free'
-            });
-          }
-        })
-        .catch(() => null);
-    } catch {}
+  async login(emailInput: string, passwordInput: string): Promise<UserState> {
+    const email = emailInput.trim().toLowerCase();
+    const password = passwordInput.trim();
 
-    return standardState;
+    if (!email || !password) {
+      throw new Error('Please enter both email and password.');
+    }
+
+    const response = await fetch('/api/public/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || 'Authentication failed');
+    }
+
+    const newState: UserState = {
+      isLoggedIn: true,
+      email: data.user.email,
+      displayName: data.user.displayName,
+      role: data.user.role,
+      isPremium: data.user.isPremium,
+      token: data.token
+    };
+
+    authStore.setState(newState);
+    return newState;
   },
   logout() {
     try {

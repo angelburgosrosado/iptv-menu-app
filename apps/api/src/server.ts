@@ -173,8 +173,69 @@ app.post('/api/public/contact', async (req, res) => {
 });
 
 // ==========================================
-// AUTHENTICATION & LOGIN (PUBLIC API)
+// AUTHENTICATION & REGISTRATION (PUBLIC API)
 // ==========================================
+
+// 1. REGISTER
+app.post('/api/public/auth/register', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required.' });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    
+    // Check if user exists
+    const existingUser = await userRepo.getUserByEmail(normalizedEmail);
+    if (existingUser) {
+      return res.status(409).json({ error: 'Account already exists. Please sign in instead.' });
+    }
+
+    const uid = `usr_${Buffer.from(normalizedEmail).toString('hex').slice(0, 12)}`;
+    const tokenPayload = {
+      uid,
+      sub: uid,
+      email: normalizedEmail,
+      name: normalizedEmail.split('@')[0],
+      role: 'user',
+      subscriptionTier: 'free',
+      accountStatus: 'active'
+    };
+    const token = Buffer.from(JSON.stringify(tokenPayload)).toString('base64');
+
+    await userRepo.createUser({
+      uid,
+      email: normalizedEmail,
+      displayName: normalizedEmail.split('@')[0],
+      photoURL: null,
+      role: 'user',
+      subscriptionTier: 'free',
+      accountStatus: 'active',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+
+    return res.status(200).json({
+      success: true,
+      token,
+      user: {
+        uid,
+        email: normalizedEmail,
+        displayName: normalizedEmail.split('@')[0],
+        role: 'user',
+        subscriptionTier: 'free',
+        isPremium: false
+      }
+    });
+
+  } catch (error: any) {
+    logger.error('Auth register error', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 2. LOGIN
 app.post('/api/public/auth/login', async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -202,23 +263,19 @@ app.post('/api/public/auth/login', async (req, res) => {
       };
       const token = Buffer.from(JSON.stringify(tokenPayload)).toString('base64');
 
-      try {
-        let profile = await userRepo.getUser(uid);
-        if (!profile) {
-          await userRepo.createUser({
-            uid,
-            email: 'angelburgosrosado@gmail.com',
-            displayName: 'Angel Burgos (CEO)',
-            photoURL: null,
-            role: 'admin',
-            subscriptionTier: 'builder',
-            accountStatus: 'active',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          });
-        }
-      } catch (err) {
-        logger.warn('Could not upsert admin user record', err);
+      let profile = await userRepo.getUser(uid);
+      if (!profile) {
+        await userRepo.createUser({
+          uid,
+          email: 'angelburgosrosado@gmail.com',
+          displayName: 'Angel Burgos (CEO)',
+          photoURL: null,
+          role: 'admin',
+          subscriptionTier: 'builder',
+          accountStatus: 'active',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
       }
 
       return res.status(200).json({
@@ -235,16 +292,20 @@ app.post('/api/public/auth/login', async (req, res) => {
       });
     }
 
-    // Standard user login or auto-provision
-    const uid = `usr_${Buffer.from(normalizedEmail).toString('hex').slice(0, 12)}`;
+    // Standard user login
+    const user = await userRepo.getUserByEmail(normalizedEmail);
+    if (!user) {
+      return res.status(401).json({ error: 'Account not found. Please create an account first.' });
+    }
+
     const tokenPayload = {
-      uid,
-      sub: uid,
-      email: normalizedEmail,
-      name: normalizedEmail.split('@')[0],
-      role: 'user',
-      subscriptionTier: 'pro',
-      accountStatus: 'active'
+      uid: user.uid,
+      sub: user.uid,
+      email: user.email,
+      name: user.displayName,
+      role: user.role,
+      subscriptionTier: user.subscriptionTier,
+      accountStatus: user.accountStatus
     };
     const token = Buffer.from(JSON.stringify(tokenPayload)).toString('base64');
 
@@ -252,14 +313,15 @@ app.post('/api/public/auth/login', async (req, res) => {
       success: true,
       token,
       user: {
-        uid,
-        email: normalizedEmail,
-        displayName: normalizedEmail.split('@')[0],
-        role: 'user',
-        subscriptionTier: 'pro',
-        isPremium: true
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        role: user.role,
+        subscriptionTier: user.subscriptionTier,
+        isPremium: user.role !== 'user' || user.subscriptionTier !== 'free'
       }
     });
+
   } catch (error: any) {
     logger.error('Auth login error', error);
     res.status(500).json({ error: error.message });
@@ -1030,11 +1092,21 @@ app.delete('/api/apps/:appId', async (req: any, res) => {
   }
 });
 
+// Billing Price Resolver Map
+const STRIPE_PRICE_MAP: Record<string, string> = {
+  price_pro_monthly: config.STRIPE_PRICE_PRO_MONTHLY || 'price_1UHwUyKXruwBPCzFT7aMvpJ6',
+  price_pro_yearly: config.STRIPE_PRICE_PRO_YEARLY || 'price_1UHwUzKXruwBPCzF2iAGrzwY',
+  price_pro_lifetime: config.STRIPE_PRICE_PRO_LIFETIME || 'price_1UHwUzKXruwBPCzFk6J0hUie',
+  price_builder_monthly: config.STRIPE_PRICE_BUILDER_MONTHLY || 'price_1UHwUzKXruwBPCzFCGewmHQf',
+  price_builder_yearly: config.STRIPE_PRICE_BUILDER_YEARLY || 'price_1UHwUzKXruwBPCzF4WJ4W6hQ',
+  price_builder_lifetime: config.STRIPE_PRICE_BUILDER_LIFETIME || 'price_1UHwUzKXruwBPCzFfophCqlM',
+};
+
 // Billing
 app.post('/api/billing/create-checkout-session', async (req: any, res) => {
   try {
     const uid = req.user.uid;
-    const { priceId, successUrl, cancelUrl } = req.body;
+    const { priceId, successUrl, cancelUrl, mode = 'subscription' } = req.body;
 
     const profile = await userRepo.getUser(uid);
     if (!profile) return res.status(404).json({ error: 'User profile not found' });
@@ -1042,13 +1114,16 @@ app.post('/api/billing/create-checkout-session', async (req: any, res) => {
     // Lookup existing stripe customer id or register new
     const stripeCustomerId = await createOrRetrieveCustomer(profile.email, profile.displayName || profile.email);
     
+    const resolvedPriceId = STRIPE_PRICE_MAP[priceId] || priceId;
+
     const url = await createCheckoutSession(
       stripeCustomerId,
       profile.email,
-      priceId,
+      resolvedPriceId,
       successUrl,
       cancelUrl,
-      { uid, email: profile.email, priceId: priceId || '' }
+      { uid, email: profile.email, priceId: priceId || '', resolvedPriceId },
+      mode
     );
 
     res.json({ url });
@@ -1094,11 +1169,20 @@ const handleStripeWebhook = async (req: any, res: any) => {
     if (event.type === 'checkout.session.completed') {
       const session = event.data.object as any;
       const uid = session.metadata?.uid;
-      const planPriceId = session.line_items?.data?.[0]?.price?.id || session.metadata?.priceId;
+      const planPriceId = session.line_items?.data?.[0]?.price?.id || session.metadata?.resolvedPriceId || session.metadata?.priceId;
       
       const isBuilder = 
         planPriceId === 'price_builder_subscription' ||
         planPriceId === 'price_enterprise_tier' ||
+        planPriceId === config.STRIPE_PRICE_BUILDER_MONTHLY ||
+        planPriceId === config.STRIPE_PRICE_BUILDER_YEARLY ||
+        planPriceId === config.STRIPE_PRICE_BUILDER_LIFETIME ||
+        planPriceId === 'price_1UHwUzKXruwBPCzFCGewmHQf' ||
+        planPriceId === 'price_1UHwUzKXruwBPCzF4WJ4W6hQ' ||
+        planPriceId === 'price_1UHwUzKXruwBPCzFfophCqlM' ||
+        planPriceId === 'price_1UHvjdKXruwBPCzFuZMwZsy6' ||
+        planPriceId === 'price_1UHvjdKXruwBPCzFQm7p0Mtb' ||
+        planPriceId === 'price_1UHvjdKXruwBPCzFXp3aW0yP' ||
         planPriceId?.includes('builder') ||
         planPriceId?.includes('enterprise');
 
