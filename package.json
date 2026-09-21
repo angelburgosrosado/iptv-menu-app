@@ -11,9 +11,10 @@
   "scripts": {
     "dev": "vite --port=5173 --host=0.0.0.0",
     "build:packages": "npm --workspace=@iptv-menu/types run build && npm --workspace=@iptv-menu/logging run build && npm --workspace=@iptv-menu/config run build && npm --workspace=@iptv-menu/ui run build && npm --workspace=@iptv-menu/storage run build && npm --workspace=@iptv-menu/auth run build && npm --workspace=@iptv-menu/db run build && npm --workspace=@iptv-menu/billing run build && npm --workspace=@iptv-menu/jobs run build",
+    "build:api:bundle": "esbuild apps/api/src/server.ts --bundle --platform=node --target=node20 --outfile=api/server.cjs --format=cjs --packages=external",
     "build:web": "npm run build:packages && vite build",
-    "build": "npm run build:packages && npm --workspace=iptv-api run build && vite build",
-    "build:all": "npm run build:packages && npm --workspace=iptv-api run build && vite build",
+    "build": "npm run build:packages && npm --workspace=iptv-api run build && npm run build:api:bundle && vite build",
+    "build:all": "npm run build:packages && npm --workspace=iptv-api run build && npm run build:api:bundle && vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
