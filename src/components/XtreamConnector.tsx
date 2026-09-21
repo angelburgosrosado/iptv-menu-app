@@ -61,7 +61,7 @@ const DEFAULT_SAVED_ACCOUNTS: SavedXtreamAccount[] = [
   {
     id: 'melhata-primary',
     serverUrl: MELHATA_XTREAM_CONFIG.serverUrl,
-    username: '8rvzieximl',
+    username: '8rxzieximl',
     password: 'h1usotpevd',
     status: 'Active',
     channelCount: MELHATA_CHANNELS.length,
@@ -70,7 +70,7 @@ const DEFAULT_SAVED_ACCOUNTS: SavedXtreamAccount[] = [
   },
   {
     id: 'melhata-backup',
-    serverUrl: 'http://line.melhata.org',
+    serverUrl: 'http://line.dndnscloud.ru',
     username: 'adc7b14f9b',
     password: '8ed764a258b7',
     status: 'Line 1',
@@ -86,7 +86,7 @@ const getSavedAccounts = (): SavedXtreamAccount[] => {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        if (!parsed.some(a => a.username === '8rvzieximl')) {
+        if (!parsed.some(a => a.username === '8rxzieximl')) {
           return [DEFAULT_SAVED_ACCOUNTS[0], ...parsed];
         }
         return parsed;
@@ -264,7 +264,7 @@ export default function XtreamConnector() {
 
       if (streams.length > 0) {
         importedChannels = generateXtreamChannelList(account, streams, categories);
-      } else if (targetServerUrl.includes('melhata.org')) {
+      } else if (targetServerUrl.includes('melhata.org') || targetServerUrl.includes('dndnscloud.ru')) {
         importedChannels = createMelhataChannels(targetUsername, targetPassword, targetServerUrl);
       } else {
         importedChannels = await fetchXtreamM3uChannels(account);
@@ -275,7 +275,7 @@ export default function XtreamConnector() {
         const vodChannels = generateXtreamVodChannelList(account, vodStreams, vodCategories);
         importedChannels = [...importedChannels, ...vodChannels];
       }
-    } else if (targetServerUrl.includes('melhata.org')) {
+    } else if (targetServerUrl.includes('melhata.org') || targetServerUrl.includes('dndnscloud.ru')) {
       // Direct stream manifest mapping fallback for Melhata gateway (bypasses CORS/proxy limits)
       importedChannels = createMelhataChannels(targetUsername, targetPassword, targetServerUrl);
     }
