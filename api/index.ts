@@ -1,27 +1,28 @@
-import type { Request, Response } from 'express';
+let appInstance: any = null;
 
-let app: any;
-
-try {
-  // Prefer the pre-compiled server output from `npm run build`
-  const mod = require('../apps/api/dist/server');
-  app = mod.default || mod.app || mod;
-} catch (distErr: any) {
+export default async function handler(req: any, res: any) {
   try {
-    const mod = require('../apps/api/src/server');
-    app = mod.default || mod.app || mod;
-  } catch (srcErr: any) {
-    console.error('Failed to load server module:', { distErr: distErr?.message, srcErr: srcErr?.message });
-  }
-}
-
-export default function handler(req: Request, res: Response) {
-  if (!app) {
+    if (!appInstance) {
+      let mod: any;
+      try {
+        mod = await import('../apps/api/src/server');
+      } catch (e1) {
+        try {
+          mod = await import('../apps/api/dist/server.js');
+        } catch (e2) {
+          mod = await import('../apps/api/dist/server');
+        }
+      }
+      appInstance = mod.default || mod.app || mod;
+    }
+    return appInstance(req, res);
+  } catch (err: any) {
     return res.status(500).json({
-      error: 'API server module failed to initialize',
-      timestamp: new Date().toISOString()
+      error: 'API Serverless Invocation Error',
+      message: err?.message || String(err),
+      stack: err?.stack || null
     });
   }
-  return app(req, res);
 }
+
 
