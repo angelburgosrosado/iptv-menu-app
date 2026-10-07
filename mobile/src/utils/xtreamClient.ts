@@ -17,6 +17,11 @@ export interface XtreamStreamItem {
   category_id: string;
 }
 
+const DEFAULT_HEADERS = {
+  'User-Agent': 'VLC/3.0.18 LibVLC/3.0.18',
+  'Accept': '*/*'
+};
+
 function sanitizeBaseUrl(raw: string): string {
   let url = raw.trim().replace(/\/+$/, '');
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
@@ -38,16 +43,29 @@ export async function authenticateXtreamCodes(account: XtreamAccount): Promise<{
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-    const res = await fetch(authUrl, { signal: controller.signal });
+    const res = await fetch(authUrl, {
+      headers: DEFAULT_HEADERS,
+      signal: controller.signal
+    });
     clearTimeout(timeoutId);
 
     if (!res.ok) {
       return { success: false, error: `Server responded with HTTP ${res.status}` };
     }
 
-    const data = await res.json().catch(() => null);
-    if (!data) {
-      return { success: false, error: 'Malformed response returned from Xtream server.' };
+    const rawText = await res.text().catch(() => '');
+    if (rawText.trim().startsWith('<') || rawText.includes('<html>') || rawText.includes('<!DOCTYPE')) {
+      return {
+        success: false,
+        error: 'Error 513: Server returned an HTML web page instead of Xtream API JSON. Check your port number (e.g. :8080) and protocol (http vs https).'
+      };
+    }
+
+    let data: any = null;
+    try {
+      data = JSON.parse(rawText);
+    } catch {
+      return { success: false, error: 'Error 513: Malformed JSON syntax returned from Xtream server.' };
     }
 
     if (data.user_info && (data.user_info.auth === 1 || data.user_info.status === 'Active')) {
@@ -77,7 +95,7 @@ export async function fetchXtreamCategories(account: XtreamAccount): Promise<Rec
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 10000);
-    const res = await fetch(url, { signal: controller.signal });
+    const res = await fetch(url, { headers: DEFAULT_HEADERS, signal: controller.signal });
     clearTimeout(timeoutId);
 
     if (res.ok) {
@@ -105,7 +123,7 @@ export async function fetchXtreamStreams(account: XtreamAccount): Promise<Xtream
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 20000);
-    const res = await fetch(url, { signal: controller.signal });
+    const res = await fetch(url, { headers: DEFAULT_HEADERS, signal: controller.signal });
     clearTimeout(timeoutId);
 
     if (res.ok) {
@@ -128,7 +146,7 @@ export async function fetchXtreamM3uChannels(account: XtreamAccount): Promise<Ch
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 20000);
-    const res = await fetch(url, { signal: controller.signal });
+    const res = await fetch(url, { headers: DEFAULT_HEADERS, signal: controller.signal });
     clearTimeout(timeoutId);
 
     if (res.ok) {
