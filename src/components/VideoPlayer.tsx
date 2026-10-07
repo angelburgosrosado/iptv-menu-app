@@ -82,6 +82,28 @@ export function VideoPlayer({
   enableKeyboardNavigation = true,
   onStreamSourceChange
 }: VideoPlayerProps) {
+  // Player store state & actions (called first to guarantee initialization before effects)
+  const { 
+    channels,
+    addBookmark, 
+    removeBookmark, 
+    isChannelBookmarked, 
+    activeSubscriptionId,
+    subscriptions,
+    scheduleRecording, 
+    sleepTimer, 
+    audioDsp,
+    parentalControls,
+    isChannelLocked,
+    toggleChannelLock,
+    activeRecording,
+    startActiveRecording,
+    updateActiveRecordingProgress,
+    stopActiveRecording,
+    cancelActiveRecording,
+    subtitleConfig
+  } = usePlayerStore();
+
   // Build deduplicated list of stream candidates
   const streamCandidates = React.useMemo(() => {
     const list: string[] = [];
@@ -96,6 +118,7 @@ export function VideoPlayer({
 
   const [activeCandidateIndex, setActiveCandidateIndex] = React.useState(0);
   const [isUsingProxyRelay, setIsUsingProxyRelay] = React.useState(corsProxyRecommended);
+  const [formatOverrideUrl, setFormatOverrideUrl] = React.useState<string | null>(null);
   const [diagnostic, setDiagnostic] = React.useState<PlaybackDiagnostic | null>(null);
   const [hasAttemptedAutoTsFallback, setHasAttemptedAutoTsFallback] = React.useState(false);
   const [catchupTitle, setCatchupTitle] = React.useState<string | null>(() => {
@@ -105,6 +128,23 @@ export function VideoPlayer({
     }
     return null;
   });
+
+  const [isPlaying, setIsPlaying] = React.useState(true);
+  const [isMuted, setIsMuted] = React.useState(false);
+  const [volume, setVolume] = React.useState(1.0);
+  const [hasError, setHasError] = React.useState(false);
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [retryCount, setRetryCount] = React.useState(0);
+  const [showControls, setShowControls] = React.useState(true);
+  const [isFullscreen, setIsFullscreen] = React.useState(false);
+  const [volumeHudText, setVolumeHudText] = React.useState<string | null>(null);
+  const [channelHudText, setChannelHudText] = React.useState<string | null>(null);
+  const [showTrackModal, setShowTrackModal] = React.useState<'audio' | 'subtitle' | null>(null);
+  const [showDiagnostics, setShowDiagnostics] = React.useState(false);
+  const [showSleepTimer, setShowSleepTimer] = React.useState(false);
+  const [showEqualizer, setShowEqualizer] = React.useState(false);
+  const [showParentalModal, setShowParentalModal] = React.useState(false);
+  const [showSubtitleSettings, setShowSubtitleSettings] = React.useState(false);
 
   // Compute actual active stream URL (either candidate or proxy wrapped)
   const activeRawUrl = streamCandidates[activeCandidateIndex] || streamUrl;
@@ -157,44 +197,6 @@ export function VideoPlayer({
       }
     }
   }, [streamUrl, activeCandidateIndex, channelName, channels]);
-
-  const [isPlaying, setIsPlaying] = React.useState(true);
-  const [isMuted, setIsMuted] = React.useState(false);
-  const [volume, setVolume] = React.useState(1.0);
-  const [hasError, setHasError] = React.useState(false);
-  const [isLoading, setIsLoading] = React.useState(true);
-  const [retryCount, setRetryCount] = React.useState(0);
-  const [showControls, setShowControls] = React.useState(true);
-  const [isFullscreen, setIsFullscreen] = React.useState(false);
-  const [volumeHudText, setVolumeHudText] = React.useState<string | null>(null);
-  const [channelHudText, setChannelHudText] = React.useState<string | null>(null);
-  const [showTrackModal, setShowTrackModal] = React.useState<'audio' | 'subtitle' | null>(null);
-  const [showDiagnostics, setShowDiagnostics] = React.useState(false);
-  const [showSleepTimer, setShowSleepTimer] = React.useState(false);
-  const [showEqualizer, setShowEqualizer] = React.useState(false);
-  const [showParentalModal, setShowParentalModal] = React.useState(false);
-  const [showSubtitleSettings, setShowSubtitleSettings] = React.useState(false);
-
-  const { 
-    channels,
-    addBookmark, 
-    removeBookmark, 
-    isChannelBookmarked, 
-    activeSubscriptionId,
-    subscriptions,
-    scheduleRecording, 
-    sleepTimer, 
-    audioDsp,
-    parentalControls,
-    isChannelLocked,
-    toggleChannelLock,
-    activeRecording,
-    startActiveRecording,
-    updateActiveRecordingProgress,
-    stopActiveRecording,
-    cancelActiveRecording,
-    subtitleConfig
-  } = usePlayerStore();
 
   const isCatchupStream = React.useMemo(() => {
     return Boolean(catchupTitle) || 

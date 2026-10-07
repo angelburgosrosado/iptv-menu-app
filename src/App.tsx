@@ -38,9 +38,10 @@ import AuthModal from './components/AuthModal';
 import WorkspaceSwitcher from './components/WorkspaceSwitcher';
 import FloatingPiPPlayer from './components/FloatingPiPPlayer';
 import WebCinemaPlayer from './components/WebCinemaPlayer';
-import BuilderPage from './pages/BuilderPage';
-import PricingPage from './pages/PricingPage';
-import AdminPage from './pages/AdminPage';
+
+const BuilderPage = React.lazy(() => import('./pages/BuilderPage'));
+const PricingPage = React.lazy(() => import('./pages/PricingPage'));
+const AdminPage = React.lazy(() => import('./pages/AdminPage'));
 
 import { Channel } from './types/iptv';
 import { usePlayerStore } from './store/usePlayerStore';
@@ -330,21 +331,26 @@ export default function App() {
       </header>
 
       {/* 2. PAGE ROUTING RENDERER */}
-      {currentRoute === 'builder' ? (
-        <BuilderPage onBackToPlayer={() => navigate('/')} />
-      ) : currentRoute === 'pricing' ? (
-        <PricingPage
-          onBackToPlayer={() => navigate('/')}
-          onOpenAuth={() => setIsAuthModalOpen(true)}
-        />
-      ) : currentRoute === 'admin' ? (
-        <AdminPage
-          onBackToPlayer={() => navigate('/')}
-          onOpenAuth={() => setIsAuthModalOpen(true)}
-        />
-      ) : (
-        /* PRIMARY FULL-WIDTH WATCH TV EXPERIENCE */
-        <div className="flex-1 w-full max-w-[1700px] mx-auto p-4 md:p-6 lg:p-8 pb-24 md:pb-8 flex flex-col gap-6 relative z-10 min-h-0">
+      <React.Suspense fallback={
+        <div className="flex-1 w-full flex items-center justify-center p-12">
+          <div className="w-8 h-8 border-2 border-cyan-400 border-t-transparent rounded-full animate-spin" />
+        </div>
+      }>
+        {currentRoute === 'builder' ? (
+          <BuilderPage onBackToPlayer={() => navigate('/')} />
+        ) : currentRoute === 'pricing' ? (
+          <PricingPage
+            onBackToPlayer={() => navigate('/')}
+            onOpenAuth={() => setIsAuthModalOpen(true)}
+          />
+        ) : currentRoute === 'admin' ? (
+          <AdminPage
+            onBackToPlayer={() => navigate('/')}
+            onOpenAuth={() => setIsAuthModalOpen(true)}
+          />
+        ) : (
+          /* PRIMARY FULL-WIDTH WATCH TV EXPERIENCE */
+          <div className="flex-1 w-full max-w-[1700px] mx-auto p-4 md:p-6 lg:p-8 pb-24 md:pb-8 flex flex-col gap-6 relative z-10 min-h-0">
           <div id="workspace-section" className="flex-1 flex flex-col md:flex-row gap-6 lg:gap-8 items-stretch min-h-0">
             
             {/* Left Sidebar Navigation */}
@@ -492,6 +498,7 @@ export default function App() {
           })}
         </div>
       )}
+      </React.Suspense>
 
       {/* Global Modals */}
       <AuthModal 
