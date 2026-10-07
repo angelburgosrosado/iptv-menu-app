@@ -55,6 +55,10 @@ export interface AppState {
   epgSources: EpgSource[];
   epgByChannel: Record<string, any>;
 
+  // Xtream Codes Account Management
+  xtreamAccount: XtreamAccount | null;
+  savedXtreamAccounts: XtreamAccount[];
+
   // Async Loading States
   isLoading: boolean;
   parseProgress: number; // 0 to 100
@@ -70,6 +74,9 @@ export interface AppState {
   // Actions
   setPlaylistUrl: (url: string) => void;
   loadPlaylist: (url?: string) => Promise<void>;
+  connectXtreamAccount: (account: XtreamAccount) => Promise<{ success: boolean; error?: string }>;
+  disconnectXtreamAccount: () => void;
+  removeSavedAccount: (serverUrl: string, username: string) => void;
   setSelectedCountry: (code: string | null) => void;
   setSelectedGroup: (group: string | null) => void;
   setSearchTerm: (term: string) => void;
@@ -81,4 +88,26 @@ export interface AppState {
   addToHistory: (channelId: string) => void;
   clearHistory: () => void;
   clearCache: () => void;
+}
+
+export interface XtreamAccount {
+  serverUrl: string;
+  username: string;
+  password: string;
+  name?: string;
+  outputFormat?: 'ts' | 'm3u8';
+  userInfo?: {
+    status?: string;
+    exp_date?: string;
+    is_trial?: string;
+    active_cons?: string;
+    max_connections?: string;
+    message?: string;
+  };
+  serverInfo?: {
+    url?: string;
+    port?: string;
+    server_protocol?: string;
+    time_now?: string;
+  };
 }

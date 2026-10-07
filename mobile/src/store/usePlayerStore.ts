@@ -1,7 +1,14 @@
 import { create } from 'zustand';
-import { AppState, Channel, RemoteTheme, EpgSource } from '../types/iptv';
+import { AppState, Channel, RemoteTheme, EpgSource, XtreamAccount } from '../types/iptv';
 import { parseM3U } from '../utils/m3uParser';
 import { buildCountrySections } from '../utils/channelEnrichment';
+import {
+  authenticateXtreamCodes,
+  fetchXtreamCategories,
+  fetchXtreamStreams,
+  generateXtreamChannelList,
+  fetchXtreamM3uChannels
+} from '../utils/xtreamClient';
 
 let storage: any = null;
 try {
@@ -24,6 +31,29 @@ const readArrayFromStorage = (key: string): string[] => {
 };
 
 const writeArrayToStorage = (key: string, data: string[]): void => {
+  try {
+    const val = JSON.stringify(data);
+    if (storage) {
+      storage.set(key, val);
+    } else {
+      memoryStore.set(key, val);
+    }
+  } catch (err) {
+    console.warn('Storage write failed', err);
+  }
+};
+
+const readObjectFromStorage = <T>(key: string, defaultVal: T): T => {
+  try {
+    const json = storage ? storage.getString(key) : memoryStore.get(key);
+    if (!json) return defaultVal;
+    return JSON.parse(json);
+  } catch {
+    return defaultVal;
+  }
+};
+
+const writeObjectToStorage = (key: string, data: any): void => {
   try {
     const val = JSON.stringify(data);
     if (storage) {
@@ -61,6 +91,10 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   error: null,
   playlistUrl: getStoredString('playlistUrl', 'https://iptv-org.github.io/iptv/countries/us.m3u'),
 
+  // Xtream Codes Account Management
+  xtreamAccount: readObjectFromStorage<XtreamAccount | null>('active_xtream_account', null),
+  savedXtreamAccounts: readObjectFromStorage<XtreamAccount[]>('saved_xtream_accounts', []),
+
   // Country & EPG Backbone enhancements
   countrySections: [],
   selectedCountry: null,
@@ -80,8 +114,14 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   loadMetadataBundle: async () => {
     let currentChannels = get().channels;
     if (!currentChannels || currentChannels.length === 0) {
-      await get().loadPlaylist();
-      currentChannels = get().channels;
+      const activeXtream = get().xtreamAccount;
+      if (activeXtream) {
+        await get().connectXtreamAccount(activeXtream);
+        currentChannels = get().channels;
+      } else {
+        await get().loadPlaylist();
+        currentChannels = get().channels;
+      }
     }
     if (!currentChannels || currentChannels.length === 0) return;
 
@@ -205,6 +245,84 @@ export const usePlayerStore = create<AppState>((set, get) => ({
       else memoryStore.set('playlistUrl', url);
     } catch {}
     set({ playlistUrl: url });
+  },
+
+  connectXtreamAccount: async (account: XtreamAccount) => {
+    set({ isLoading: true, error: null });
+    try {
+      const auth = await authenticateXtreamCodes(account);
+      if (!auth.success) {
+        set({ isLoading: false, error: auth.error || 'Authentication failed' });
+        return { success: false, error: auth.error || 'Authentication failed' };
+      }
+
+      const verifiedAccount: XtreamAccount = {
+        ...account,
+        userInfo: auth.userInfo,
+        serverInfo: auth.serverInfo,
+        name: account.name || auth.userInfo?.username || account.username,
+      };
+
+      const [categories, streams] = await Promise.all([
+        fetchXtreamCategories(verifiedAccount),
+        fetchXtreamStreams(verifiedAccount)
+      ]);
+
+      let channels: Channel[] = [];
+      if (streams && streams.length > 0) {
+        channels = generateXtreamChannelList(verifiedAccount, streams, categories);
+      } else {
+        channels = await fetchXtreamM3uChannels(verifiedAccount);
+      }
+
+      if (channels.length === 0) {
+        set({ isLoading: false, error: 'No channels found in this Xtream account' });
+        return { success: false, error: 'No channels found in this Xtream account' };
+      }
+
+      const uniqueGroups = Array.from(new Set(channels.map((c) => c.group))).sort();
+      const countrySections = buildCountrySections(channels);
+
+      const existing = get().savedXtreamAccounts.filter(
+        (a) => !(a.serverUrl.toLowerCase() === verifiedAccount.serverUrl.toLowerCase() && a.username.toLowerCase() === verifiedAccount.username.toLowerCase())
+      );
+      const updatedSaved = [verifiedAccount, ...existing];
+
+      writeObjectToStorage('active_xtream_account', verifiedAccount);
+      writeObjectToStorage('saved_xtream_accounts', updatedSaved);
+
+      set({
+        channels,
+        groups: uniqueGroups,
+        countrySections,
+        xtreamAccount: verifiedAccount,
+        savedXtreamAccounts: updatedSaved,
+        isLoading: false,
+        error: null,
+      });
+
+      return { success: true };
+    } catch (err: any) {
+      set({ isLoading: false, error: err.message || 'Connection failed' });
+      return { success: false, error: err.message || 'Connection failed' };
+    }
+  },
+
+  disconnectXtreamAccount: () => {
+    try {
+      if (storage) storage.delete('active_xtream_account');
+      else memoryStore.delete('active_xtream_account');
+    } catch {}
+    set({ xtreamAccount: null });
+    get().loadPlaylist();
+  },
+
+  removeSavedAccount: (serverUrl: string, username: string) => {
+    const updated = get().savedXtreamAccounts.filter(
+      (a) => !(a.serverUrl.toLowerCase() === serverUrl.toLowerCase() && a.username.toLowerCase() === username.toLowerCase())
+    );
+    writeObjectToStorage('saved_xtream_accounts', updated);
+    set({ savedXtreamAccounts: updated });
   },
 
   loadPlaylist: async (customUrl?: string) => {
