@@ -40,7 +40,7 @@ const QUICK_PRESETS = [
   { name: 'US Local & Regional', url: 'https://iptv-org.github.io/iptv/countries/us.m3u', interval: 60 },
   { name: 'UK Local & Regional', url: 'https://iptv-org.github.io/iptv/countries/uk.m3u', interval: 60 },
   { name: 'Latin America Regional', url: 'https://iptv-org.github.io/iptv/regions/latam.m3u', interval: 360 },
-  { name: 'Melhata Xtream Line', url: 'http://line.melhata.org/get.php?username=2fc163abd9&password=8b1b9283c02f&type=m3u_plus&output=ts', interval: 15 },
+  { name: 'US PBS & Educational (FAST)', url: 'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_pbs.m3u', interval: 60 },
 ];
 
 const formatLastSync = (isoString?: string) => {

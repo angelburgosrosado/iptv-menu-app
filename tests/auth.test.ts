@@ -2,17 +2,77 @@ import { describe, it, expect, vi } from 'vitest';
 import { 
   parseTokenPayload, 
   authenticateFirebaseToken, 
-  authorizeRoles 
+  authorizeRoles,
+  createSignedToken,
+  verifySignedToken,
+  hashPassword,
+  verifyPassword
 } from '../packages/auth/src/index';
 
-describe('packages/auth - Auth & Token Verification (Vercel/Neon/Render Native)', () => {
-  describe('parseTokenPayload', () => {
-    it('should correctly parse a standard JWT 3-part token payload', () => {
-      const payload = { uid: 'usr_abc123', email: 'vip@iptv.menu', role: 'admin', accountStatus: 'active' };
-      const base64Payload = Buffer.from(JSON.stringify(payload)).toString('base64');
-      const fakeJwt = `header.${base64Payload}.signature`;
+describe('packages/auth - Auth & Cryptographic Token Verification', () => {
+  describe('createSignedToken & verifySignedToken', () => {
+    it('should create and verify a signed HMAC-SHA256 JWT', () => {
+      const payload = { uid: 'usr_secure123', email: 'test@iptv.menu', role: 'admin' };
+      const token = createSignedToken(payload);
+      
+      expect(token).toBeTypeOf('string');
+      expect(token.split('.')).toHaveLength(3);
 
-      const parsed = parseTokenPayload(fakeJwt);
+      const verified = verifySignedToken(token);
+      expect(verified).toMatchObject({
+        uid: 'usr_secure123',
+        email: 'test@iptv.menu',
+        role: 'admin'
+      });
+      expect(verified.exp).toBeGreaterThan(Math.floor(Date.now() / 1000));
+    });
+
+    it('should reject a forged token where payload is altered without valid signature', () => {
+      const token = createSignedToken({ uid: 'user_regular', role: 'user' });
+      const parts = token.split('.');
+      
+      // Attacker attempts to tamper payload to grant admin role
+      const tamperedPayload = Buffer.from(JSON.stringify({ uid: 'user_regular', role: 'admin' })).toString('base64');
+      const forgedToken = `${parts[0]}.${tamperedPayload}.${parts[2]}`;
+
+      const verified = verifySignedToken(forgedToken);
+      expect(verified).toBeNull();
+    });
+
+    it('should reject a token with wrong secret key', () => {
+      const token = createSignedToken({ uid: 'usr_123' }, 'secret_key_a');
+      const verified = verifySignedToken(token, 'secret_key_b');
+      expect(verified).toBeNull();
+    });
+  });
+
+  describe('Password Hashing & Verification (scrypt)', () => {
+    it('should securely hash password with random salt and verify correctly', () => {
+      const password = 'SuperSecurePassword!123';
+      const hash = hashPassword(password);
+
+      expect(hash).toContain(':');
+      expect(verifyPassword(password, hash)).toBe(true);
+      expect(verifyPassword('WrongPassword123', hash)).toBe(false);
+    });
+
+    it('should generate distinct hashes for identical passwords due to salt', () => {
+      const p = 'SamePassword';
+      const h1 = hashPassword(p);
+      const h2 = hashPassword(p);
+
+      expect(h1).not.toBe(h2);
+      expect(verifyPassword(p, h1)).toBe(true);
+      expect(verifyPassword(p, h2)).toBe(true);
+    });
+  });
+
+  describe('parseTokenPayload', () => {
+    it('should correctly verify signed JWT token payload', () => {
+      const payload = { uid: 'usr_abc123', email: 'vip@iptv.menu', role: 'admin', accountStatus: 'active' };
+      const token = createSignedToken(payload);
+
+      const parsed = parseTokenPayload(token);
       expect(parsed).toMatchObject({
         uid: 'usr_abc123',
         email: 'vip@iptv.menu',
@@ -21,34 +81,9 @@ describe('packages/auth - Auth & Token Verification (Vercel/Neon/Render Native)'
       });
     });
 
-    it('should parse a base64 encoded JSON string', () => {
-      const payload = { uid: 'usr_base64', email: 'user@example.com', role: 'user' };
-      const base64Str = Buffer.from(JSON.stringify(payload)).toString('base64');
-
-      const parsed = parseTokenPayload(base64Str);
-      expect(parsed).toMatchObject({
-        uid: 'usr_base64',
-        email: 'user@example.com',
-        role: 'user'
-      });
-    });
-
-    it('should parse direct JSON string token', () => {
-      const jsonStr = JSON.stringify({ uid: 'usr_direct', role: 'pro' });
-      const parsed = parseTokenPayload(jsonStr);
-      expect(parsed).toMatchObject({ uid: 'usr_direct', role: 'pro' });
-    });
-
-    it('should fall back to uid derivation for plain identifier strings', () => {
-      const token = 'my_test_uid';
-      const parsed = parseTokenPayload(token);
-      expect(parsed).toEqual({
-        uid: 'my_test_uid',
-        sub: 'my_test_uid',
-        email: 'my_test_uid@iptv.menu',
-        role: 'user',
-        accountStatus: 'active'
-      });
+    it('should return null for malformed or completely invalid tokens', () => {
+      expect(verifySignedToken('invalid.token')).toBeNull();
+      expect(verifySignedToken('')).toBeNull();
     });
   });
 
@@ -82,11 +117,11 @@ describe('packages/auth - Auth & Token Verification (Vercel/Neon/Render Native)'
       expect(next).not.toHaveBeenCalled();
     });
 
-    it('should successfully authenticate valid Bearer token and attach req.user', async () => {
+    it('should successfully authenticate valid signed Bearer token and attach req.user', async () => {
       const payload = { uid: 'user_live_99', email: 'alex@iptv.menu', role: 'user' };
-      const fakeJwt = `hdr.${Buffer.from(JSON.stringify(payload)).toString('base64')}.sig`;
+      const token = createSignedToken(payload);
 
-      const req: any = { headers: { authorization: `Bearer ${fakeJwt}` } };
+      const req: any = { headers: { authorization: `Bearer ${token}` } };
       const res: any = {
         status: vi.fn().mockReturnThis(),
         json: vi.fn()
@@ -102,9 +137,9 @@ describe('packages/auth - Auth & Token Verification (Vercel/Neon/Render Native)'
 
     it('should reject suspended user accounts with 403 Forbidden', async () => {
       const payload = { uid: 'user_bad', email: 'spammer@iptv.menu', accountStatus: 'suspended' };
-      const fakeJwt = `hdr.${Buffer.from(JSON.stringify(payload)).toString('base64')}.sig`;
+      const token = createSignedToken(payload);
 
-      const req: any = { headers: { authorization: `Bearer ${fakeJwt}` } };
+      const req: any = { headers: { authorization: `Bearer ${token}` } };
       const res: any = {
         status: vi.fn().mockReturnThis(),
         json: vi.fn()

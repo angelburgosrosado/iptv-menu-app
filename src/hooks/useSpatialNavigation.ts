@@ -31,16 +31,27 @@ export function useSpatialNavigation() {
       spatialNav.scanDom(document);
     };
 
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedScan = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        scan();
+      }, 200);
+    };
+
     scan();
 
-    // Observe DOM changes (e.g. infinite scroll, filter switches)
+    // Observe DOM changes (e.g. infinite scroll, filter switches) with debouncing
     const observer = new MutationObserver(() => {
-      scan();
+      debouncedScan();
     });
 
     observer.observe(document.body, { childList: true, subtree: true });
 
-    return () => observer.disconnect();
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      observer.disconnect();
+    };
   }, []);
 
   // Global Remote Controller / Keyboard Navigation Event Listener

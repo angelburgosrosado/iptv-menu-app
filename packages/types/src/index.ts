@@ -30,6 +30,7 @@ export interface Workspace {
 export interface UserProfile {
   uid: string;
   email: string;
+  passwordHash?: string | null;
   displayName: string | null;
   photoURL: string | null;
   role: UserRole;

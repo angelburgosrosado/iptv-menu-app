@@ -45,7 +45,7 @@ Built with **React 19**, **Vite**, **TypeScript**, **Drizzle ORM**, **Neon Serve
 Copy `.env.example` to `.env` or verify the live settings in `.env`:
 ```bash
 # Neon Serverless PostgreSQL Database
-DATABASE_URL="postgresql://neondb_owner:npg_qu4rczZoHix9@ep-winter-poetry-ae51hoth-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+DATABASE_URL="postgresql://user:password@ep-winter-poetry-123456-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require"
 
 # Vercel Blob (Optional for local testing)
 # BLOB_READ_WRITE_TOKEN="vercel_blob_rw_..."
@@ -127,7 +127,7 @@ The platform generates custom-branded, functional Android release APKs with pre-
 1. Import repository `angelburgosrosado/iptv-menu-app` into [Vercel](https://vercel.com).
 2. Under the **Storage** tab, create a **Vercel Blob** database (this automatically sets `BLOB_READ_WRITE_TOKEN`).
 3. Set the Environment Variables:
-   - `DATABASE_URL`: `postgresql://neondb_owner:npg_qu4rczZoHix9@ep-winter-poetry-ae51hoth-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require`
+   - `DATABASE_URL`: `postgresql://user:password@ep-winter-poetry-123456-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require`
    - `EXPO_PROJECT_ID`: `1437b933-39d1-42b3-bb8d-803a5f33909e`
    - `EXPO_ACCESS_TOKEN`: *(Your Expo token)*
    - `STRIPE_SECRET_KEY` & `STRIPE_WEBHOOK_SECRET`

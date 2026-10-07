@@ -27,11 +27,13 @@ export interface AppEnvConfig {
   EXPO_ACCESS_TOKEN?: string;
   EXPO_ACCOUNT_NAME?: string;
   EXPO_PROJECT_ID?: string;
+  JWT_SECRET: string;
 }
 
 export const config: AppEnvConfig = {
   NODE_ENV: (process.env.NODE_ENV as any) || 'development',
   APP_ENV: (process.env.APP_ENV as any) || 'dev',
+  JWT_SECRET: process.env.JWT_SECRET || 'iptv_menu_default_jwt_signing_key_replace_in_production',
   GOOGLE_CLOUD_PROJECT: process.env.GOOGLE_CLOUD_PROJECT || 'iptv-menu-dev',
   FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || 'iptv-menu-dev',
   FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL || '',

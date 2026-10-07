@@ -6,7 +6,10 @@ import { Logger } from '@iptv-menu/logging';
 import { 
   authenticateFirebaseToken, 
   authorizeRoles, 
-  getFirebaseAdmin 
+  getFirebaseAdmin,
+  createSignedToken,
+  hashPassword,
+  verifyPassword
 } from '@iptv-menu/auth';
 import { 
   UserRepository, 
@@ -193,6 +196,7 @@ app.post('/api/public/auth/register', async (req, res) => {
     }
 
     const uid = `usr_${Buffer.from(normalizedEmail).toString('hex').slice(0, 12)}`;
+    const hashedPassword = hashPassword(password);
     const tokenPayload = {
       uid,
       sub: uid,
@@ -202,11 +206,12 @@ app.post('/api/public/auth/register', async (req, res) => {
       subscriptionTier: 'free',
       accountStatus: 'active'
     };
-    const token = Buffer.from(JSON.stringify(tokenPayload)).toString('base64');
+    const token = createSignedToken(tokenPayload);
 
     await userRepo.createUser({
       uid,
       email: normalizedEmail,
+      passwordHash: hashedPassword,
       displayName: normalizedEmail.split('@')[0],
       photoURL: null,
       role: 'user',
@@ -245,57 +250,22 @@ app.post('/api/public/auth/login', async (req, res) => {
 
     const normalizedEmail = email.trim().toLowerCase();
 
-    // Verify administrator credentials
-    if (normalizedEmail === 'angelburgosrosado@gmail.com') {
-      if (password !== 'Admin123') {
-        return res.status(401).json({ error: 'Invalid password for administrator account.' });
-      }
-
-      const uid = 'admin_angelburgos';
-      const tokenPayload = {
-        uid,
-        sub: uid,
-        email: 'angelburgosrosado@gmail.com',
-        name: 'Angel Burgos',
-        role: 'admin',
-        subscriptionTier: 'builder',
-        accountStatus: 'active'
-      };
-      const token = Buffer.from(JSON.stringify(tokenPayload)).toString('base64');
-
-      let profile = await userRepo.getUser(uid);
-      if (!profile) {
-        await userRepo.createUser({
-          uid,
-          email: 'angelburgosrosado@gmail.com',
-          displayName: 'Angel Burgos (CEO)',
-          photoURL: null,
-          role: 'admin',
-          subscriptionTier: 'builder',
-          accountStatus: 'active',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        });
-      }
-
-      return res.status(200).json({
-        success: true,
-        token,
-        user: {
-          uid,
-          email: 'angelburgosrosado@gmail.com',
-          displayName: 'Angel Burgos (CEO)',
-          role: 'admin',
-          subscriptionTier: 'builder',
-          isPremium: true
-        }
-      });
-    }
-
-    // Standard user login
+    // Look up user
     const user = await userRepo.getUserByEmail(normalizedEmail);
     if (!user) {
       return res.status(401).json({ error: 'Account not found. Please create an account first.' });
+    }
+
+    // Verify password if stored
+    if (user.passwordHash) {
+      const isValid = verifyPassword(password, user.passwordHash);
+      if (!isValid) {
+        return res.status(401).json({ error: 'Invalid password. Please check your credentials.' });
+      }
+    } else {
+      // Legacy user without hash: backfill hash on first successful login
+      const newHash = hashPassword(password);
+      await userRepo.updateUser(user.uid, { passwordHash: newHash });
     }
 
     const tokenPayload = {
@@ -307,7 +277,7 @@ app.post('/api/public/auth/login', async (req, res) => {
       subscriptionTier: user.subscriptionTier,
       accountStatus: user.accountStatus
     };
-    const token = Buffer.from(JSON.stringify(tokenPayload)).toString('base64');
+    const token = createSignedToken(tokenPayload);
 
     return res.status(200).json({
       success: true,
@@ -334,7 +304,10 @@ app.post('/api/public/auth/login', async (req, res) => {
 app.get('/api/v1/apps/:appId/config', async (req, res) => {
   try {
     const { appId } = req.params;
-    const config = await appConfigRepo.getAppConfig(appId);
+    const config = await appConfigRepo.getAppConfig(appId).catch((dbErr: any) => {
+      logger.warn(`Database unreachable or degraded while fetching app config for ${appId}`, dbErr);
+      return null;
+    });
     if (!config || !config.active) {
       return res.status(404).json({ error: 'App configuration not found or currently inactive.' });
     }
@@ -1467,7 +1440,10 @@ app.get('/api/admin/metrics', adminGuard, async (req, res) => {
 // 2. User Management
 app.get('/api/admin/users', adminGuard, async (req, res) => {
   try {
-    const list = await userRepo.listUsers();
+    const list = await userRepo.listUsers().catch((dbErr: any) => {
+      logger.warn('Database degraded while listing users, returning empty set', dbErr);
+      return [];
+    });
     res.json(list);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -1568,7 +1544,10 @@ app.get('/api/admin/playlists', adminGuard, async (req, res) => {
 // 4. Multi-Tenant Workspace Oversight & Quotas
 app.get('/api/admin/workspaces', adminGuard, async (req, res) => {
   try {
-    const list = await workspaceRepo.listAllWorkspaces(200);
+    const list = await workspaceRepo.listAllWorkspaces(200).catch((dbErr: any) => {
+      logger.warn('Database degraded while listing workspaces, returning empty set', dbErr);
+      return [];
+    });
     res.json(list);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -1611,7 +1590,10 @@ app.patch('/api/admin/workspaces/:workspaceId/quota', adminGuard, async (req: an
 // 5. Job Queue Oversight & Retries
 app.get('/api/admin/jobs', adminGuard, async (req, res) => {
   try {
-    const builds = await buildRepo.listAllBuilds();
+    const builds = await buildRepo.listAllBuilds().catch((dbErr: any) => {
+      logger.warn('Database degraded while listing builds, returning empty set', dbErr);
+      return [];
+    });
     res.json({
       buildJobs: builds.slice(0, 50),
     });
@@ -1647,7 +1629,10 @@ app.post('/api/admin/jobs/:jobType/:jobId/retry', adminGuard, async (req: any, r
 // 6. Security Audit Trail
 app.get('/api/admin/audit-logs', adminGuard, async (req, res) => {
   try {
-    const logs = await auditRepo.listActions();
+    const logs = await auditRepo.listActions().catch((dbErr: any) => {
+      logger.warn('Database degraded while listing audit logs, returning empty set', dbErr);
+      return [];
+    });
     res.json(logs);
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -1687,7 +1672,11 @@ app.put('/api/admin/adsense', adminGuard, async (req: any, res) => {
       notes: `Updated Google AdSense configuration (Publisher: ${updatedConfig.clientId}, Enabled: ${updatedConfig.enabled})`,
       createdAt: new Date().toISOString()
     };
-    await auditRepo.logAction(adminAction);
+    try {
+      await auditRepo.logAction(adminAction);
+    } catch (auditErr: any) {
+      logger.warn('Database degraded: audit log skipped for AdSense update', auditErr);
+    }
 
     res.json({
       success: true,

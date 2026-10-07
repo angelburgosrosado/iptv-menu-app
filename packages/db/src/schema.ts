@@ -21,6 +21,7 @@ export const users = pgTable('users', {
   role: text('role').default('user').notNull(), // 'user' | 'admin'
   accountStatus: text('account_status').default('active').notNull(), // 'active' | 'suspended'
   subscriptionTier: text('subscription_tier').default('free').notNull(), // 'free' | 'pro' | 'builder'
+  passwordHash: text('password_hash'),
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });

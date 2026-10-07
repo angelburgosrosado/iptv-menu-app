@@ -31,9 +31,10 @@ export function isSafeTargetUrl(
   }
 
   const hostname = parsed.hostname.toLowerCase();
+  const cleanHost = hostname.replace(/^\[|\]$/g, '');
 
-  // Cloud metadata endpoint (169.254.169.254) is ALWAYS blocked regardless of environment
-  if (hostname === '169.254.169.254') {
+  // Cloud metadata endpoint and link-local (169.254.0.0/16) are ALWAYS blocked regardless of environment
+  if (cleanHost.startsWith('169.254.') || cleanHost === '169.254.169.254') {
     return { safe: false, reason: 'Access to private or loopback addresses is prohibited' };
   }
 
@@ -42,18 +43,24 @@ export function isSafeTargetUrl(
 
   if (!allowLocal) {
     if (
-      hostname === 'localhost' ||
-      hostname === '127.0.0.1' ||
-      hostname === '::1' ||
-      hostname === '0.0.0.0' ||
-      hostname.startsWith('10.') ||
-      hostname.startsWith('192.168.')
+      cleanHost === 'localhost' ||
+      cleanHost === '0.0.0.0' ||
+      cleanHost === '::1' ||
+      cleanHost.startsWith('127.') ||
+      cleanHost.startsWith('10.') ||
+      cleanHost.startsWith('192.168.') ||
+      cleanHost.endsWith('.local') ||
+      cleanHost.endsWith('.internal') ||
+      cleanHost.endsWith('.lan') ||
+      cleanHost.startsWith('fe80:') ||
+      cleanHost.startsWith('fc00:') ||
+      cleanHost.startsWith('fd00:')
     ) {
       return { safe: false, reason: 'Access to private or loopback addresses is prohibited' };
     }
 
-    if (hostname.startsWith('172.')) {
-      const parts = hostname.split('.');
+    if (cleanHost.startsWith('172.')) {
+      const parts = cleanHost.split('.');
       if (parts.length >= 2) {
         const secondOctet = parseInt(parts[1], 10);
         if (secondOctet >= 16 && secondOctet <= 31) {
@@ -67,13 +74,28 @@ export function isSafeTargetUrl(
 }
 
 /**
+ * Helper to construct proxy URL with query params
+ */
+function buildProxyUrl(proxyBase: string, targetUrl: string, customUa?: string): string {
+  const dummyBase = 'http://localhost';
+  const urlObj = new URL(proxyBase, dummyBase);
+  urlObj.searchParams.set('url', targetUrl);
+  if (customUa) {
+    urlObj.searchParams.set('ua', customUa);
+  }
+  const isAbsolute = proxyBase.startsWith('http://') || proxyBase.startsWith('https://');
+  return isAbsolute ? urlObj.href : (urlObj.pathname + urlObj.search);
+}
+
+/**
  * Rewrites an M3U8 manifest so all playlist, segment, media, and key URLs
  * route through our backend proxy gateway.
  */
 export function rewriteM3u8Manifest(
   manifest: string,
   baseUrl: string,
-  proxyEndpoint = '/api/stream/proxy'
+  proxyEndpoint = '/api/stream/proxy',
+  customUserAgent?: string
 ): string {
   const lines = manifest.split(/\r?\n/);
   const rewrittenLines: string[] = [];
@@ -93,8 +115,8 @@ export function rewriteM3u8Manifest(
         const rewrittenTag = trimmed.replace(/URI="([^"]+)"/g, (_, uri) => {
           try {
             const absoluteUrl = new URL(uri, baseUrl).href;
-            const uaParam = '&ua=' + encodeURIComponent(proxyEndpoint.includes('&ua=') ? new URL(proxyEndpoint, 'http://localhost').searchParams.get('ua') || '' : '');
-            return `URI="${proxyEndpoint.split('&ua=')[0]}?url=${encodeURIComponent(absoluteUrl)}${uaParam !== '&ua=' ? uaParam : ''}"`;
+            const rewritten = buildProxyUrl(proxyEndpoint, absoluteUrl, customUserAgent);
+            return `URI="${rewritten}"`;
           } catch {
             return `URI="${uri}"`;
           }
@@ -107,8 +129,7 @@ export function rewriteM3u8Manifest(
       // Variant playlist URI or media chunk URL
       try {
         const absoluteUrl = new URL(trimmed, baseUrl).href;
-        const uaParam = '&ua=' + encodeURIComponent(proxyEndpoint.includes('&ua=') ? new URL(proxyEndpoint, 'http://localhost').searchParams.get('ua') || '' : '');
-        rewrittenLines.push(`${proxyEndpoint.split('&ua=')[0]}?url=${encodeURIComponent(absoluteUrl)}${uaParam !== '&ua=' ? uaParam : ''}`);
+        rewrittenLines.push(buildProxyUrl(proxyEndpoint, absoluteUrl, customUserAgent));
       } catch {
         rewrittenLines.push(trimmed);
       }
@@ -189,11 +210,7 @@ export async function handleStreamProxy(req: Request, res: Response): Promise<vo
       const text = await upstreamResponse.text();
 
       if (text.trim().startsWith('#EXTM3U') || text.includes('#EXTINF')) {
-        let proxyEndpointUrl = '/api/stream/proxy';
-        if (customUserAgent) {
-           proxyEndpointUrl += `&ua=${encodeURIComponent(customUserAgent)}`;
-        }
-        const rewritten = rewriteM3u8Manifest(text, finalBaseUrl, proxyEndpointUrl);
+        const rewritten = rewriteM3u8Manifest(text, finalBaseUrl, '/api/stream/proxy', customUserAgent);
 
         res.setHeader('Content-Type', 'application/vnd.apple.mpegurl');
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');

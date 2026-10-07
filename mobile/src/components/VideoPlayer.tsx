@@ -41,6 +41,26 @@ export function VideoPlayer({ streamUrl, channelName, onBackPress }: VideoPlayer
     setIsPlaying(true);
   };
 
+  // Synchronize when streamUrl prop changes (e.g., user selects a different channel)
+  React.useEffect(() => {
+    if (!player || !streamUrl) return;
+    setHasError(false);
+    setIsLoading(true);
+    player.replace({ uri: streamUrl });
+    player.play();
+  }, [player, streamUrl]);
+
+  // Clean up and stop audio/video on unmount
+  React.useEffect(() => {
+    return () => {
+      try {
+        player?.pause();
+      } catch {
+        // no-op
+      }
+    };
+  }, [player]);
+
   React.useEffect(() => {
     if (!player) return;
 

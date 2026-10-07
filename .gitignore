@@ -5,5 +5,7 @@ output/
 coverage/
 .DS_Store
 *.log
+.expo/
 .env*
 !.env.example
+.vercel

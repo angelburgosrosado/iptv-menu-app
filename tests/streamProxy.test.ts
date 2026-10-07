@@ -91,9 +91,32 @@ relative_segment.ts
       expect(isSafeTargetUrl('file:///etc/passwd').safe).toBe(false);
       expect(isSafeTargetUrl('gopher://example.com').safe).toBe(false);
     });
+
+    it('should unconditionally reject cloud metadata service', () => {
+      expect(isSafeTargetUrl('http://169.254.169.254/latest/meta-data/').safe).toBe(false);
+      expect(isSafeTargetUrl('http://169.254.1.1/').safe).toBe(false);
+    });
+
+    it('should reject private, loopback, and local network addresses in strict mode', () => {
+      expect(isSafeTargetUrl('http://127.0.0.1:8080/stream.m3u8', true).safe).toBe(false);
+      expect(isSafeTargetUrl('http://localhost:3000/stream.m3u8', true).safe).toBe(false);
+      expect(isSafeTargetUrl('http://10.0.0.1/live/test.ts', true).safe).toBe(false);
+      expect(isSafeTargetUrl('http://192.168.1.100/feed.m3u8', true).safe).toBe(false);
+      expect(isSafeTargetUrl('http://172.16.0.1/stream.m3u8', true).safe).toBe(false);
+      expect(isSafeTargetUrl('http://172.31.255.255/stream.m3u8', true).safe).toBe(false);
+      expect(isSafeTargetUrl('http://internal.service.local/stream.m3u8', true).safe).toBe(false);
+      expect(isSafeTargetUrl('http://[::1]:8080/stream.m3u8', true).safe).toBe(false);
+      expect(isSafeTargetUrl('http://[fe80::1]/stream.m3u8', true).safe).toBe(false);
+    });
   });
 
   describe('M3U8 Manifest Rewriting', () => {
+    it('should preserve and encode custom user-agent when rewriting manifest', () => {
+      const manifest = `#EXTM3U\nchunk.ts\n`;
+      const rewritten = rewriteM3u8Manifest(manifest, 'http://origin.tv/stream.m3u8', '/api/stream/proxy', 'CustomPlayer/1.0');
+      expect(rewritten).toContain('ua=CustomPlayer%2F1.0');
+      expect(rewritten).toContain('url=' + encodeURIComponent('http://origin.tv/chunk.ts'));
+    });
     it('should rewrite relative and absolute media chunk URLs to route through proxy', () => {
       const sampleManifest = `#EXTM3U
 #EXT-X-TARGETDURATION:10

@@ -272,21 +272,32 @@ async function processEpgJob(epgId: string, uid: string) {
       ? epg.sourceConfig.urls
       : ['https://iptv-org.github.io/epg/guides/us.xml'];
 
-    let aggregatedXml = '';
+    let channelsContent = '';
+    let programmesContent = '';
+
     for (const url of sourceUrls) {
       try {
         const resp = await axios.get(url, { timeout: 15000, responseType: 'text' });
-        if (resp.status < 400 && resp.data) {
-          aggregatedXml += resp.data;
+        if (resp.status < 400 && resp.data && typeof resp.data === 'string') {
+          const raw = resp.data;
+          const channelMatches = raw.match(/<channel[\s\S]*?<\/channel>/gi);
+          if (channelMatches) {
+            channelsContent += '\n' + channelMatches.join('\n');
+          }
+          const programmeMatches = raw.match(/<programme[\s\S]*?<\/programme>/gi);
+          if (programmeMatches) {
+            programmesContent += '\n' + programmeMatches.join('\n');
+          }
         }
       } catch (fetchErr: any) {
         logger.warn(`Failed fetching EPG feed ${url}: ${fetchErr.message}`);
       }
     }
 
-    if (!aggregatedXml.trim()) {
-      aggregatedXml = `<?xml version="1.0" encoding="UTF-8"?>\n<tv generator-info-name="IPTV Menu EPG Server">\n</tv>`;
-    }
+    const aggregatedXml = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE tv SYSTEM "xmltv.dtd">
+<tv generator-info-name="IPTV Menu EPG Server">${channelsContent}${programmesContent}
+</tv>`;
 
     const artifactPath = `users/${uid}/epg/${epgId}_xmltv.xml`;
     await uploadToBucket(config.GCS_BUILD_BUCKET, artifactPath, aggregatedXml, 'application/xml');

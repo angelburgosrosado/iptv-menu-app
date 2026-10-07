@@ -365,6 +365,7 @@ var require_dist = __commonJS({
     exports2.config = {
       NODE_ENV: process.env.NODE_ENV || "development",
       APP_ENV: process.env.APP_ENV || "dev",
+      JWT_SECRET: process.env.JWT_SECRET || "iptv_menu_default_jwt_signing_key_replace_in_production",
       GOOGLE_CLOUD_PROJECT: process.env.GOOGLE_CLOUD_PROJECT || "iptv-menu-dev",
       FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || "iptv-menu-dev",
       FIREBASE_CLIENT_EMAIL: process.env.FIREBASE_CLIENT_EMAIL || "",
@@ -492,46 +493,140 @@ var require_dist3 = __commonJS({
         return result;
       };
     })();
+    var __importDefault = exports2 && exports2.__importDefault || function(mod) {
+      return mod && mod.__esModule ? mod : { "default": mod };
+    };
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.authenticateToken = void 0;
+    exports2.createSignedToken = createSignedToken2;
+    exports2.verifySignedToken = verifySignedToken;
+    exports2.hashPassword = hashPassword2;
+    exports2.verifyPassword = verifyPassword2;
     exports2.parseTokenPayload = parseTokenPayload;
     exports2.getFirebaseAdmin = getFirebaseAdmin2;
     exports2.authenticateFirebaseToken = authenticateFirebaseToken2;
     exports2.authorizeRoles = authorizeRoles2;
+    var node_crypto_1 = __importDefault(require("node:crypto"));
     var admin = __importStar(require("firebase-admin"));
     var config_1 = require_dist();
     var adminApp = null;
-    function parseTokenPayload(token) {
-      if (token.includes(".")) {
-        const parts = token.split(".");
-        if (parts.length === 3) {
-          try {
-            const payloadStr = Buffer.from(parts[1], "base64").toString("utf-8");
-            return JSON.parse(payloadStr);
-          } catch (e) {
+    function base64UrlEncode(data) {
+      const buf = Buffer.isBuffer(data) ? data : Buffer.from(data, "utf-8");
+      return buf.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+    }
+    function base64UrlDecode(str) {
+      let b64 = str.replace(/-/g, "+").replace(/_/g, "/");
+      while (b64.length % 4 !== 0) {
+        b64 += "=";
+      }
+      return Buffer.from(b64, "base64").toString("utf-8");
+    }
+    function createSignedToken2(payload, secret = config_1.config.JWT_SECRET) {
+      const header = { alg: "HS256", typ: "JWT" };
+      const now = Math.floor(Date.now() / 1e3);
+      const tokenPayload = {
+        iat: now,
+        exp: now + 30 * 24 * 60 * 60,
+        // 30 days
+        ...payload
+      };
+      const encHeader = base64UrlEncode(JSON.stringify(header));
+      const encPayload = base64UrlEncode(JSON.stringify(tokenPayload));
+      const data = `${encHeader}.${encPayload}`;
+      const sig = node_crypto_1.default.createHmac("sha256", secret).update(data).digest();
+      const encSig = base64UrlEncode(sig);
+      return `${data}.${encSig}`;
+    }
+    function verifySignedToken(token, secret = config_1.config.JWT_SECRET) {
+      if (!token || typeof token !== "string")
+        return null;
+      const parts = token.split(".");
+      if (parts.length !== 3)
+        return null;
+      const [encHeader, encPayload, encSig] = parts;
+      const data = `${encHeader}.${encPayload}`;
+      const expectedSig = node_crypto_1.default.createHmac("sha256", secret).update(data).digest();
+      let receivedSigBuf;
+      try {
+        let b64 = encSig.replace(/-/g, "+").replace(/_/g, "/");
+        while (b64.length % 4 !== 0)
+          b64 += "=";
+        receivedSigBuf = Buffer.from(b64, "base64");
+      } catch {
+        return null;
+      }
+      if (expectedSig.length !== receivedSigBuf.length)
+        return null;
+      if (!node_crypto_1.default.timingSafeEqual(expectedSig, receivedSigBuf))
+        return null;
+      try {
+        const payload = JSON.parse(base64UrlDecode(encPayload));
+        if (payload.exp && typeof payload.exp === "number") {
+          if (Math.floor(Date.now() / 1e3) > payload.exp) {
+            return null;
           }
         }
+        return payload;
+      } catch {
+        return null;
       }
-      try {
-        const raw = Buffer.from(token, "base64").toString("utf-8");
-        if (raw.startsWith("{") && raw.endsWith("}")) {
-          return JSON.parse(raw);
+    }
+    function hashPassword2(password) {
+      const salt = node_crypto_1.default.randomBytes(16).toString("hex");
+      const derivedKey = node_crypto_1.default.scryptSync(password, salt, 64);
+      return `${salt}:${derivedKey.toString("hex")}`;
+    }
+    function verifyPassword2(password, storedHash) {
+      if (!storedHash || !storedHash.includes(":"))
+        return false;
+      const [salt, key] = storedHash.split(":");
+      if (!salt || !key)
+        return false;
+      const keyBuf = Buffer.from(key, "hex");
+      const derivedKey = node_crypto_1.default.scryptSync(password, salt, 64);
+      if (keyBuf.length !== derivedKey.length)
+        return false;
+      return node_crypto_1.default.timingSafeEqual(keyBuf, derivedKey);
+    }
+    function parseTokenPayload(token, secret = config_1.config.JWT_SECRET) {
+      const verified = verifySignedToken(token, secret);
+      if (verified)
+        return verified;
+      if (process.env.NODE_ENV === "test") {
+        if (token.includes(".")) {
+          const parts = token.split(".");
+          if (parts.length === 3) {
+            try {
+              const payloadStr = base64UrlDecode(parts[1]);
+              return JSON.parse(payloadStr);
+            } catch {
+            }
+          }
         }
-      } catch (e) {
-      }
-      if (token.startsWith("{") && token.endsWith("}")) {
         try {
-          return JSON.parse(token);
-        } catch (e) {
+          const raw = Buffer.from(token, "base64").toString("utf-8");
+          if (raw.startsWith("{") && raw.endsWith("}")) {
+            return JSON.parse(raw);
+          }
+        } catch {
+        }
+        if (token.startsWith("{") && token.endsWith("}")) {
+          try {
+            return JSON.parse(token);
+          } catch {
+          }
+        }
+        if (token && !token.includes(" ") && token.length > 2) {
+          return {
+            uid: token,
+            sub: token,
+            email: `${token}@iptv.menu`,
+            role: "user",
+            accountStatus: "active"
+          };
         }
       }
-      return {
-        uid: token,
-        sub: token,
-        email: `${token}@iptv.menu`,
-        role: "user",
-        accountStatus: "active"
-      };
+      return null;
     }
     function getFirebaseAdmin2() {
       if (adminApp)
@@ -539,7 +634,7 @@ var require_dist3 = __commonJS({
       if (!config_1.config.FIREBASE_CLIENT_EMAIL || !config_1.config.FIREBASE_PRIVATE_KEY || config_1.config.FIREBASE_PRIVATE_KEY.includes("...")) {
         return {
           auth: () => ({
-            verifyIdToken: async (token) => parseTokenPayload(token),
+            verifyIdToken: async (token) => verifySignedToken(token) || parseTokenPayload(token),
             setCustomUserClaims: async () => {
             },
             revokeRefreshTokens: async () => {
@@ -560,7 +655,7 @@ var require_dist3 = __commonJS({
       } catch (e) {
         return {
           auth: () => ({
-            verifyIdToken: async (token) => parseTokenPayload(token),
+            verifyIdToken: async (token) => verifySignedToken(token) || parseTokenPayload(token),
             setCustomUserClaims: async () => {
             },
             revokeRefreshTokens: async () => {
@@ -588,7 +683,7 @@ var require_dist3 = __commonJS({
           }
         }
         if (!decodedToken) {
-          decodedToken = parseTokenPayload(token);
+          decodedToken = verifySignedToken(token) || (process.env.NODE_ENV === "test" ? parseTokenPayload(token) : null);
         }
         if (!decodedToken || !decodedToken.uid && !decodedToken.sub) {
           return res.status(401).json({ error: "Unauthorized: Session expired or invalid" });
@@ -16783,6 +16878,7 @@ var require_schema2 = __commonJS({
       // 'active' | 'suspended'
       subscriptionTier: (0, pg_core_1.text)("subscription_tier").default("free").notNull(),
       // 'free' | 'pro' | 'builder'
+      passwordHash: (0, pg_core_1.text)("password_hash"),
       createdAt: (0, pg_core_1.timestamp)("created_at", { withTimezone: true }).defaultNow().notNull(),
       updatedAt: (0, pg_core_1.timestamp)("updated_at", { withTimezone: true }).defaultNow().notNull()
     });
@@ -16965,7 +17061,7 @@ var require_dist4 = __commonJS({
       for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports3, p)) __createBinding(exports3, m, p);
     };
     Object.defineProperty(exports2, "__esModule", { value: true });
-    exports2.AppConfigRepository = exports2.AuditLogRepository = exports2.WorkspaceRepository = exports2.BuildRepository = exports2.EpgRepository = exports2.PlaylistRepository = exports2.UserRepository = exports2.DbOperation = exports2.and = exports2.asc = exports2.desc = exports2.eq = void 0;
+    exports2.AppConfigRepository = exports2.AuditLogRepository = exports2.WorkspaceRepository = exports2.BuildRepository = exports2.EpgRepository = exports2.PlaylistRepository = exports2.UserRepository = exports2.DbOperation = exports2.sql = exports2.and = exports2.asc = exports2.desc = exports2.eq = void 0;
     exports2.getFirestoreDB = getFirestoreDB2;
     var auth_1 = require_dist3();
     var logging_1 = require_dist2();
@@ -16985,6 +17081,9 @@ var require_dist4 = __commonJS({
     } });
     Object.defineProperty(exports2, "and", { enumerable: true, get: function() {
       return drizzle_orm_2.and;
+    } });
+    Object.defineProperty(exports2, "sql", { enumerable: true, get: function() {
+      return drizzle_orm_2.sql;
     } });
     var logger8 = new logging_1.Logger("db-repository");
     var dbInstance = null;
@@ -17033,6 +17132,7 @@ var require_dist4 = __commonJS({
               role: row.role,
               accountStatus: row.accountStatus,
               subscriptionTier: row.subscriptionTier,
+              passwordHash: row.passwordHash || null,
               createdAt: row.createdAt.toISOString(),
               updatedAt: row.updatedAt.toISOString()
             };
@@ -17065,6 +17165,7 @@ var require_dist4 = __commonJS({
               role: row.role,
               accountStatus: row.accountStatus,
               subscriptionTier: row.subscriptionTier,
+              passwordHash: row.passwordHash || null,
               createdAt: row.createdAt.toISOString(),
               updatedAt: row.updatedAt.toISOString()
             };
@@ -17093,7 +17194,8 @@ var require_dist4 = __commonJS({
               photoURL: profile.photoURL || null,
               role: profile.role || "user",
               accountStatus: profile.accountStatus || "active",
-              subscriptionTier: profile.subscriptionTier || "free"
+              subscriptionTier: profile.subscriptionTier || "free",
+              passwordHash: profile.passwordHash || null
             }).onConflictDoUpdate({
               target: client_1.schema.users.uid,
               set: {
@@ -17103,6 +17205,7 @@ var require_dist4 = __commonJS({
                 role: profile.role,
                 accountStatus: profile.accountStatus,
                 subscriptionTier: profile.subscriptionTier,
+                passwordHash: profile.passwordHash !== void 0 ? profile.passwordHash : void 0,
                 updatedAt: /* @__PURE__ */ new Date()
               }
             });
@@ -17159,6 +17262,7 @@ var require_dist4 = __commonJS({
               role: row.role,
               accountStatus: row.accountStatus,
               subscriptionTier: row.subscriptionTier,
+              passwordHash: row.passwordHash || null,
               createdAt: row.createdAt.toISOString(),
               updatedAt: row.updatedAt.toISOString()
             }));
@@ -92385,23 +92489,33 @@ var require_dist14 = __commonJS({
       if (process.env.DATABASE_URL) {
         try {
           const db2 = (0, db_1.getDb)();
-          const [row] = await db2.select().from(db_1.schema.playlistRuns).where((0, db_1.eq)(db_1.schema.playlistRuns.status, "queued")).limit(1);
-          if (!row)
-            return null;
           const startedAt = /* @__PURE__ */ new Date();
-          await db2.update(db_1.schema.playlistRuns).set({
-            status: "running",
-            startedAt
-          }).where((0, db_1.eq)(db_1.schema.playlistRuns.runId, row.runId));
-          logger8.info("Successfully locked next playlist run job from Neon", { runId: row.runId, playlistId: row.playlistId });
+          const result = await db2.execute((0, db_1.sql)`
+        UPDATE playlist_runs
+        SET status = 'running', started_at = ${startedAt}
+        WHERE run_id = (
+          SELECT run_id
+          FROM playlist_runs
+          WHERE status = 'queued'
+          ORDER BY started_at ASC
+          FOR UPDATE SKIP LOCKED
+          LIMIT 1
+        )
+        RETURNING run_id, playlist_id, type, status, started_at, completed_at, summary, error;
+      `);
+          const rows = result.rows || result;
+          if (!rows || rows.length === 0)
+            return null;
+          const row = rows[0];
+          logger8.info("Successfully locked next playlist run job from Neon", { runId: row.run_id, playlistId: row.playlist_id });
           return {
-            playlistId: row.playlistId,
+            playlistId: row.playlist_id,
             run: {
-              runId: row.runId,
-              playlistId: row.playlistId,
+              runId: row.run_id,
+              playlistId: row.playlist_id,
               type: row.type,
               status: "running",
-              startedAt: startedAt.toISOString(),
+              startedAt: new Date(row.started_at).toISOString(),
               completedAt: null,
               summary: row.summary,
               error: null
@@ -92418,16 +92532,26 @@ var require_dist14 = __commonJS({
         if (snapshot.empty)
           return null;
         const doc = snapshot.docs[0];
-        const run = doc.data();
         const docRef = doc.ref;
-        await docRef.update({
-          status: "running",
-          startedAt: (/* @__PURE__ */ new Date()).toISOString()
+        const run = await db.runTransaction(async (transaction) => {
+          const freshDoc = await transaction.get(docRef);
+          if (!freshDoc.exists || freshDoc.data().status !== "queued") {
+            return null;
+          }
+          const data = freshDoc.data();
+          const now = (/* @__PURE__ */ new Date()).toISOString();
+          transaction.update(docRef, {
+            status: "running",
+            startedAt: now
+          });
+          return { ...data, status: "running", startedAt: now };
         });
+        if (!run)
+          return null;
         logger8.info("Successfully locked next playlist run job", { runId: run.runId, playlistId: run.playlistId });
         return {
           playlistId: run.playlistId,
-          run: { ...run, status: "running" }
+          run
         };
       } catch (error) {
         logger8.error("Error polling or locking playlist runs", error);
@@ -92438,26 +92562,37 @@ var require_dist14 = __commonJS({
       if (process.env.DATABASE_URL) {
         try {
           const db2 = (0, db_1.getDb)();
-          const [row] = await db2.select().from(db_1.schema.buildRequests).where((0, db_1.eq)(db_1.schema.buildRequests.status, "queued")).limit(1);
-          if (!row)
-            return null;
           const updatedAt = /* @__PURE__ */ new Date();
-          await db2.update(db_1.schema.buildRequests).set({
-            status: "building",
-            updatedAt
-          }).where((0, db_1.eq)(db_1.schema.buildRequests.buildId, row.buildId));
-          logger8.info("Locked build request job from Neon", { buildId: row.buildId });
+          const result = await db2.execute((0, db_1.sql)`
+        UPDATE build_requests
+        SET status = 'building', updated_at = ${updatedAt}
+        WHERE build_id = (
+          SELECT build_id
+          FROM build_requests
+          WHERE status = 'queued'
+          ORDER BY created_at ASC
+          FOR UPDATE SKIP LOCKED
+          LIMIT 1
+        )
+        RETURNING build_id, uid, app_name, brand_config, playlist_source, status, artifact_path, build_log_path, app_config_id, created_at, updated_at;
+      `);
+          const rows = result.rows || result;
+          if (!rows || rows.length === 0)
+            return null;
+          const row = rows[0];
+          logger8.info("Locked build request job from Neon", { buildId: row.build_id });
           return {
-            buildId: row.buildId,
+            buildId: row.build_id,
             uid: row.uid,
-            appName: row.appName,
-            brandConfig: row.brandConfig,
-            playlistSource: row.playlistSource,
+            appName: row.app_name,
+            brandConfig: row.brand_config,
+            playlistSource: row.playlist_source,
             status: "building",
-            artifactPath: row.artifactPath || null,
-            buildLogPath: row.buildLogPath || null,
-            createdAt: row.createdAt.toISOString(),
-            updatedAt: updatedAt.toISOString()
+            artifactPath: row.artifact_path || null,
+            buildLogPath: row.build_log_path || null,
+            appConfigId: row.app_config_id || null,
+            createdAt: new Date(row.created_at).toISOString(),
+            updatedAt: new Date(row.updated_at).toISOString()
           };
         } catch (error) {
           logger8.error("Error polling or locking build requests on Neon", error);
@@ -92470,14 +92605,24 @@ var require_dist14 = __commonJS({
         if (snapshot.empty)
           return null;
         const doc = snapshot.docs[0];
-        const build = doc.data();
         const docRef = doc.ref;
-        await docRef.update({
-          status: "building",
-          updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+        const build = await db.runTransaction(async (transaction) => {
+          const freshDoc = await transaction.get(docRef);
+          if (!freshDoc.exists || freshDoc.data().status !== "queued") {
+            return null;
+          }
+          const data = freshDoc.data();
+          const now = (/* @__PURE__ */ new Date()).toISOString();
+          transaction.update(docRef, {
+            status: "building",
+            updatedAt: now
+          });
+          return { ...data, status: "building", updatedAt: now };
         });
+        if (!build)
+          return null;
         logger8.info("Locked build request job", { buildId: build.buildId });
-        return { ...build, status: "building" };
+        return build;
       } catch (error) {
         logger8.error("Error polling or locking build requests", error);
         return null;
@@ -92487,24 +92632,34 @@ var require_dist14 = __commonJS({
       if (process.env.DATABASE_URL) {
         try {
           const db2 = (0, db_1.getDb)();
-          const [row] = await db2.select().from(db_1.schema.epgFeeds).where((0, db_1.eq)(db_1.schema.epgFeeds.status, "pending")).limit(1);
-          if (!row)
-            return null;
           const lastGeneratedAt = /* @__PURE__ */ new Date();
-          await db2.update(db_1.schema.epgFeeds).set({
-            status: "generating",
-            lastGeneratedAt
-          }).where((0, db_1.eq)(db_1.schema.epgFeeds.epgId, row.epgId));
-          logger8.info("Locked EPG generation job from Neon", { epgId: row.epgId });
+          const result = await db2.execute((0, db_1.sql)`
+        UPDATE epg_feeds
+        SET status = 'generating', last_generated_at = ${lastGeneratedAt}
+        WHERE epg_id = (
+          SELECT epg_id
+          FROM epg_feeds
+          WHERE status = 'pending'
+          ORDER BY created_at ASC
+          FOR UPDATE SKIP LOCKED
+          LIMIT 1
+        )
+        RETURNING epg_id, uid, playlist_id, status, source_config, output_file_path, created_at, last_generated_at;
+      `);
+          const rows = result.rows || result;
+          if (!rows || rows.length === 0)
+            return null;
+          const row = rows[0];
+          logger8.info("Locked EPG generation job from Neon", { epgId: row.epg_id });
           return {
-            epgId: row.epgId,
+            epgId: row.epg_id,
             uid: row.uid,
-            playlistId: row.playlistId,
+            playlistId: row.playlist_id,
             status: "generating",
-            sourceConfig: row.sourceConfig,
-            outputFilePath: row.outputFilePath || null,
-            createdAt: row.createdAt.toISOString(),
-            lastGeneratedAt: lastGeneratedAt.toISOString()
+            sourceConfig: row.source_config,
+            outputFilePath: row.output_file_path || null,
+            createdAt: new Date(row.created_at).toISOString(),
+            lastGeneratedAt: new Date(row.last_generated_at).toISOString()
           };
         } catch (error) {
           logger8.error("Error polling or locking EPG feeds on Neon", error);
@@ -92517,14 +92672,24 @@ var require_dist14 = __commonJS({
         if (snapshot.empty)
           return null;
         const doc = snapshot.docs[0];
-        const epg = doc.data();
         const docRef = doc.ref;
-        await docRef.update({
-          status: "generating",
-          lastGeneratedAt: (/* @__PURE__ */ new Date()).toISOString()
+        const epg = await db.runTransaction(async (transaction) => {
+          const freshDoc = await transaction.get(docRef);
+          if (!freshDoc.exists || freshDoc.data().status !== "pending") {
+            return null;
+          }
+          const data = freshDoc.data();
+          const now = (/* @__PURE__ */ new Date()).toISOString();
+          transaction.update(docRef, {
+            status: "generating",
+            lastGeneratedAt: now
+          });
+          return { ...data, status: "generating", lastGeneratedAt: now };
         });
+        if (!epg)
+          return null;
         logger8.info("Locked EPG generation job", { epgId: epg.epgId });
-        return { ...epg, status: "generating" };
+        return epg;
       } catch (error) {
         logger8.error("Error polling or locking EPG feeds", error);
         return null;
@@ -95019,16 +95184,17 @@ function isSafeTargetUrl(rawUrl, forceStrictCheck = false) {
     return { safe: false, reason: "Protocol must be http or https" };
   }
   const hostname = parsed.hostname.toLowerCase();
-  if (hostname === "169.254.169.254") {
+  const cleanHost = hostname.replace(/^\[|\]$/g, "");
+  if (cleanHost.startsWith("169.254.") || cleanHost === "169.254.169.254") {
     return { safe: false, reason: "Access to private or loopback addresses is prohibited" };
   }
   const allowLocal = !forceStrictCheck && (process.env.ALLOW_LOCAL_PROXY === "true" || process.env.NODE_ENV === "test");
   if (!allowLocal) {
-    if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1" || hostname === "0.0.0.0" || hostname.startsWith("10.") || hostname.startsWith("192.168.")) {
+    if (cleanHost === "localhost" || cleanHost === "0.0.0.0" || cleanHost === "::1" || cleanHost.startsWith("127.") || cleanHost.startsWith("10.") || cleanHost.startsWith("192.168.") || cleanHost.endsWith(".local") || cleanHost.endsWith(".internal") || cleanHost.endsWith(".lan") || cleanHost.startsWith("fe80:") || cleanHost.startsWith("fc00:") || cleanHost.startsWith("fd00:")) {
       return { safe: false, reason: "Access to private or loopback addresses is prohibited" };
     }
-    if (hostname.startsWith("172.")) {
-      const parts = hostname.split(".");
+    if (cleanHost.startsWith("172.")) {
+      const parts = cleanHost.split(".");
       if (parts.length >= 2) {
         const secondOctet = parseInt(parts[1], 10);
         if (secondOctet >= 16 && secondOctet <= 31) {
@@ -95039,7 +95205,17 @@ function isSafeTargetUrl(rawUrl, forceStrictCheck = false) {
   }
   return { safe: true, parsedUrl: parsed };
 }
-function rewriteM3u8Manifest(manifest, baseUrl, proxyEndpoint = "/api/stream/proxy") {
+function buildProxyUrl(proxyBase, targetUrl, customUa) {
+  const dummyBase = "http://localhost";
+  const urlObj = new URL(proxyBase, dummyBase);
+  urlObj.searchParams.set("url", targetUrl);
+  if (customUa) {
+    urlObj.searchParams.set("ua", customUa);
+  }
+  const isAbsolute = proxyBase.startsWith("http://") || proxyBase.startsWith("https://");
+  return isAbsolute ? urlObj.href : urlObj.pathname + urlObj.search;
+}
+function rewriteM3u8Manifest(manifest, baseUrl, proxyEndpoint = "/api/stream/proxy", customUserAgent) {
   const lines = manifest.split(/\r?\n/);
   const rewrittenLines = [];
   for (let i = 0; i < lines.length; i++) {
@@ -95054,8 +95230,8 @@ function rewriteM3u8Manifest(manifest, baseUrl, proxyEndpoint = "/api/stream/pro
         const rewrittenTag = trimmed.replace(/URI="([^"]+)"/g, (_, uri) => {
           try {
             const absoluteUrl = new URL(uri, baseUrl).href;
-            const uaParam = "&ua=" + encodeURIComponent(proxyEndpoint.includes("&ua=") ? new URL(proxyEndpoint, "http://localhost").searchParams.get("ua") || "" : "");
-            return `URI="${proxyEndpoint.split("&ua=")[0]}?url=${encodeURIComponent(absoluteUrl)}${uaParam !== "&ua=" ? uaParam : ""}"`;
+            const rewritten = buildProxyUrl(proxyEndpoint, absoluteUrl, customUserAgent);
+            return `URI="${rewritten}"`;
           } catch {
             return `URI="${uri}"`;
           }
@@ -95067,8 +95243,7 @@ function rewriteM3u8Manifest(manifest, baseUrl, proxyEndpoint = "/api/stream/pro
     } else {
       try {
         const absoluteUrl = new URL(trimmed, baseUrl).href;
-        const uaParam = "&ua=" + encodeURIComponent(proxyEndpoint.includes("&ua=") ? new URL(proxyEndpoint, "http://localhost").searchParams.get("ua") || "" : "");
-        rewrittenLines.push(`${proxyEndpoint.split("&ua=")[0]}?url=${encodeURIComponent(absoluteUrl)}${uaParam !== "&ua=" ? uaParam : ""}`);
+        rewrittenLines.push(buildProxyUrl(proxyEndpoint, absoluteUrl, customUserAgent));
       } catch {
         rewrittenLines.push(trimmed);
       }
@@ -95130,11 +95305,7 @@ async function handleStreamProxy(req, res) {
     if (isM3u8Url || isM3u8Mime) {
       const text = await upstreamResponse.text();
       if (text.trim().startsWith("#EXTM3U") || text.includes("#EXTINF")) {
-        let proxyEndpointUrl = "/api/stream/proxy";
-        if (customUserAgent) {
-          proxyEndpointUrl += `&ua=${encodeURIComponent(customUserAgent)}`;
-        }
-        const rewritten = rewriteM3u8Manifest(text, finalBaseUrl, proxyEndpointUrl);
+        const rewritten = rewriteM3u8Manifest(text, finalBaseUrl, "/api/stream/proxy", customUserAgent);
         res.setHeader("Content-Type", "application/vnd.apple.mpegurl");
         res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
         res.setHeader("Pragma", "no-cache");
@@ -96073,6 +96244,7 @@ app.post("/api/public/auth/register", async (req, res) => {
       return res.status(409).json({ error: "Account already exists. Please sign in instead." });
     }
     const uid = `usr_${Buffer.from(normalizedEmail).toString("hex").slice(0, 12)}`;
+    const hashedPassword = (0, import_auth.hashPassword)(password);
     const tokenPayload = {
       uid,
       sub: uid,
@@ -96082,10 +96254,11 @@ app.post("/api/public/auth/register", async (req, res) => {
       subscriptionTier: "free",
       accountStatus: "active"
     };
-    const token = Buffer.from(JSON.stringify(tokenPayload)).toString("base64");
+    const token = (0, import_auth.createSignedToken)(tokenPayload);
     await userRepo.createUser({
       uid,
       email: normalizedEmail,
+      passwordHash: hashedPassword,
       displayName: normalizedEmail.split("@")[0],
       photoURL: null,
       role: "user",
@@ -96118,51 +96291,18 @@ app.post("/api/public/auth/login", async (req, res) => {
       return res.status(400).json({ error: "Email and password are required." });
     }
     const normalizedEmail = email.trim().toLowerCase();
-    if (normalizedEmail === "angelburgosrosado@gmail.com") {
-      if (password !== "Admin123") {
-        return res.status(401).json({ error: "Invalid password for administrator account." });
-      }
-      const uid = "admin_angelburgos";
-      const tokenPayload2 = {
-        uid,
-        sub: uid,
-        email: "angelburgosrosado@gmail.com",
-        name: "Angel Burgos",
-        role: "admin",
-        subscriptionTier: "builder",
-        accountStatus: "active"
-      };
-      const token2 = Buffer.from(JSON.stringify(tokenPayload2)).toString("base64");
-      let profile = await userRepo.getUser(uid);
-      if (!profile) {
-        await userRepo.createUser({
-          uid,
-          email: "angelburgosrosado@gmail.com",
-          displayName: "Angel Burgos (CEO)",
-          photoURL: null,
-          role: "admin",
-          subscriptionTier: "builder",
-          accountStatus: "active",
-          createdAt: (/* @__PURE__ */ new Date()).toISOString(),
-          updatedAt: (/* @__PURE__ */ new Date()).toISOString()
-        });
-      }
-      return res.status(200).json({
-        success: true,
-        token: token2,
-        user: {
-          uid,
-          email: "angelburgosrosado@gmail.com",
-          displayName: "Angel Burgos (CEO)",
-          role: "admin",
-          subscriptionTier: "builder",
-          isPremium: true
-        }
-      });
-    }
     const user = await userRepo.getUserByEmail(normalizedEmail);
     if (!user) {
       return res.status(401).json({ error: "Account not found. Please create an account first." });
+    }
+    if (user.passwordHash) {
+      const isValid = (0, import_auth.verifyPassword)(password, user.passwordHash);
+      if (!isValid) {
+        return res.status(401).json({ error: "Invalid password. Please check your credentials." });
+      }
+    } else {
+      const newHash = (0, import_auth.hashPassword)(password);
+      await userRepo.updateUser(user.uid, { passwordHash: newHash });
     }
     const tokenPayload = {
       uid: user.uid,
@@ -96173,7 +96313,7 @@ app.post("/api/public/auth/login", async (req, res) => {
       subscriptionTier: user.subscriptionTier,
       accountStatus: user.accountStatus
     };
-    const token = Buffer.from(JSON.stringify(tokenPayload)).toString("base64");
+    const token = (0, import_auth.createSignedToken)(tokenPayload);
     return res.status(200).json({
       success: true,
       token,
@@ -96194,7 +96334,10 @@ app.post("/api/public/auth/login", async (req, res) => {
 app.get("/api/v1/apps/:appId/config", async (req, res) => {
   try {
     const { appId } = req.params;
-    const config2 = await appConfigRepo.getAppConfig(appId);
+    const config2 = await appConfigRepo.getAppConfig(appId).catch((dbErr) => {
+      logger7.warn(`Database unreachable or degraded while fetching app config for ${appId}`, dbErr);
+      return null;
+    });
     if (!config2 || !config2.active) {
       return res.status(404).json({ error: "App configuration not found or currently inactive." });
     }
@@ -97119,7 +97262,10 @@ app.get("/api/admin/metrics", adminGuard, async (req, res) => {
 });
 app.get("/api/admin/users", adminGuard, async (req, res) => {
   try {
-    const list = await userRepo.listUsers();
+    const list = await userRepo.listUsers().catch((dbErr) => {
+      logger7.warn("Database degraded while listing users, returning empty set", dbErr);
+      return [];
+    });
     res.json(list);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -97202,7 +97348,10 @@ app.get("/api/admin/playlists", adminGuard, async (req, res) => {
 });
 app.get("/api/admin/workspaces", adminGuard, async (req, res) => {
   try {
-    const list = await workspaceRepo2.listAllWorkspaces(200);
+    const list = await workspaceRepo2.listAllWorkspaces(200).catch((dbErr) => {
+      logger7.warn("Database degraded while listing workspaces, returning empty set", dbErr);
+      return [];
+    });
     res.json(list);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -97238,7 +97387,10 @@ app.patch("/api/admin/workspaces/:workspaceId/quota", adminGuard, async (req, re
 });
 app.get("/api/admin/jobs", adminGuard, async (req, res) => {
   try {
-    const builds = await buildRepo.listAllBuilds();
+    const builds = await buildRepo.listAllBuilds().catch((dbErr) => {
+      logger7.warn("Database degraded while listing builds, returning empty set", dbErr);
+      return [];
+    });
     res.json({
       buildJobs: builds.slice(0, 50)
     });
@@ -97269,7 +97421,10 @@ app.post("/api/admin/jobs/:jobType/:jobId/retry", adminGuard, async (req, res) =
 });
 app.get("/api/admin/audit-logs", adminGuard, async (req, res) => {
   try {
-    const logs = await auditRepo.listActions();
+    const logs = await auditRepo.listActions().catch((dbErr) => {
+      logger7.warn("Database degraded while listing audit logs, returning empty set", dbErr);
+      return [];
+    });
     res.json(logs);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -97304,7 +97459,11 @@ app.put("/api/admin/adsense", adminGuard, async (req, res) => {
       notes: `Updated Google AdSense configuration (Publisher: ${updatedConfig.clientId}, Enabled: ${updatedConfig.enabled})`,
       createdAt: (/* @__PURE__ */ new Date()).toISOString()
     };
-    await auditRepo.logAction(adminAction);
+    try {
+      await auditRepo.logAction(adminAction);
+    } catch (auditErr) {
+      logger7.warn("Database degraded: audit log skipped for AdSense update", auditErr);
+    }
     res.json({
       success: true,
       message: "Google AdSense settings updated successfully",

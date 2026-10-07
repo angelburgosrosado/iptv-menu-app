@@ -1,4 +1,4 @@
-import { PlaylistRepository, BuildRepository, EpgRepository, getFirestoreDB, getDb, schema, eq } from '@iptv-menu/db';
+import { PlaylistRepository, BuildRepository, EpgRepository, getFirestoreDB, getDb, schema, eq, sql } from '@iptv-menu/db';
 import { PlaylistRun, BuildRequest, RunType, RunStatus, BuildStatus, EpgFeed } from '@iptv-menu/types';
 import { Logger } from '@iptv-menu/logging';
 
@@ -74,38 +74,42 @@ export async function dispatchEpgJob(epgId: string): Promise<void> {
 }
 
 /**
- * Polling and locking queue helper for workers to safely fetch tasks
+ * Polling and locking queue helper for workers to safely fetch tasks.
+ * Uses atomic row locking (FOR UPDATE SKIP LOCKED on Postgres, runTransaction on Firestore)
+ * to guarantee that multiple concurrent workers never process the same job.
  */
 export async function pollNextPlaylistJob(): Promise<{ playlistId: string; run: PlaylistRun } | null> {
   if (process.env.DATABASE_URL) {
     try {
       const db = getDb();
-      const [row] = await db
-        .select()
-        .from(schema.playlistRuns)
-        .where(eq(schema.playlistRuns.status, 'queued'))
-        .limit(1);
-
-      if (!row) return null;
-
       const startedAt = new Date();
-      await db
-        .update(schema.playlistRuns)
-        .set({
-          status: 'running',
-          startedAt,
-        } as any)
-        .where(eq(schema.playlistRuns.runId, row.runId));
+      const result = await db.execute(sql`
+        UPDATE playlist_runs
+        SET status = 'running', started_at = ${startedAt}
+        WHERE run_id = (
+          SELECT run_id
+          FROM playlist_runs
+          WHERE status = 'queued'
+          ORDER BY started_at ASC
+          FOR UPDATE SKIP LOCKED
+          LIMIT 1
+        )
+        RETURNING run_id, playlist_id, type, status, started_at, completed_at, summary, error;
+      `);
 
-      logger.info('Successfully locked next playlist run job from Neon', { runId: row.runId, playlistId: row.playlistId });
+      const rows = (result as any).rows || result;
+      if (!rows || rows.length === 0) return null;
+      const row = rows[0];
+
+      logger.info('Successfully locked next playlist run job from Neon', { runId: row.run_id, playlistId: row.playlist_id });
       return {
-        playlistId: row.playlistId,
+        playlistId: row.playlist_id,
         run: {
-          runId: row.runId,
-          playlistId: row.playlistId,
+          runId: row.run_id,
+          playlistId: row.playlist_id,
           type: row.type as any,
           status: 'running',
-          startedAt: startedAt.toISOString(),
+          startedAt: new Date(row.started_at).toISOString(),
           completedAt: null,
           summary: row.summary as any,
           error: null,
@@ -120,7 +124,6 @@ export async function pollNextPlaylistJob(): Promise<{ playlistId: string; run: 
   const db = getFirestoreDB();
   
   try {
-    // Query group for all subcollections named 'runs' that are in 'queued' state
     const snapshot = await db.collectionGroup('runs')
       .where('status', '==', 'queued')
       .limit(1)
@@ -129,19 +132,28 @@ export async function pollNextPlaylistJob(): Promise<{ playlistId: string; run: 
     if (snapshot.empty) return null;
 
     const doc = snapshot.docs[0];
-    const run = doc.data() as PlaylistRun;
-    
-    // Acquire optimistic lock by switching state from 'queued' to 'running'
     const docRef = doc.ref;
-    await docRef.update({
-      status: 'running',
-      startedAt: new Date().toISOString(),
+
+    const run = await db.runTransaction(async (transaction: any) => {
+      const freshDoc = await transaction.get(docRef);
+      if (!freshDoc.exists || freshDoc.data().status !== 'queued') {
+        return null;
+      }
+      const data = freshDoc.data() as PlaylistRun;
+      const now = new Date().toISOString();
+      transaction.update(docRef, {
+        status: 'running',
+        startedAt: now,
+      });
+      return { ...data, status: 'running' as RunStatus, startedAt: now };
     });
+
+    if (!run) return null;
 
     logger.info('Successfully locked next playlist run job', { runId: run.runId, playlistId: run.playlistId });
     return {
       playlistId: run.playlistId,
-      run: { ...run, status: 'running' },
+      run,
     };
   } catch (error) {
     logger.error('Error polling or locking playlist runs', error);
@@ -153,35 +165,38 @@ export async function pollNextBuildJob(): Promise<BuildRequest | null> {
   if (process.env.DATABASE_URL) {
     try {
       const db = getDb();
-      const [row] = await db
-        .select()
-        .from(schema.buildRequests)
-        .where(eq(schema.buildRequests.status, 'queued'))
-        .limit(1);
-
-      if (!row) return null;
-
       const updatedAt = new Date();
-      await db
-        .update(schema.buildRequests)
-        .set({
-          status: 'building',
-          updatedAt,
-        } as any)
-        .where(eq(schema.buildRequests.buildId, row.buildId));
+      const result = await db.execute(sql`
+        UPDATE build_requests
+        SET status = 'building', updated_at = ${updatedAt}
+        WHERE build_id = (
+          SELECT build_id
+          FROM build_requests
+          WHERE status = 'queued'
+          ORDER BY created_at ASC
+          FOR UPDATE SKIP LOCKED
+          LIMIT 1
+        )
+        RETURNING build_id, uid, app_name, brand_config, playlist_source, status, artifact_path, build_log_path, app_config_id, created_at, updated_at;
+      `);
 
-      logger.info('Locked build request job from Neon', { buildId: row.buildId });
+      const rows = (result as any).rows || result;
+      if (!rows || rows.length === 0) return null;
+      const row = rows[0];
+
+      logger.info('Locked build request job from Neon', { buildId: row.build_id });
       return {
-        buildId: row.buildId,
+        buildId: row.build_id,
         uid: row.uid,
-        appName: row.appName,
-        brandConfig: row.brandConfig,
-        playlistSource: row.playlistSource,
+        appName: row.app_name,
+        brandConfig: row.brand_config,
+        playlistSource: row.playlist_source,
         status: 'building',
-        artifactPath: row.artifactPath || null,
-        buildLogPath: row.buildLogPath || null,
-        createdAt: row.createdAt.toISOString(),
-        updatedAt: updatedAt.toISOString(),
+        artifactPath: row.artifact_path || null,
+        buildLogPath: row.build_log_path || null,
+        appConfigId: row.app_config_id || null,
+        createdAt: new Date(row.created_at).toISOString(),
+        updatedAt: new Date(row.updated_at).toISOString(),
       };
     } catch (error) {
       logger.error('Error polling or locking build requests on Neon', error);
@@ -200,17 +215,26 @@ export async function pollNextBuildJob(): Promise<BuildRequest | null> {
     if (snapshot.empty) return null;
 
     const doc = snapshot.docs[0];
-    const build = doc.data() as BuildRequest;
-    
-    // Lock the task
     const docRef = doc.ref;
-    await docRef.update({
-      status: 'building',
-      updatedAt: new Date().toISOString(),
+
+    const build = await db.runTransaction(async (transaction: any) => {
+      const freshDoc = await transaction.get(docRef);
+      if (!freshDoc.exists || freshDoc.data().status !== 'queued') {
+        return null;
+      }
+      const data = freshDoc.data() as BuildRequest;
+      const now = new Date().toISOString();
+      transaction.update(docRef, {
+        status: 'building',
+        updatedAt: now,
+      });
+      return { ...data, status: 'building' as BuildStatus, updatedAt: now };
     });
 
+    if (!build) return null;
+
     logger.info('Locked build request job', { buildId: build.buildId });
-    return { ...build, status: 'building' };
+    return build;
   } catch (error) {
     logger.error('Error polling or locking build requests', error);
     return null;
@@ -221,33 +245,35 @@ export async function pollNextEpgJob(): Promise<EpgFeed | null> {
   if (process.env.DATABASE_URL) {
     try {
       const db = getDb();
-      const [row] = await db
-        .select()
-        .from(schema.epgFeeds)
-        .where(eq(schema.epgFeeds.status, 'pending'))
-        .limit(1);
-
-      if (!row) return null;
-
       const lastGeneratedAt = new Date();
-      await db
-        .update(schema.epgFeeds)
-        .set({
-          status: 'generating',
-          lastGeneratedAt,
-        } as any)
-        .where(eq(schema.epgFeeds.epgId, row.epgId));
+      const result = await db.execute(sql`
+        UPDATE epg_feeds
+        SET status = 'generating', last_generated_at = ${lastGeneratedAt}
+        WHERE epg_id = (
+          SELECT epg_id
+          FROM epg_feeds
+          WHERE status = 'pending'
+          ORDER BY created_at ASC
+          FOR UPDATE SKIP LOCKED
+          LIMIT 1
+        )
+        RETURNING epg_id, uid, playlist_id, status, source_config, output_file_path, created_at, last_generated_at;
+      `);
 
-      logger.info('Locked EPG generation job from Neon', { epgId: row.epgId });
+      const rows = (result as any).rows || result;
+      if (!rows || rows.length === 0) return null;
+      const row = rows[0];
+
+      logger.info('Locked EPG generation job from Neon', { epgId: row.epg_id });
       return {
-        epgId: row.epgId,
+        epgId: row.epg_id,
         uid: row.uid,
-        playlistId: row.playlistId,
+        playlistId: row.playlist_id,
         status: 'generating',
-        sourceConfig: row.sourceConfig,
-        outputFilePath: row.outputFilePath || null,
-        createdAt: row.createdAt.toISOString(),
-        lastGeneratedAt: lastGeneratedAt.toISOString(),
+        sourceConfig: row.source_config,
+        outputFilePath: row.output_file_path || null,
+        createdAt: new Date(row.created_at).toISOString(),
+        lastGeneratedAt: new Date(row.last_generated_at).toISOString(),
       };
     } catch (error) {
       logger.error('Error polling or locking EPG feeds on Neon', error);
@@ -266,17 +292,26 @@ export async function pollNextEpgJob(): Promise<EpgFeed | null> {
     if (snapshot.empty) return null;
 
     const doc = snapshot.docs[0];
-    const epg = doc.data() as EpgFeed;
-    
-    // Lock the task
     const docRef = doc.ref;
-    await docRef.update({
-      status: 'generating',
-      lastGeneratedAt: new Date().toISOString(),
+
+    const epg = await db.runTransaction(async (transaction: any) => {
+      const freshDoc = await transaction.get(docRef);
+      if (!freshDoc.exists || freshDoc.data().status !== 'pending') {
+        return null;
+      }
+      const data = freshDoc.data() as EpgFeed;
+      const now = new Date().toISOString();
+      transaction.update(docRef, {
+        status: 'generating',
+        lastGeneratedAt: now,
+      });
+      return { ...data, status: 'generating' as any, lastGeneratedAt: now };
     });
 
+    if (!epg) return null;
+
     logger.info('Locked EPG generation job', { epgId: epg.epgId });
-    return { ...epg, status: 'generating' };
+    return epg;
   } catch (error) {
     logger.error('Error polling or locking EPG feeds', error);
     return null;

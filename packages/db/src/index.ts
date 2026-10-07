@@ -9,7 +9,7 @@ import { getDb, schema } from './client';
 
 export * from './schema';
 export * from './client';
-export { eq, desc, asc, and } from 'drizzle-orm';
+export { eq, desc, asc, and, sql } from 'drizzle-orm';
 
 const logger = new Logger('db-repository');
 
@@ -67,6 +67,7 @@ export class UserRepository {
           role: row.role as any,
           accountStatus: row.accountStatus as any,
           subscriptionTier: row.subscriptionTier as any,
+          passwordHash: row.passwordHash || null,
           createdAt: row.createdAt.toISOString(),
           updatedAt: row.updatedAt.toISOString(),
         };
@@ -99,6 +100,7 @@ export class UserRepository {
           role: row.role as any,
           accountStatus: row.accountStatus as any,
           subscriptionTier: row.subscriptionTier as any,
+          passwordHash: row.passwordHash || null,
           createdAt: row.createdAt.toISOString(),
           updatedAt: row.updatedAt.toISOString(),
         };
@@ -129,6 +131,7 @@ export class UserRepository {
           role: profile.role || 'user',
           accountStatus: profile.accountStatus || 'active',
           subscriptionTier: profile.subscriptionTier || 'free',
+          passwordHash: profile.passwordHash || null,
         } as any).onConflictDoUpdate({
           target: schema.users.uid,
           set: {
@@ -138,6 +141,7 @@ export class UserRepository {
             role: profile.role,
             accountStatus: profile.accountStatus,
             subscriptionTier: profile.subscriptionTier,
+            passwordHash: profile.passwordHash !== undefined ? profile.passwordHash : undefined,
             updatedAt: new Date(),
           } as any,
         });
@@ -201,6 +205,7 @@ export class UserRepository {
           role: row.role as any,
           accountStatus: row.accountStatus as any,
           subscriptionTier: row.subscriptionTier as any,
+          passwordHash: row.passwordHash || null,
           createdAt: row.createdAt.toISOString(),
           updatedAt: row.updatedAt.toISOString(),
         }));

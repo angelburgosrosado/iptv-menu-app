@@ -195,11 +195,11 @@ const DEFAULT_SUBSCRIPTIONS: PlaylistSubscription[] = [
     colorTag: '#10b981'
   },
   {
-    id: 'sub-melhata-xtream',
-    name: 'Melhata Xtream Dedicated Line',
-    url: 'http://line.melhata.org/get.php?username=8rvzieximl&password=h1usotpevd&type=m3u_plus&output=ts',
+    id: 'sub-public-news',
+    name: 'Global Public News & Educational',
+    url: 'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_pluto.m3u',
     autoSync: true,
-    syncIntervalMinutes: 15,
+    syncIntervalMinutes: 60,
     lastSyncTime: new Date().toISOString(),
     channelCount: 20,
     status: 'synced',
