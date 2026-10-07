@@ -192,6 +192,15 @@ export function analyzePlaybackError(
       targetValue: 'mpegts',
       primary: true
     });
+    if (altFormat) {
+      actions.push({
+        id: 'swap-format',
+        label: `Switch Stream to ${altFormat.format.toUpperCase()} (${altFormat.format === 'ts' ? '.ts' : '.m3u8'})`,
+        description: `Attempt connection using the ${altFormat.format.toUpperCase()} broadcast format.`,
+        type: 'SWITCH_FORMAT',
+        targetValue: altFormat.url
+      });
+    }
   }
   // 3. Xtream format error (HLS failing on server that only serves TS, or vice-versa)
   else if (altFormat) {

@@ -230,14 +230,38 @@ function loadScript(src: string): Promise<void> {
   });
 }
 
-function loadHlsScript(): Promise<void> {
-  if ((window as any).Hls) return Promise.resolve();
-  return loadScript('https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js');
+async function loadHlsScript(): Promise<any> {
+  if (typeof window !== 'undefined' && (window as any).Hls) return (window as any).Hls;
+  try {
+    const mod = await import('hls.js');
+    const Hls = mod.default || mod;
+    if (typeof window !== 'undefined') (window as any).Hls = Hls;
+    return Hls;
+  } catch {
+    try {
+      await loadScript('/vendor/hls.min.js');
+      if ((window as any).Hls) return (window as any).Hls;
+    } catch {}
+    await loadScript('https://cdn.jsdelivr.net/npm/hls.js@1.5.17/dist/hls.min.js');
+    return (window as any).Hls;
+  }
 }
 
-function loadMpegtsScript(): Promise<void> {
-  if ((window as any).mpegts) return Promise.resolve();
-  return loadScript('https://cdn.jsdelivr.net/npm/mpegts.js@1.7.3/dist/mpegts.min.js');
+async function loadMpegtsScript(): Promise<any> {
+  if (typeof window !== 'undefined' && (window as any).mpegts) return (window as any).mpegts;
+  try {
+    const mod = await import('mpegts.js');
+    const mpegts = mod.default || mod;
+    if (typeof window !== 'undefined') (window as any).mpegts = mpegts;
+    return mpegts;
+  } catch {
+    try {
+      await loadScript('/vendor/mpegts.min.js');
+      if ((window as any).mpegts) return (window as any).mpegts;
+    } catch {}
+    await loadScript('https://cdn.jsdelivr.net/npm/mpegts.js@1.8.2/dist/mpegts.min.js');
+    return (window as any).mpegts;
+  }
 }
 
 export const VideoView = ({ player, style, startsInFullscreen = false, ...props }: any) => {

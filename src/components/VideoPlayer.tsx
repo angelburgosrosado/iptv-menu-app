@@ -121,6 +121,8 @@ export function VideoPlayer({
   const [formatOverrideUrl, setFormatOverrideUrl] = React.useState<string | null>(null);
   const [diagnostic, setDiagnostic] = React.useState<PlaybackDiagnostic | null>(null);
   const [hasAttemptedAutoTsFallback, setHasAttemptedAutoTsFallback] = React.useState(false);
+  const [hasAttemptedAutoHlsFallback, setHasAttemptedAutoHlsFallback] = React.useState(false);
+  const [hasAttemptedEngineSwitch, setHasAttemptedEngineSwitch] = React.useState(false);
   const [catchupTitle, setCatchupTitle] = React.useState<string | null>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -167,6 +169,8 @@ export function VideoPlayer({
     setFormatOverrideUrl(null);
     setDiagnostic(null);
     setHasAttemptedAutoTsFallback(false);
+    setHasAttemptedAutoHlsFallback(false);
+    setHasAttemptedEngineSwitch(false);
 
     // Check catchupUrl query param
     if (typeof window !== 'undefined') {
@@ -546,8 +550,33 @@ export function VideoPlayer({
       );
       setDiagnostic(diag);
 
-      // Auto-fallback check for Xtream .m3u8 -> .ts if not already tried
-      if (!hasAttemptedAutoTsFallback && diag.alternativeFormatUrl && (player as any)?.activeEngine !== 'mpegts') {
+      // Auto-fallback check for Xtream format mismatch or engine mismatch:
+      const cleanUrl = activeEffectiveUrl.split('?')[0].toLowerCase();
+      const isTsFormat = cleanUrl.endsWith('.ts') || cleanUrl.endsWith('.m2ts');
+
+      if (isTsFormat && (player as any)?.activeEngine !== 'mpegts' && !hasAttemptedEngineSwitch) {
+        setHasAttemptedEngineSwitch(true);
+        triggerChannelHud('Auto-recovering: Activating MPEG-TS demuxer engine...');
+        handleExecuteRecovery({
+          id: 'auto-engine-switch',
+          label: 'Switch to MPEG-TS Decoder',
+          description: 'Activating mpegts.js demuxer engine',
+          type: 'SWITCH_ENGINE',
+          targetValue: 'mpegts'
+        });
+      } else if (isTsFormat && diag.alternativeFormatUrl && !hasAttemptedAutoHlsFallback) {
+        // Feed format failed in .ts or mpegts demuxer failed; auto-swap to .m3u8 HLS
+        setHasAttemptedAutoHlsFallback(true);
+        triggerChannelHud('Auto-recovering: Switching .ts feed to HLS (.m3u8)...');
+        handleExecuteRecovery({
+          id: 'auto-hls-fallback',
+          label: 'Auto HLS Fallback',
+          description: 'Automatic format switch to .m3u8 stream',
+          type: 'SWITCH_FORMAT',
+          targetValue: diag.alternativeFormatUrl
+        });
+      } else if (!hasAttemptedAutoTsFallback && diag.alternativeFormatUrl && (player as any)?.activeEngine !== 'mpegts') {
+        // Feed format failed in .m3u8; auto-swap to .ts
         setHasAttemptedAutoTsFallback(true);
         triggerChannelHud('Auto-recovering: Trying MPEG-TS format...');
         handleExecuteRecovery({
