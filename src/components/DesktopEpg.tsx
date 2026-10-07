@@ -422,8 +422,9 @@ export default function DesktopEpg() {
           )}
         </div>
       ) : (
-        {/* HORIZONTAL TIMELINE SCRUBBER RIBBON */}
-        <div className="bg-[#121316] border border-white/10 rounded-2xl p-3 flex flex-col md:flex-row items-center justify-between gap-3 shadow-lg">
+        <>
+          <div className="bg-[#121316] border border-white/10 rounded-2xl p-3 flex flex-col md:flex-row items-center justify-between gap-3 shadow-lg">
+            {/* HORIZONTAL TIMELINE SCRUBBER RIBBON */}
           <div className="flex items-center gap-2">
             <button
               onClick={() => setTimelineOffsetHours(prev => Math.max(-12, prev - 1))}
@@ -491,7 +492,7 @@ export default function DesktopEpg() {
           </div>
         </div>
 
-        /* TIMELINE GRID & INSPECTOR SPLIT */
+        {/* TIMELINE GRID & INSPECTOR SPLIT */}
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-stretch">
           {/* Main Grid View */}
           <div className="xl:col-span-8 flex flex-col bg-[#121316] border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
@@ -840,6 +841,7 @@ export default function DesktopEpg() {
             )}
           </div>
         </div>
+        </>
       )}
 
       {/* DVR & Bookmarks Modal */}

@@ -96379,47 +96379,6 @@ app.post("/api/stream/probe/batch", async (req, res) => {
   const results = await streamHealthProber.probeBatch(urls);
   res.json({ results, totalProbed: Object.keys(results).length });
 });
-app.use("/api/stalker", (0, import_cors.default)({ origin: "*" }));
-app.get("/api/stalker/portal", async (req, res) => {
-  try {
-    const targetUrl = req.query.url || "";
-    const mac = req.query.mac || "";
-    const token = req.query.token || "";
-    if (!targetUrl) {
-      return res.status(400).json({ error: "Missing target url parameter" });
-    }
-    const headers = {
-      "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3",
-      "X-User-Agent": "Model: MAG250; Link: WiFi",
-      "Cookie": `mac=${encodeURIComponent(mac)}; stb_lang=en; timezone=GMT;`
-    };
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
-    const upstreamRes = await fetch(targetUrl, {
-      headers,
-      signal: AbortSignal.timeout(10000)
-    });
-    if (!upstreamRes.ok) {
-      return res.status(upstreamRes.status).json({ error: `Upstream Stalker portal returned HTTP ${upstreamRes.status}` });
-    }
-    const contentType = upstreamRes.headers.get("content-type") || "";
-    if (contentType.includes("application/json")) {
-      const data = await upstreamRes.json().catch(() => null);
-      return res.json(data);
-    } else {
-      const text = await upstreamRes.text();
-      try {
-        const parsed = JSON.parse(text);
-        return res.json(parsed);
-      } catch {
-        return res.send(text);
-      }
-    }
-  } catch (error) {
-    res.status(500).json({ error: error.message || "Internal server error while fetching Stalker portal" });
-  }
-});
 app.use("/api/channels", (0, import_cors.default)({ origin: "*" }));
 app.post("/api/channels/enrich", async (req, res) => {
   try {
@@ -96542,6 +96501,52 @@ app.get("/api/xtream/epg", async (req, res) => {
   } catch (error) {
     logger7.error("Error proxying Xtream EPG request", error);
     res.status(500).json({ error: error.message || "Internal server error while fetching Xtream EPG" });
+  }
+});
+app.use("/api/stalker", (0, import_cors.default)({ origin: "*" }));
+app.get("/api/stalker/portal", async (req, res) => {
+  try {
+    const targetUrl = req.query.url || "";
+    const mac = req.query.mac || "";
+    const token = req.query.token || "";
+    if (!targetUrl) {
+      return res.status(400).json({ error: "Missing target url parameter" });
+    }
+    const { safe, reason } = isSafeTargetUrl(targetUrl);
+    if (!safe) {
+      return res.status(403).json({ error: reason || "Access to private or loopback addresses is prohibited." });
+    }
+    const headers = {
+      "User-Agent": "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3",
+      "X-User-Agent": "Model: MAG250; Link: WiFi",
+      "Cookie": `mac=${encodeURIComponent(mac)}; stb_lang=en; timezone=GMT;`
+    };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    const upstreamRes = await fetch(targetUrl, {
+      headers,
+      signal: AbortSignal.timeout(1e4)
+    });
+    if (!upstreamRes.ok) {
+      return res.status(upstreamRes.status).json({ error: `Upstream Stalker portal returned HTTP ${upstreamRes.status}` });
+    }
+    const contentType = upstreamRes.headers.get("content-type") || "";
+    if (contentType.includes("application/json")) {
+      const data = await upstreamRes.json().catch(() => null);
+      return res.json(data);
+    } else {
+      const text = await upstreamRes.text();
+      try {
+        const parsed = JSON.parse(text);
+        return res.json(parsed);
+      } catch {
+        return res.send(text);
+      }
+    }
+  } catch (error) {
+    logger7.error("Error proxying Stalker portal request", error);
+    res.status(500).json({ error: error.message || "Internal server error while fetching Stalker portal" });
   }
 });
 app.use("/api/epg/live", (0, import_cors.default)({ origin: "*" }));
