@@ -12,7 +12,8 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
-  StyleSheet
+  StyleSheet,
+  Platform,
 } from 'react-native';
 import {
   Server,
@@ -24,10 +25,13 @@ import {
   Trash2,
   LogIn,
   LogOut,
-  Tv
+  Tv,
+  ShieldCheck,
 } from 'lucide-react-native';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { XtreamAccount } from '../types/iptv';
+import { PALETTE, RADII } from '../theme/tokens';
+import { getDefaultOutputFormat } from '../utils/xtreamClient';
 
 interface XtreamLoginModalProps {
   visible: boolean;
@@ -40,13 +44,15 @@ export function XtreamLoginModal({ visible, onClose }: XtreamLoginModalProps) {
     savedXtreamAccounts,
     connectXtreamAccount,
     disconnectXtreamAccount,
-    removeSavedAccount
+    removeSavedAccount,
   } = usePlayerStore();
 
   const [serverUrl, setServerUrl] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [outputFormat, setOutputFormat] = useState<'ts' | 'm3u8'>('ts');
+  const [outputFormat, setOutputFormat] = useState<'ts' | 'm3u8'>(() =>
+    getDefaultOutputFormat()
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -57,7 +63,7 @@ export function XtreamLoginModal({ visible, onClose }: XtreamLoginModalProps) {
       serverUrl: serverUrl.trim(),
       username: username.trim(),
       password: password.trim(),
-      outputFormat
+      outputFormat,
     };
 
     if (!targetAccount.serverUrl || !targetAccount.username || !targetAccount.password) {
@@ -75,185 +81,173 @@ export function XtreamLoginModal({ visible, onClose }: XtreamLoginModalProps) {
       setPassword('');
       onClose();
     } else {
-      setErrorMessage(result.error || 'Failed to authenticate with Xtream server.');
+      setErrorMessage(result.error || 'Failed to authenticate with Xtream Codes server.');
     }
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={styles.container}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent
+      onRequestClose={onClose}
+    >
+      <View style={styles.backdrop}>
+        <View style={styles.modalCard}>
           {/* Header */}
           <View style={styles.header}>
             <View style={styles.headerTitleRow}>
-              <Tv size={22} color="#56d6c2" />
-              <Text style={styles.headerTitle}>Xtream Codes Accounts</Text>
+              <Server size={20} color={PALETTE.primary} />
+              <Text style={styles.title}>Xtream Codes IPTV</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <X size={20} color="#94a3b8" />
+            <TouchableOpacity onPress={onClose} hitSlop={12} style={styles.closeBtn}>
+              <X size={20} color={PALETTE.textMuted} />
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.scrollArea} contentContainerStyle={styles.scrollContent}>
-            {/* Active Account Card */}
-            {xtreamAccount && (
-              <View style={styles.activeCard}>
+          <ScrollView contentContainerStyle={styles.scrollContent}>
+            {/* Active Account Status */}
+            {xtreamAccount ? (
+              <View style={styles.activeBanner}>
                 <View style={styles.activeHeader}>
-                  <View style={styles.statusBadge}>
-                    <CheckCircle size={14} color="#10b981" />
-                    <Text style={styles.statusText}>Connected</Text>
-                  </View>
-                  <TouchableOpacity onPress={disconnectXtreamAccount} style={styles.disconnectBtn}>
-                    <LogOut size={14} color="#f43f5e" />
-                    <Text style={styles.disconnectText}>Disconnect</Text>
-                  </TouchableOpacity>
+                  <CheckCircle size={18} color={PALETTE.accentSuccess} />
+                  <Text style={styles.activeTitle}>Connected Profile</Text>
                 </View>
-
                 <Text style={styles.activeServer}>{xtreamAccount.serverUrl}</Text>
                 <Text style={styles.activeUser}>User: {xtreamAccount.username}</Text>
-
-                {xtreamAccount.userInfo && (
-                  <View style={styles.accountMetaRow}>
-                    <Text style={styles.metaLabel}>
-                      Status: <Text style={styles.metaValue}>{xtreamAccount.userInfo.status || 'Active'}</Text>
-                    </Text>
-                    {xtreamAccount.userInfo.exp_date && (
-                      <Text style={styles.metaLabel}>
-                        Expires: <Text style={styles.metaValue}>
-                          {isNaN(Number(xtreamAccount.userInfo.exp_date))
-                            ? xtreamAccount.userInfo.exp_date
-                            : new Date(Number(xtreamAccount.userInfo.exp_date) * 1000).toLocaleDateString()}
-                        </Text>
-                      </Text>
-                    )}
-                  </View>
+                {xtreamAccount.userInfo?.exp_date && (
+                  <Text style={styles.activeExpiry}>
+                    Expires: {new Date(parseInt(xtreamAccount.userInfo.exp_date, 10) * 1000).toLocaleDateString()}
+                  </Text>
                 )}
+                <TouchableOpacity
+                  onPress={disconnectXtreamAccount}
+                  style={styles.disconnectBtn}
+                >
+                  <LogOut size={16} color="#fff" />
+                  <Text style={styles.disconnectBtnText}>Disconnect</Text>
+                </TouchableOpacity>
               </View>
-            )}
+            ) : null}
 
-            {/* Error Message */}
+            {/* Error Banner */}
             {errorMessage && (
               <View style={styles.errorBox}>
-                <AlertCircle size={16} color="#f43f5e" />
+                <AlertCircle size={16} color={PALETTE.accentLive} />
                 <Text style={styles.errorText}>{errorMessage}</Text>
               </View>
             )}
 
-            {/* Login Form */}
+            {/* New Credentials Form */}
             <View style={styles.formSection}>
-              <Text style={styles.sectionTitle}>Add New Account</Text>
+              <Text style={styles.formSectionTitle}>
+                {xtreamAccount ? 'Add or Switch Server' : 'Enter Server Credentials'}
+              </Text>
 
-              {/* Server URL */}
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Server Portal URL</Text>
-                <View style={styles.inputRow}>
-                  <Server size={18} color="#64748b" style={styles.inputIcon} />
+                <Text style={styles.inputLabel}>Server URL & Port</Text>
+                <View style={styles.inputWrapper}>
+                  <Server size={16} color={PALETTE.textDim} style={styles.inputIcon} />
                   <TextInput
-                    style={styles.textInput}
-                    placeholder="http://provider.com:8080"
-                    placeholderTextColor="#475569"
                     value={serverUrl}
                     onChangeText={setServerUrl}
+                    placeholder="http://provider-domain.com:8080"
+                    placeholderTextColor={PALETTE.textDim}
                     autoCapitalize="none"
                     autoCorrect={false}
+                    style={styles.input}
                   />
                 </View>
               </View>
 
-              {/* Username */}
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Username</Text>
-                <View style={styles.inputRow}>
-                  <User size={18} color="#64748b" style={styles.inputIcon} />
+                <View style={styles.inputWrapper}>
+                  <User size={16} color={PALETTE.textDim} style={styles.inputIcon} />
                   <TextInput
-                    style={styles.textInput}
-                    placeholder="Enter Xtream username"
-                    placeholderTextColor="#475569"
                     value={username}
                     onChangeText={setUsername}
+                    placeholder="Account username"
+                    placeholderTextColor={PALETTE.textDim}
                     autoCapitalize="none"
                     autoCorrect={false}
+                    style={styles.input}
                   />
                 </View>
               </View>
 
-              {/* Password */}
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Password</Text>
-                <View style={styles.inputRow}>
-                  <Key size={18} color="#64748b" style={styles.inputIcon} />
+                <View style={styles.inputWrapper}>
+                  <Key size={16} color={PALETTE.textDim} style={styles.inputIcon} />
                   <TextInput
-                    style={styles.textInput}
-                    placeholder="Enter Xtream password"
-                    placeholderTextColor="#475569"
                     value={password}
                     onChangeText={setPassword}
+                    placeholder="Account password"
+                    placeholderTextColor={PALETTE.textDim}
                     secureTextEntry
                     autoCapitalize="none"
                     autoCorrect={false}
+                    style={styles.input}
                   />
                 </View>
               </View>
 
-              {/* Format Switcher */}
+              {/* Stream Container Format (HLS vs TS) */}
               <View style={styles.formatGroup}>
-                <Text style={styles.inputLabel}>Stream Format (Firestick / TV)</Text>
-                <View style={styles.formatToggleRow}>
+                <Text style={styles.inputLabel}>Stream Format</Text>
+                <View style={styles.formatRow}>
                   <TouchableOpacity
-                    style={[styles.formatBtn, outputFormat === 'ts' && styles.formatBtnActive]}
-                    onPress={() => setOutputFormat('ts')}
-                  >
-                    <Text style={[styles.formatBtnText, outputFormat === 'ts' && styles.formatBtnTextActive]}>
-                      MPEG-TS (.ts) — Native Hardware
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.formatBtn, outputFormat === 'm3u8' && styles.formatBtnActive]}
                     onPress={() => setOutputFormat('m3u8')}
+                    style={[styles.formatBtn, outputFormat === 'm3u8' && styles.formatBtnActive]}
                   >
                     <Text style={[styles.formatBtnText, outputFormat === 'm3u8' && styles.formatBtnTextActive]}>
-                      HLS (.m3u8)
+                      HLS (.m3u8) {Platform.OS === 'ios' ? '★ Apple Recommended' : ''}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={() => setOutputFormat('ts')}
+                    style={[styles.formatBtn, outputFormat === 'ts' && styles.formatBtnActive]}
+                  >
+                    <Text style={[styles.formatBtnText, outputFormat === 'ts' && styles.formatBtnTextActive]}>
+                      MPEG-TS (.ts)
                     </Text>
                   </TouchableOpacity>
                 </View>
               </View>
 
-              {/* Submit Button */}
               <TouchableOpacity
-                style={styles.submitBtn}
                 onPress={() => handleConnect()}
                 disabled={isSubmitting}
+                style={styles.connectBtn}
               >
                 {isSubmitting ? (
-                  <ActivityIndicator color="#071018" />
+                  <ActivityIndicator size="small" color="#fff" />
                 ) : (
                   <>
-                    <LogIn size={18} color="#071018" />
-                    <Text style={styles.submitBtnText}>Connect & Load Channels</Text>
+                    <LogIn size={18} color="#fff" />
+                    <Text style={styles.connectBtnText}>Connect & Load Channels</Text>
                   </>
                 )}
               </TouchableOpacity>
             </View>
 
             {/* Saved Accounts */}
-            {savedXtreamAccounts && savedXtreamAccounts.length > 0 && (
+            {savedXtreamAccounts.length > 0 && (
               <View style={styles.savedSection}>
-                <Text style={styles.sectionTitle}>Saved Accounts</Text>
-                {savedXtreamAccounts.map((acc, index) => (
-                  <View key={`${acc.serverUrl}_${acc.username}_${index}`} style={styles.savedItem}>
+                <Text style={styles.formSectionTitle}>Saved Profiles</Text>
+                {savedXtreamAccounts.map((account) => (
+                  <View key={`${account.serverUrl}_${account.username}`} style={styles.savedCard}>
+                    <View style={styles.savedDetails}>
+                      <Text style={styles.savedName}>{account.name || account.username}</Text>
+                      <Text style={styles.savedUrl} numberOfLines={1}>{account.serverUrl}</Text>
+                    </View>
                     <TouchableOpacity
-                      style={styles.savedInfo}
-                      onPress={() => handleConnect(acc)}
-                      disabled={isSubmitting}
-                    >
-                      <Text style={styles.savedServer} numberOfLines={1}>{acc.serverUrl}</Text>
-                      <Text style={styles.savedUser}>User: {acc.username}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => removeSavedAccount(acc.serverUrl, acc.username)}
+                      onPress={() => removeSavedAccount(account.serverUrl, account.username)}
                       style={styles.deleteBtn}
                     >
-                      <Trash2 size={16} color="#94a3b8" />
+                      <Trash2 size={16} color={PALETTE.accentLive} />
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -267,231 +261,220 @@ export function XtreamLoginModal({ visible, onClose }: XtreamLoginModalProps) {
 }
 
 const styles = StyleSheet.create({
-  overlay: {
+  backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.75)',
+    backgroundColor: 'rgba(0, 0, 0, 0.82)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 16
+    padding: 16,
   },
-  container: {
+  modalCard: {
     width: '100%',
     maxWidth: 520,
     maxHeight: '90%',
-    backgroundColor: '#0c131d',
-    borderRadius: 20,
+    backgroundColor: PALETTE.bgSurface,
+    borderRadius: RADII.xl,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    overflow: 'hidden'
+    borderColor: PALETTE.glassBorder,
+    overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    padding: 18,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255, 255, 255, 0.08)'
+    borderBottomColor: 'rgba(255, 255, 255, 0.08)',
   },
   headerTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10
+    gap: 10,
   },
-  headerTitle: {
-    color: '#ffffff',
+  title: {
+    color: PALETTE.textPrimary,
     fontSize: 18,
-    fontWeight: '800'
+    fontWeight: '800',
   },
   closeBtn: {
-    padding: 4
-  },
-  scrollArea: {
-    flexGrow: 1
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
   },
   scrollContent: {
     padding: 20,
-    gap: 18
+    gap: 18,
   },
-  activeCard: {
-    backgroundColor: 'rgba(16, 185, 129, 0.08)',
-    borderRadius: 14,
+  activeBanner: {
+    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+    borderRadius: RADII.md,
     borderWidth: 1,
     borderColor: 'rgba(16, 185, 129, 0.25)',
     padding: 14,
-    gap: 6
+    gap: 4,
   },
   activeHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center'
-  },
-  statusBadge: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 6
+    gap: 6,
+    marginBottom: 4,
   },
-  statusText: {
-    color: '#10b981',
+  activeTitle: {
+    color: PALETTE.accentSuccess,
+    fontSize: 14,
     fontWeight: '700',
-    fontSize: 13
+  },
+  activeServer: {
+    color: PALETTE.textPrimary,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  activeUser: {
+    color: PALETTE.textMuted,
+    fontSize: 12,
+  },
+  activeExpiry: {
+    color: PALETTE.textDim,
+    fontSize: 11,
   },
   disconnectBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 4
+    gap: 6,
+    backgroundColor: 'rgba(244, 63, 94, 0.85)',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: RADII.md,
+    alignSelf: 'flex-start',
+    marginTop: 8,
   },
-  disconnectText: {
-    color: '#f43f5e',
+  disconnectBtnText: {
+    color: '#fff',
     fontSize: 12,
-    fontWeight: '600'
-  },
-  activeServer: {
-    color: '#ffffff',
     fontWeight: '700',
-    fontSize: 14
-  },
-  activeUser: {
-    color: '#94a3b8',
-    fontSize: 13
-  },
-  accountMetaRow: {
-    flexDirection: 'row',
-    gap: 16,
-    marginTop: 4
-  },
-  metaLabel: {
-    color: '#64748b',
-    fontSize: 12
-  },
-  metaValue: {
-    color: '#cbd5e1',
-    fontWeight: '600'
   },
   errorBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: 'rgba(244, 63, 94, 0.1)',
-    borderWidth: 1,
-    borderColor: 'rgba(244, 63, 94, 0.25)',
+    backgroundColor: 'rgba(244, 63, 94, 0.12)',
     padding: 12,
-    borderRadius: 10
+    borderRadius: RADII.md,
+    borderWidth: 1,
+    borderColor: 'rgba(244, 63, 94, 0.3)',
   },
   errorText: {
-    color: '#f43f5e',
+    color: PALETTE.accentLive,
     fontSize: 13,
-    flex: 1
+    flex: 1,
   },
   formSection: {
-    gap: 14
+    gap: 14,
   },
-  sectionTitle: {
-    color: '#cbd5e1',
+  formSectionTitle: {
+    color: PALETTE.textSecondary,
     fontSize: 14,
     fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5
   },
   inputGroup: {
-    gap: 6
+    gap: 6,
   },
   inputLabel: {
-    color: '#94a3b8',
-    fontSize: 13,
-    fontWeight: '600'
+    color: PALETTE.textMuted,
+    fontSize: 12,
+    fontWeight: '600',
   },
-  inputRow: {
+  inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
-    paddingHorizontal: 12
-  },
-  inputIcon: {
-    marginRight: 8
-  },
-  textInput: {
-    flex: 1,
-    height: 44,
-    color: '#ffffff',
-    fontSize: 14
-  },
-  formatGroup: {
-    gap: 8
-  },
-  formatToggleRow: {
-    flexDirection: 'column',
-    gap: 8
-  },
-  formatBtn: {
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    backgroundColor: PALETTE.bgElevated,
+    borderRadius: RADII.md,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 10
+    paddingHorizontal: 12,
+  },
+  inputIcon: {
+    marginRight: 8,
+  },
+  input: {
+    flex: 1,
+    color: PALETTE.textPrimary,
+    fontSize: 14,
+    paddingVertical: 12,
+  },
+  formatGroup: {
+    gap: 8,
+  },
+  formatRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  formatBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: RADII.md,
+    backgroundColor: PALETTE.bgElevated,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    alignItems: 'center',
   },
   formatBtnActive: {
-    backgroundColor: 'rgba(86, 214, 194, 0.12)',
-    borderColor: '#56d6c2'
+    borderColor: PALETTE.primary,
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
   },
   formatBtnText: {
-    color: '#94a3b8',
-    fontSize: 13,
-    fontWeight: '600'
+    color: PALETTE.textMuted,
+    fontSize: 12,
+    fontWeight: '600',
   },
   formatBtnTextActive: {
-    color: '#56d6c2',
-    fontWeight: '700'
+    color: PALETTE.primary,
+    fontWeight: '700',
   },
-  submitBtn: {
+  connectBtn: {
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
-    backgroundColor: '#56d6c2',
+    backgroundColor: PALETTE.primaryDark,
     paddingVertical: 14,
-    borderRadius: 12,
-    marginTop: 6
+    borderRadius: RADII.md,
+    marginTop: 6,
   },
-  submitBtnText: {
-    color: '#071018',
+  connectBtnText: {
+    color: '#fff',
     fontSize: 15,
-    fontWeight: '800'
+    fontWeight: '700',
   },
   savedSection: {
     gap: 10,
-    marginTop: 8
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.08)',
+    paddingTop: 16,
   },
-  savedItem: {
+  savedCard: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
-    borderRadius: 12,
-    padding: 12
+    justifyContent: 'space-between',
+    backgroundColor: PALETTE.bgElevated,
+    padding: 12,
+    borderRadius: RADII.md,
   },
-  savedInfo: {
-    flex: 1
+  savedDetails: {
+    flex: 1,
+    gap: 2,
   },
-  savedServer: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '700'
+  savedName: {
+    color: PALETTE.textPrimary,
+    fontSize: 14,
+    fontWeight: '700',
   },
-  savedUser: {
-    color: '#64748b',
+  savedUrl: {
+    color: PALETTE.textDim,
     fontSize: 12,
-    marginTop: 2
   },
   deleteBtn: {
-    padding: 8
-  }
+    padding: 8,
+  },
 });

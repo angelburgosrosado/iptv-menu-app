@@ -1,7 +1,13 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 import { create } from 'zustand';
-import { AppState, Channel, RemoteTheme, EpgSource, XtreamAccount } from '../types/iptv';
+import { AppState, Channel, RemoteTheme, EpgSource, XtreamAccount, NowNextProgrammes } from '../types/iptv';
 import { parseM3U } from '../utils/m3uParser';
 import { buildCountrySections } from '../utils/channelEnrichment';
+import { syncStorage, setSecureItem, getSecureItem, deleteSecureItem } from '../utils/secureStorage';
 import {
   authenticateXtreamCodes,
   fetchXtreamCategories,
@@ -10,102 +16,50 @@ import {
   fetchXtreamM3uChannels
 } from '../utils/xtreamClient';
 
-let storage: any = null;
-try {
-  const { MMKV } = require('react-native-mmkv');
-  storage = new MMKV({ id: 'iptv_user_storage_v1' });
-} catch (e) {
-  console.warn('MMKV native module unavailable, falling back to memory store', e);
-}
-
-const memoryStore = new Map<string, string>();
-
-const readArrayFromStorage = (key: string): string[] => {
-  try {
-    const json = storage ? storage.getString(key) : memoryStore.get(key);
-    if (!json) return [];
-    return JSON.parse(json);
-  } catch {
-    return [];
-  }
-};
-
-const writeArrayToStorage = (key: string, data: string[]): void => {
-  try {
-    const val = JSON.stringify(data);
-    if (storage) {
-      storage.set(key, val);
-    } else {
-      memoryStore.set(key, val);
-    }
-  } catch (err) {
-    console.warn('Storage write failed', err);
-  }
-};
-
-const readObjectFromStorage = <T>(key: string, defaultVal: T): T => {
-  try {
-    const json = storage ? storage.getString(key) : memoryStore.get(key);
-    if (!json) return defaultVal;
-    return JSON.parse(json);
-  } catch {
-    return defaultVal;
-  }
-};
-
-const writeObjectToStorage = (key: string, data: any): void => {
-  try {
-    const val = JSON.stringify(data);
-    if (storage) {
-      storage.set(key, val);
-    } else {
-      memoryStore.set(key, val);
-    }
-  } catch (err) {
-    console.warn('Storage write failed', err);
-  }
-};
-
-const getStoredString = (key: string, defaultVal: string): string => {
-  try {
-    if (storage) return storage.getString(key) || defaultVal;
-    return memoryStore.get(key) || defaultVal;
-  } catch {
-    return defaultVal;
-  }
-};
-
 const defaultTheme: RemoteTheme = {
-  primaryColor: '#6366F1',
-  accentColor: '#10B981',
+  primaryColor: '#38bdf8',
+  accentColor: '#818cf8',
   logoUrl: '',
 };
+
+// In-flight playlist loading promise to avoid duplicate concurrent fetches (Fix B3)
+let activePlaylistPromise: Promise<void> | null = null;
 
 export const usePlayerStore = create<AppState>((set, get) => ({
   channels: [],
   groups: [],
-  favorites: readArrayFromStorage('favorites'),
-  history: readArrayFromStorage('history'),
+  favorites: syncStorage.getObject<string[]>('favorites', []),
+  history: syncStorage.getObject<string[]>('history', []),
+  currentPlayingChannel: syncStorage.getObject<Channel | null>('active_channel', null),
   isLoading: false,
+  isEpgLoading: false,
   parseProgress: 0,
   error: null,
-  playlistUrl: getStoredString('playlistUrl', 'https://iptv-org.github.io/iptv/countries/us.m3u'),
+  playlistUrl: syncStorage.getString('playlistUrl', 'https://iptv-org.github.io/iptv/countries/us.m3u'),
 
   // Xtream Codes Account Management
-  xtreamAccount: readObjectFromStorage<XtreamAccount | null>('active_xtream_account', null),
-  savedXtreamAccounts: readObjectFromStorage<XtreamAccount[]>('saved_xtream_accounts', []),
+  xtreamAccount: syncStorage.getObject<XtreamAccount | null>('active_xtream_account', null),
+  savedXtreamAccounts: syncStorage.getObject<XtreamAccount[]>('saved_xtream_accounts', []),
 
-  // Country & EPG Backbone enhancements
+  // Country & EPG Enhancements
   countrySections: [],
   selectedCountry: null,
   selectedGroup: null,
   searchTerm: '',
   epgSources: [
-    { key: 'licensed-primary', label: 'Licensed Primary Feed', priority: 1, enabled: true },
-    { key: 'open-epg', label: 'Public XMLTV Aggregator', priority: 2, enabled: true },
-    { key: 'community-country-feeds', label: 'Community Country Feeds', priority: 3, enabled: true }
+    { key: 'backend-live-epg', label: 'Global Live EPG Backbone', priority: 1, enabled: true },
+    { key: 'licensed-primary', label: 'Primary Licensed Slices', priority: 2, enabled: true },
+    { key: 'open-epg', label: 'Public XMLTV Aggregator', priority: 3, enabled: true }
   ],
   epgByChannel: {},
+
+  setCurrentPlayingChannel: (channel: Channel | null) => {
+    syncStorage.setObject('active_channel', channel);
+    set({ currentPlayingChannel: channel });
+    if (channel?.id) {
+      get().addToHistory(channel.id);
+    }
+  },
 
   setSelectedCountry: (code: string | null) => set({ selectedCountry: code }),
   setSelectedGroup: (group: string | null) => set({ selectedGroup: group }),
@@ -116,7 +70,13 @@ export const usePlayerStore = create<AppState>((set, get) => ({
     if (!currentChannels || currentChannels.length === 0) {
       const activeXtream = get().xtreamAccount;
       if (activeXtream) {
-        await get().connectXtreamAccount(activeXtream);
+        // Hydrate password from secure store if needed
+        const securePass = await getSecureItem(`xtream_pwd_${activeXtream.username}_${activeXtream.serverUrl}`);
+        const accountWithPass: XtreamAccount = {
+          ...activeXtream,
+          password: securePass || activeXtream.password,
+        };
+        await get().connectXtreamAccount(accountWithPass);
         currentChannels = get().channels;
       } else {
         await get().loadPlaylist();
@@ -132,7 +92,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
       const res = await fetch(`${apiBase}/api/channels/enrich`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channels: currentChannels }),
+        body: JSON.stringify({ channels: currentChannels.slice(0, 500) }),
         signal: controller.signal
       });
       clearTimeout(timeoutId);
@@ -140,10 +100,11 @@ export const usePlayerStore = create<AppState>((set, get) => ({
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data.channels) && data.channels.length > 0) {
-          const uniqueGroups = Array.from(new Set(data.channels.map((c: any) => c.group || 'General'))).sort() as string[];
-          const sections = buildCountrySections(data.channels);
+          const merged = currentChannels.map((c, i) => data.channels[i] || c);
+          const uniqueGroups = Array.from(new Set(merged.map((c) => c.group || 'General'))).sort();
+          const sections = buildCountrySections(merged);
           set({
-            channels: data.channels,
+            channels: merged,
             groups: uniqueGroups,
             countrySections: sections
           });
@@ -151,7 +112,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
         }
       }
     } catch (enrichErr) {
-      console.warn('Backend channel enrichment unavailable on mobile, using local matching', enrichErr);
+      // Local fallback
     }
 
     const sections = buildCountrySections(currentChannels);
@@ -165,19 +126,27 @@ export const usePlayerStore = create<AppState>((set, get) => ({
       currentChannels = get().channels;
     }
 
+    if (currentChannels.length === 0) return;
+
+    set({ isEpgLoading: true });
     const channelKeys = Array.from(
       new Set(
         currentChannels
           .map((c) => c.tvgId || c.epgChannelId || c.id)
           .filter(Boolean)
       )
-    );
+    ).slice(0, 300); // Batch slice
 
     const apiBase = process.env.EXPO_PUBLIC_API_URL || 'https://iptv.menu';
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
-      const res = await fetch(`${apiBase}/api/epg/live?channelIds=${encodeURIComponent(channelKeys.join(','))}`, {
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+      // Try POST batch first (prevents URL length overflow)
+      const res = await fetch(`${apiBase}/api/epg/live`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channelIds: channelKeys }),
         signal: controller.signal
       });
       clearTimeout(timeoutId);
@@ -185,65 +154,53 @@ export const usePlayerStore = create<AppState>((set, get) => ({
       if (res.ok) {
         const liveData = await res.json();
         if (liveData && liveData.channels) {
-          const formattedMap: Record<string, any[]> = {};
-          for (const [key, prog] of Object.entries(liveData.channels as Record<string, any>)) {
-            const list: any[] = [];
-            if (prog.now) list.push(prog.now);
-            if (prog.next) list.push(prog.next);
-            formattedMap[key] = list;
-          }
-
           set({
-            epgSources: [
-              { key: 'backend-live-epg', label: 'Backend Live Sliced Feed', priority: 1, enabled: true },
-              { key: 'licensed-primary', label: 'Licensed Primary Feed', priority: 2, enabled: true },
-              { key: 'open-epg', label: 'Public XMLTV Aggregator', priority: 3, enabled: true }
-            ],
-            epgByChannel: formattedMap
+            epgByChannel: liveData.channels,
+            isEpgLoading: false,
           });
           return;
         }
       }
     } catch (epgErr) {
-      console.warn('Backend live EPG unavailable on mobile, utilizing local schedule', epgErr);
+      // fallback
     }
 
-    const epgMap: Record<string, any[]> = {};
-    for (const c of currentChannels) {
-      const channelKey = c.tvgId || c.epgChannelId || c.id;
-      epgMap[channelKey] = [
-        {
-          title: `${c.name} Live Broadcast`,
-          start: new Date().toISOString(),
-          stop: new Date(Date.now() + 3600000).toISOString()
+    // Secondary fallback: query parameters
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const res = await fetch(`${apiBase}/api/epg/live?channelIds=${encodeURIComponent(channelKeys.slice(0, 50).join(','))}`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      if (res.ok) {
+        const liveData = await res.json();
+        if (liveData && liveData.channels) {
+          set({
+            epgByChannel: liveData.channels,
+            isEpgLoading: false,
+          });
+          return;
         }
-      ];
-    }
-    set({
-      epgSources: [
-        { key: 'licensed-primary', label: 'Licensed Primary Feed', priority: 1, enabled: true },
-        { key: 'open-epg', label: 'Public XMLTV Aggregator', priority: 2, enabled: true },
-        { key: 'community-country-feeds', label: 'Community Country Feeds', priority: 3, enabled: true }
-      ],
-      epgByChannel: epgMap
-    });
+      }
+    } catch {}
+
+    set({ isEpgLoading: false });
   },
 
   // Dynamic Remote OTA Configuration
-  appConfigId: getStoredString('appConfigId', process.env.EXPO_PUBLIC_APP_CONFIG_ID || '') || null,
-  remoteVersion: parseInt(getStoredString('remoteVersion', '0'), 10) || 0,
-  announcement: getStoredString('announcement', '') || null,
+  appConfigId: syncStorage.getString('appConfigId', process.env.EXPO_PUBLIC_APP_CONFIG_ID || '') || null,
+  remoteVersion: parseInt(syncStorage.getString('remoteVersion', '0'), 10) || 0,
+  announcement: syncStorage.getString('announcement', '') || null,
   theme: {
-    primaryColor: getStoredString('themePrimary', defaultTheme.primaryColor),
-    accentColor: getStoredString('themeAccent', defaultTheme.accentColor),
-    logoUrl: getStoredString('themeLogo', defaultTheme.logoUrl || ''),
+    primaryColor: syncStorage.getString('themePrimary', defaultTheme.primaryColor),
+    accentColor: syncStorage.getString('themeAccent', defaultTheme.accentColor),
+    logoUrl: syncStorage.getString('themeLogo', defaultTheme.logoUrl || ''),
   },
 
   setPlaylistUrl: (url: string) => {
-    try {
-      if (storage) storage.set('playlistUrl', url);
-      else memoryStore.set('playlistUrl', url);
-    } catch {}
+    syncStorage.setString('playlistUrl', url);
     set({ playlistUrl: url });
   },
 
@@ -256,23 +213,30 @@ export const usePlayerStore = create<AppState>((set, get) => ({
         return { success: false, error: auth.error || 'Authentication failed' };
       }
 
-      const verifiedAccount: XtreamAccount = {
+      // Securely store the password in KeyStore / Keychain
+      if (account.password) {
+        await setSecureItem(`xtream_pwd_${account.username}_${account.serverUrl}`, account.password);
+      }
+
+      // Sanitize password before storing account object to disk
+      const sanitizedAccount: XtreamAccount = {
         ...account,
+        password: undefined, // Password protected in SecureStore
         userInfo: auth.userInfo,
         serverInfo: auth.serverInfo,
         name: account.name || auth.userInfo?.username || account.username,
       };
 
       const [categories, streams] = await Promise.all([
-        fetchXtreamCategories(verifiedAccount),
-        fetchXtreamStreams(verifiedAccount)
+        fetchXtreamCategories(account),
+        fetchXtreamStreams(account)
       ]);
 
       let channels: Channel[] = [];
       if (streams && streams.length > 0) {
-        channels = generateXtreamChannelList(verifiedAccount, streams, categories);
+        channels = generateXtreamChannelList(account, streams, categories);
       } else {
-        channels = await fetchXtreamM3uChannels(verifiedAccount);
+        channels = await fetchXtreamM3uChannels(account);
       }
 
       if (channels.length === 0) {
@@ -284,18 +248,18 @@ export const usePlayerStore = create<AppState>((set, get) => ({
       const countrySections = buildCountrySections(channels);
 
       const existing = get().savedXtreamAccounts.filter(
-        (a) => !(a.serverUrl.toLowerCase() === verifiedAccount.serverUrl.toLowerCase() && a.username.toLowerCase() === verifiedAccount.username.toLowerCase())
+        (a) => !(a.serverUrl.toLowerCase() === account.serverUrl.toLowerCase() && a.username.toLowerCase() === account.username.toLowerCase())
       );
-      const updatedSaved = [verifiedAccount, ...existing];
+      const updatedSaved = [sanitizedAccount, ...existing];
 
-      writeObjectToStorage('active_xtream_account', verifiedAccount);
-      writeObjectToStorage('saved_xtream_accounts', updatedSaved);
+      syncStorage.setObject('active_xtream_account', sanitizedAccount);
+      syncStorage.setObject('saved_xtream_accounts', updatedSaved);
 
       set({
         channels,
         groups: uniqueGroups,
         countrySections,
-        xtreamAccount: verifiedAccount,
+        xtreamAccount: sanitizedAccount,
         savedXtreamAccounts: updatedSaved,
         isLoading: false,
         error: null,
@@ -309,81 +273,97 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   },
 
   disconnectXtreamAccount: () => {
-    try {
-      if (storage) storage.delete('active_xtream_account');
-      else memoryStore.delete('active_xtream_account');
-    } catch {}
+    syncStorage.delete('active_xtream_account');
     set({ xtreamAccount: null });
     get().loadPlaylist();
   },
 
   removeSavedAccount: (serverUrl: string, username: string) => {
+    deleteSecureItem(`xtream_pwd_${username}_${serverUrl}`).catch(() => {});
     const updated = get().savedXtreamAccounts.filter(
       (a) => !(a.serverUrl.toLowerCase() === serverUrl.toLowerCase() && a.username.toLowerCase() === username.toLowerCase())
     );
-    writeObjectToStorage('saved_xtream_accounts', updated);
+    syncStorage.setObject('saved_xtream_accounts', updated);
     set({ savedXtreamAccounts: updated });
   },
 
   loadPlaylist: async (customUrl?: string) => {
-    const url = customUrl || get().playlistUrl;
-    set({ isLoading: true, parseProgress: 0, error: null });
-
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 12000);
-      const response = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeoutId);
-      if (!response.ok) throw new Error(`HTTP status ${response.status}`);
-      const m3uText = await response.text();
-
-      const parsedChannels = parseM3U(m3uText, {
-        onProgress: (progress) => set({ parseProgress: progress }),
-      });
-
-      const uniqueGroups = Array.from(new Set(parsedChannels.map((c) => c.group))).sort();
-
-      set({
-        channels: parsedChannels,
-        groups: uniqueGroups,
-        isLoading: false,
-        parseProgress: 100,
-      });
-    } catch (err: any) {
-      console.warn('Playlist fetch failed, loading default fallback list', err);
-      const fallbackChannels: Channel[] = [
-        {
-          id: 'fb-bloomberg',
-          name: 'Bloomberg TV Live',
-          logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/Bloomberg_News_logo.svg/320px-Bloomberg_News_logo.svg.png',
-          url: 'https://live-bloomberg-us.akamaized.net/hls/live/2042971/bloomberg_us/master.m3u8',
-          group: 'News',
-          tvgId: 'bloomberg.us'
-        },
-        {
-          id: 'fb-redbull',
-          name: 'Red Bull TV',
-          logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/f/f5/Red_Bull_TV_logo.svg/320px-Red_Bull_TV_logo.svg.png',
-          url: 'https://rbmn-live.akamaized.net/hls/live/590964/BoRB-AT/master.m3u8',
-          group: 'Sports',
-          tvgId: 'redbull.sports'
-        },
-        {
-          id: 'fb-nasa',
-          name: 'NASA TV Live',
-          logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/NASA_logo.svg/320px-NASA_logo.svg.png',
-          url: 'https://ntv1.akamaized.net/hls/live/2014075/NASA-NTV1-HLS/master.m3u8',
-          group: 'Documentary',
-          tvgId: 'nasa.live'
-        }
-      ];
-      set({
-        channels: fallbackChannels,
-        groups: ['Documentary', 'News', 'Sports'],
-        isLoading: false,
-        error: null,
-      });
+    if (activePlaylistPromise) {
+      return activePlaylistPromise;
     }
+
+    const run = async () => {
+      const url = customUrl || get().playlistUrl;
+      set({ isLoading: true, parseProgress: 0, error: null });
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 14000);
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (!response.ok) throw new Error(`HTTP status ${response.status}`);
+        const m3uText = await response.text();
+
+        const parsedChannels = parseM3U(m3uText, {
+          onProgress: (progress) => set({ parseProgress: progress }),
+        });
+
+        const uniqueGroups = Array.from(new Set(parsedChannels.map((c) => c.group))).sort();
+        const countrySections = buildCountrySections(parsedChannels);
+
+        set({
+          channels: parsedChannels,
+          groups: uniqueGroups,
+          countrySections,
+          isLoading: false,
+          parseProgress: 100,
+        });
+      } catch (err: any) {
+        console.warn('Playlist fetch failed, loading default fallback list', err);
+        const fallbackChannels: Channel[] = [
+          {
+            id: 'fb-bloomberg',
+            name: 'Bloomberg TV Live',
+            logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/Bloomberg_News_logo.svg/320px-Bloomberg_News_logo.svg.png',
+            url: 'https://live-bloomberg-us.akamaized.net/hls/live/2042971/bloomberg_us/master.m3u8',
+            group: 'News',
+            tvgId: 'bloomberg.us',
+            isLive: true,
+          },
+          {
+            id: 'fb-redbull',
+            name: 'Red Bull TV',
+            logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/f/f5/Red_Bull_TV_logo.svg/320px-Red_Bull_TV_logo.svg.png',
+            url: 'https://rbmn-live.akamaized.net/hls/live/590964/BoRB-AT/master.m3u8',
+            group: 'Sports',
+            tvgId: 'redbull.sports',
+            isLive: true,
+          },
+          {
+            id: 'fb-nasa',
+            name: 'NASA TV Live',
+            logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/NASA_logo.svg/320px-NASA_logo.svg.png',
+            url: 'https://ntv1.akamaized.net/hls/live/2014075/NASA-NTV1-HLS/master.m3u8',
+            group: 'Documentary',
+            tvgId: 'nasa.live',
+            isLive: true,
+          }
+        ];
+        const countrySections = buildCountrySections(fallbackChannels);
+        set({
+          channels: fallbackChannels,
+          groups: ['Documentary', 'News', 'Sports'],
+          countrySections,
+          isLoading: false,
+          error: null,
+        });
+      } finally {
+        activePlaylistPromise = null;
+      }
+    };
+
+    activePlaylistPromise = run();
+    return activePlaylistPromise;
   },
 
   syncRemoteConfig: async (customAppId?: string) => {
@@ -406,12 +386,6 @@ export const usePlayerStore = create<AppState>((set, get) => ({
       clearTimeout(timeoutId);
 
       if (res.ok) {
-        const contentType = res.headers.get('content-type') || '';
-        if (!contentType.includes('application/json')) {
-          console.warn('[OTA] Received non-JSON response from config endpoint:', contentType);
-          return;
-        }
-
         const config = await res.json().catch(() => null);
         if (!config) return;
 
@@ -426,25 +400,14 @@ export const usePlayerStore = create<AppState>((set, get) => ({
         };
         const newAnnouncement = config.announcement || null;
 
-        if (storage) {
-          storage.set('appConfigId', targetId);
-          storage.set('remoteVersion', String(newVersion));
-          storage.set('playlistUrl', newPlaylistUrl);
-          if (newAnnouncement) storage.set('announcement', newAnnouncement);
-          else storage.delete('announcement');
-          storage.set('themePrimary', newTheme.primaryColor);
-          storage.set('themeAccent', newTheme.accentColor);
-          if (newTheme.logoUrl) storage.set('themeLogo', newTheme.logoUrl);
-        } else {
-          memoryStore.set('appConfigId', targetId);
-          memoryStore.set('remoteVersion', String(newVersion));
-          memoryStore.set('playlistUrl', newPlaylistUrl);
-          if (newAnnouncement) memoryStore.set('announcement', newAnnouncement);
-          else memoryStore.delete('announcement');
-          memoryStore.set('themePrimary', newTheme.primaryColor);
-          memoryStore.set('themeAccent', newTheme.accentColor);
-          if (newTheme.logoUrl) memoryStore.set('themeLogo', newTheme.logoUrl);
-        }
+        syncStorage.setString('appConfigId', targetId);
+        syncStorage.setString('remoteVersion', String(newVersion));
+        syncStorage.setString('playlistUrl', newPlaylistUrl);
+        if (newAnnouncement) syncStorage.setString('announcement', newAnnouncement);
+        else syncStorage.delete('announcement');
+        syncStorage.setString('themePrimary', newTheme.primaryColor);
+        syncStorage.setString('themeAccent', newTheme.accentColor);
+        if (newTheme.logoUrl) syncStorage.setString('themeLogo', newTheme.logoUrl);
 
         set({
           appConfigId: targetId,
@@ -459,9 +422,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
         }
         return;
       }
-    } catch (err) {
-      console.warn('OTA config sync failed, continuing with cached configuration', err);
-    }
+    } catch {}
 
     if (get().channels.length === 0) {
       await get().loadPlaylist();
@@ -469,10 +430,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   },
 
   dismissAnnouncement: () => {
-    try {
-      if (storage) storage.delete('announcement');
-      else memoryStore.delete('announcement');
-    } catch {}
+    syncStorage.delete('announcement');
     set({ announcement: null });
   },
 
@@ -482,29 +440,26 @@ export const usePlayerStore = create<AppState>((set, get) => ({
       ? favorites.filter((id) => id !== channelId)
       : [...favorites, channelId];
 
-    writeArrayToStorage('favorites', newFavorites);
+    syncStorage.setObject('favorites', newFavorites);
     set({ favorites: newFavorites });
   },
 
   addToHistory: (channelId: string) => {
     const { history } = get();
     const filteredHistory = history.filter((id) => id !== channelId);
-    const newHistory = [channelId, ...filteredHistory].slice(0, 20);
+    const newHistory = [channelId, ...filteredHistory].slice(0, 30);
 
-    writeArrayToStorage('history', newHistory);
+    syncStorage.setObject('history', newHistory);
     set({ history: newHistory });
   },
 
   clearHistory: () => {
-    writeArrayToStorage('history', []);
+    syncStorage.setObject('history', []);
     set({ history: [] });
   },
 
   clearCache: () => {
-    try {
-      if (storage) storage.clearAll();
-      else memoryStore.clear();
-    } catch {}
+    syncStorage.clear();
     set({ favorites: [], history: [], appConfigId: null, remoteVersion: 0, announcement: null });
   },
 }));

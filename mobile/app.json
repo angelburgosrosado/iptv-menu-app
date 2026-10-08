@@ -27,7 +27,13 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.iptv.pro.player"
+      "bundleIdentifier": "com.iptv.pro.player",
+      "infoPlist": {
+        "UIBackgroundModes": ["audio"],
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoadsForMedia": true
+        }
+      }
     },
     "android": {
       "package": "com.iptv.pro.player",

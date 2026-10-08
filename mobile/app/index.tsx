@@ -1,14 +1,40 @@
-import { useEffect, useState } from 'react';
-import { SafeAreaView, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { Tv, KeyRound, CheckCircle2 } from 'lucide-react-native';
-import { ChannelFilters } from '@/components/ChannelFilters';
-import { CountryChannelSections } from '@/components/CountryChannelSections';
-import { EpgBackbonePanel } from '@/components/EpgBackbonePanel';
-import { XtreamLoginModal } from '@/components/XtreamLoginModal';
-import { usePlayerStore } from '@/store/usePlayerStore';
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useEffect, useState } from 'react';
+import {
+  SafeAreaView,
+  ScrollView,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+  StyleSheet,
+  StatusBar,
+} from 'react-native';
+import { Tv, KeyRound, CheckCircle2, Search, X, Sparkles, Heart } from 'lucide-react-native';
+import { ChannelFilters } from '../src/components/ChannelFilters';
+import { CountryChannelSections } from '../src/components/CountryChannelSections';
+import { EpgBackbonePanel } from '../src/components/EpgBackbonePanel';
+import { XtreamLoginModal } from '../src/components/XtreamLoginModal';
+import { usePlayerStore } from '../src/store/usePlayerStore';
+import { PALETTE, RADII } from '../src/theme/tokens';
+import { Focusable } from '../src/components/Focusable';
+import { useDeviceClass } from '../src/theme/useDeviceClass';
 
 export default function HomePage() {
-  const { loadMetadataBundle, loadEpgBundle, searchTerm, setSearchTerm, xtreamAccount } = usePlayerStore();
+  const { isTV } = useDeviceClass();
+  const {
+    loadMetadataBundle,
+    loadEpgBundle,
+    searchTerm,
+    setSearchTerm,
+    xtreamAccount,
+    favorites,
+    channels,
+  } = usePlayerStore();
   const [isXtreamModalVisible, setIsXtreamModalVisible] = useState(false);
 
   useEffect(() => {
@@ -17,75 +43,92 @@ export default function HomePage() {
   }, [loadMetadataBundle, loadEpgBundle]);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#071018' }}>
-      <ScrollView contentContainerStyle={{ padding: 18, gap: 18, paddingBottom: 120 }}>
-        <View style={{ gap: 8 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text style={{ color: '#56d6c2', fontSize: 12, fontWeight: '800', letterSpacing: 1.2 }}>IPTV DEVELOPER SUITE</Text>
-            
-            {/* Xtream Codes Account Area Button */}
-            <TouchableOpacity
-              onPress={() => setIsXtreamModalVisible(true)}
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 6,
-                backgroundColor: xtreamAccount ? 'rgba(16, 185, 129, 0.15)' : 'rgba(86, 214, 194, 0.15)',
-                borderWidth: 1,
-                borderColor: xtreamAccount ? '#10b981' : '#56d6c2',
-                paddingVertical: 6,
-                paddingHorizontal: 12,
-                borderRadius: 20
-              }}
-            >
-              {xtreamAccount ? (
-                <>
-                  <CheckCircle2 size={14} color="#10b981" />
-                  <Text style={{ color: '#10b981', fontSize: 12, fontWeight: '700' }}>
-                    Xtream: {xtreamAccount.username}
-                  </Text>
-                </>
-              ) : (
-                <>
-                  <KeyRound size={14} color="#56d6c2" />
-                  <Text style={{ color: '#56d6c2', fontSize: 12, fontWeight: '700' }}>
-                    + Add Xtream Codes
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="light-content" backgroundColor={PALETTE.bgBase} />
+
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Top Header Bar */}
+        <View style={styles.headerRow}>
+          <View style={styles.brandRow}>
+            <View style={styles.logoBadge}>
+              <Tv size={18} color="#fff" />
+            </View>
+            <View>
+              <Text style={styles.brandTitle}>IPTV PLAYER PRO</Text>
+              <Text style={styles.brandSubtitle}>Next-Gen Media Experience</Text>
+            </View>
           </View>
 
-          <Text style={{ color: 'white', fontSize: 32, fontWeight: '900' }}>Global channels, country sections, and upgraded EPG coverage</Text>
-          <Text style={{ color: 'rgba(255,255,255,0.66)', fontSize: 14, lineHeight: 20 }}>
-            Connect your private Xtream Codes server, browse channels by country, and stream high-bitrate MPEG-TS feeds natively on your Firestick.
+          {/* Xtream Codes Account Button */}
+          <Focusable
+            onPress={() => setIsXtreamModalVisible(true)}
+            accessibilityRole="button"
+            accessibilityLabel={
+              xtreamAccount
+                ? `Xtream connected: ${xtreamAccount.username}`
+                : 'Connect Xtream Codes Account'
+            }
+            style={[
+              styles.xtreamBtn,
+              xtreamAccount && styles.xtreamBtnConnected,
+            ]}
+          >
+            {xtreamAccount ? (
+              <View style={styles.xtreamBtnInner}>
+                <CheckCircle2 size={14} color={PALETTE.accentSuccess} />
+                <Text style={styles.xtreamBtnTextConnected}>
+                  {xtreamAccount.username}
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.xtreamBtnInner}>
+                <KeyRound size={14} color={PALETTE.primary} />
+                <Text style={styles.xtreamBtnText}>+ Xtream Codes</Text>
+              </View>
+            )}
+          </Focusable>
+        </View>
+
+        {/* Hero Section */}
+        <View style={styles.heroSection}>
+          <Text style={styles.heroHeading}>
+            Live Broadcasts, Global Channels & EPG
+          </Text>
+          <Text style={styles.heroDesc}>
+            Stream licensed live feeds, connect your private Xtream server, and browse seamless program schedules.
           </Text>
         </View>
 
-        <View
-          style={{
-            borderRadius: 22,
-            padding: 16,
-            backgroundColor: 'rgba(255,255,255,0.05)',
-            borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.08)'
-          }}
-        >
+        {/* Smart Search Bar */}
+        <View style={styles.searchContainer}>
+          <Search size={18} color={PALETTE.textDim} style={styles.searchIcon} />
           <TextInput
             value={searchTerm}
             onChangeText={setSearchTerm}
-            placeholder="Search channels, groups, countries, language..."
-            placeholderTextColor="rgba(255,255,255,0.45)"
-            style={{ color: 'white', fontSize: 15 }}
+            placeholder="Search channels, genres, countries, language..."
+            placeholderTextColor={PALETTE.textDim}
+            style={styles.searchInput}
+            autoCorrect={false}
           />
+          {searchTerm.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchTerm('')} hitSlop={10}>
+              <X size={16} color={PALETTE.textMuted} />
+            </TouchableOpacity>
+          )}
         </View>
 
+        {/* EPG Backbone Status Panel */}
         <EpgBackbonePanel />
+
+        {/* Filters & Channel Grid */}
         <ChannelFilters />
         <CountryChannelSections />
       </ScrollView>
 
-      {/* Xtream Codes Login & Account Management Modal */}
+      {/* Xtream Login & Account Modal */}
       <XtreamLoginModal
         visible={isXtreamModalVisible}
         onClose={() => setIsXtreamModalVisible(false)}
@@ -93,3 +136,107 @@ export default function HomePage() {
     </SafeAreaView>
   );
 }
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: PALETTE.bgBase,
+  },
+  scrollContent: {
+    padding: 18,
+    gap: 18,
+    paddingBottom: 100,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  logoBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: PALETTE.primaryDark,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  brandTitle: {
+    color: PALETTE.textPrimary,
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  brandSubtitle: {
+    color: PALETTE.textDim,
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  xtreamBtn: {
+    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.28)',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: RADII.pill,
+  },
+  xtreamBtnConnected: {
+    backgroundColor: 'rgba(16, 185, 129, 0.12)',
+    borderColor: 'rgba(16, 185, 129, 0.3)',
+  },
+  xtreamBtnInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  xtreamBtnText: {
+    color: PALETTE.primary,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  xtreamBtnTextConnected: {
+    color: PALETTE.accentSuccess,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  heroSection: {
+    gap: 6,
+    marginVertical: 4,
+  },
+  heroHeading: {
+    color: PALETTE.textPrimary,
+    fontSize: 26,
+    fontWeight: '900',
+    letterSpacing: -0.4,
+    lineHeight: 32,
+  },
+  heroDesc: {
+    color: PALETTE.textMuted,
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: RADII.lg,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    backgroundColor: PALETTE.bgCard,
+    borderWidth: 1,
+    borderColor: PALETTE.glassBorder,
+  },
+  searchIcon: {
+    marginRight: 10,
+  },
+  searchInput: {
+    flex: 1,
+    color: PALETTE.textPrimary,
+    fontSize: 14,
+    padding: 0,
+  },
+});

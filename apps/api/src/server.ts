@@ -597,6 +597,22 @@ app.get('/api/epg/live', async (req, res) => {
   }
 });
 
+app.post('/api/epg/live', async (req, res) => {
+  try {
+    const channelIds: string[] = Array.isArray(req.body?.channelIds)
+      ? req.body.channelIds.map((id: any) => String(id).trim()).filter(Boolean)
+      : [];
+    const liveMap = epgService.getNowNext(channelIds);
+    res.json({
+      channels: liveMap,
+      updatedAt: new Date().toISOString()
+    });
+  } catch (error: any) {
+    logger.error('Error serving live EPG batch', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.get('/api/epg/schedule/:channelId', async (req, res) => {
   try {
     const { channelId } = req.params;

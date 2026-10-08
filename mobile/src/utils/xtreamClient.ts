@@ -3,31 +3,46 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Platform } from 'react-native';
 import { Channel, XtreamAccount } from '../types/iptv';
 import { parseM3U } from './m3uParser';
 
 export interface XtreamStreamItem {
   num: number;
   name: string;
-  stream_type: 'live' | 'movie' | 'series';
+  stream_type: string;
   stream_id: number;
-  stream_icon: string;
-  epg_channel_id: string;
-  added: string;
-  category_id: string;
+  stream_icon?: string;
+  epg_channel_id?: string;
+  added?: string;
+  category_id?: string;
+  custom_sid?: string;
+  tv_archive?: number;
+  direct_source?: string;
+  tv_archive_duration?: number;
 }
 
-const DEFAULT_HEADERS = {
+const DEFAULT_HEADERS: Record<string, string> = {
   'User-Agent': 'VLC/3.0.18 LibVLC/3.0.18',
-  'Accept': '*/*'
+  'Accept': '*/*',
 };
 
-function sanitizeBaseUrl(raw: string): string {
-  let url = raw.trim().replace(/\/+$/, '');
-  if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    url = `http://${url}`;
+export function cleanBaseUrl(url: string): string {
+  let cleaned = (url || '').trim();
+  if (!/^https?:\/\//i.test(cleaned)) {
+    cleaned = `http://${cleaned}`;
   }
-  return url;
+  return cleaned.replace(/\/+$/, '');
+}
+
+/**
+ * Determine default streaming container format.
+ * iOS / tvOS AVPlayer requires HLS (m3u8) as raw MPEG-TS is not supported natively.
+ */
+export function getDefaultOutputFormat(userSpecified?: 'ts' | 'm3u8'): 'ts' | 'm3u8' {
+  if (userSpecified) return userSpecified;
+  if (Platform.OS === 'ios') return 'm3u8';
+  return 'ts';
 }
 
 export async function authenticateXtreamCodes(account: XtreamAccount): Promise<{
@@ -37,126 +52,113 @@ export async function authenticateXtreamCodes(account: XtreamAccount): Promise<{
   error?: string;
 }> {
   try {
-    const baseUrl = sanitizeBaseUrl(account.serverUrl);
-    const authUrl = `${baseUrl}/player_api.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password)}`;
+    const baseUrl = cleanBaseUrl(account.serverUrl);
+    const authUrl = `${baseUrl}/player_api.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password || '')}`;
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeout = setTimeout(() => controller.abort(), 12000);
 
     const res = await fetch(authUrl, {
       headers: DEFAULT_HEADERS,
-      signal: controller.signal
+      signal: controller.signal,
     });
-    clearTimeout(timeoutId);
+    clearTimeout(timeout);
 
     if (!res.ok) {
-      return { success: false, error: `Server responded with HTTP ${res.status}` };
+      return { success: false, error: `Server returned HTTP ${res.status}` };
     }
 
-    const rawText = await res.text().catch(() => '');
-    if (rawText.trim().startsWith('<') || rawText.includes('<html>') || rawText.includes('<!DOCTYPE')) {
-      return {
-        success: false,
-        error: 'Error 513: Server returned an HTML web page instead of Xtream API JSON. Check your port number (e.g. :8080) and protocol (http vs https).'
-      };
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('text/html')) {
+      return { success: false, error: 'Provider returned an HTML error or Cloudflare challenge' };
     }
 
-    let data: any = null;
-    try {
-      data = JSON.parse(rawText);
-    } catch {
-      return { success: false, error: 'Error 513: Malformed JSON syntax returned from Xtream server.' };
+    const data = await res.json();
+    if (!data || !data.user_info) {
+      return { success: false, error: 'Invalid response from server' };
     }
 
-    if (data.user_info && (data.user_info.auth === 1 || data.user_info.status === 'Active')) {
-      return {
-        success: true,
-        userInfo: data.user_info,
-        serverInfo: data.server_info
-      };
-    } else {
-      return {
-        success: false,
-        error: data.user_info?.message || 'Authentication failed. Please verify your username and password.'
-      };
+    if (data.user_info.auth === 0 || data.user_info.status === 'Disabled') {
+      return { success: false, error: data.user_info.message || 'Account disabled or invalid credentials' };
     }
-  } catch (err: any) {
+
     return {
-      success: false,
-      error: err.name === 'AbortError' ? 'Connection timed out. Check the server address and port.' : (err.message || 'Unable to connect to Xtream Codes server.')
+      success: true,
+      userInfo: data.user_info,
+      serverInfo: data.server_info,
     };
+  } catch (err: any) {
+    if (err.name === 'AbortError') {
+      return { success: false, error: 'Connection timed out. Check server URL and port.' };
+    }
+    return { success: false, error: err.message || 'Network error connecting to Xtream server' };
   }
 }
 
 export async function fetchXtreamCategories(account: XtreamAccount): Promise<Record<string, string>> {
-  const baseUrl = sanitizeBaseUrl(account.serverUrl);
-  const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password)}&action=get_live_categories`;
+  const map: Record<string, string> = {};
+  const baseUrl = cleanBaseUrl(account.serverUrl);
+  const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password || '')}&action=get_live_categories`;
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    const timeout = setTimeout(() => controller.abort(), 10000);
     const res = await fetch(url, { headers: DEFAULT_HEADERS, signal: controller.signal });
-    clearTimeout(timeoutId);
+    clearTimeout(timeout);
 
     if (res.ok) {
-      const data = await res.json().catch(() => null);
-      if (Array.isArray(data)) {
-        const catMap: Record<string, string> = {};
-        data.forEach((c: any) => {
-          if (c.category_id && c.category_name) {
-            catMap[String(c.category_id)] = c.category_name;
+      const list = await res.json();
+      if (Array.isArray(list)) {
+        list.forEach((cat: any) => {
+          if (cat.category_id && cat.category_name) {
+            map[String(cat.category_id)] = String(cat.category_name);
           }
         });
-        return catMap;
       }
     }
   } catch (e) {
-    console.warn('Could not fetch Xtream categories', e);
+    console.warn('Failed to fetch Xtream categories', e);
   }
-  return {};
+  return map;
 }
 
 export async function fetchXtreamStreams(account: XtreamAccount): Promise<XtreamStreamItem[]> {
-  const baseUrl = sanitizeBaseUrl(account.serverUrl);
-  const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password)}&action=get_live_streams`;
+  const baseUrl = cleanBaseUrl(account.serverUrl);
+  const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password || '')}&action=get_live_streams`;
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000);
+    const timeout = setTimeout(() => controller.abort(), 16000);
     const res = await fetch(url, { headers: DEFAULT_HEADERS, signal: controller.signal });
-    clearTimeout(timeoutId);
+    clearTimeout(timeout);
 
     if (res.ok) {
-      const data = await res.json().catch(() => null);
-      if (Array.isArray(data)) {
-        return data;
-      }
+      const data = await res.json();
+      if (Array.isArray(data)) return data;
     }
   } catch (e) {
-    console.warn('Could not fetch Xtream live streams', e);
+    console.warn('Failed to fetch Xtream streams via player_api', e);
   }
   return [];
 }
 
 export async function fetchXtreamM3uChannels(account: XtreamAccount): Promise<Channel[]> {
-  const baseUrl = sanitizeBaseUrl(account.serverUrl);
-  const format = account.outputFormat === 'm3u8' ? 'm3u8' : 'ts';
-  const url = `${baseUrl}/get.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password)}&type=m3u_plus&output=${format}`;
+  const baseUrl = cleanBaseUrl(account.serverUrl);
+  const format = getDefaultOutputFormat(account.outputFormat);
+  const url = `${baseUrl}/get.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password || '')}&type=m3u_plus&output=${format}`;
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20000);
+    const timeout = setTimeout(() => controller.abort(), 18000);
     const res = await fetch(url, { headers: DEFAULT_HEADERS, signal: controller.signal });
-    clearTimeout(timeoutId);
+    clearTimeout(timeout);
 
     if (res.ok) {
       const text = await res.text();
-      if (text.includes('#EXTM3U')) {
-        return parseM3U(text);
-      }
+      return parseM3U(text);
     }
   } catch (e) {
-    console.warn('Could not fetch Xtream M3U fallback', e);
+    console.warn('Failed to fetch Xtream m3u fallback', e);
   }
   return [];
 }
@@ -164,23 +166,60 @@ export async function fetchXtreamM3uChannels(account: XtreamAccount): Promise<Ch
 export function generateXtreamChannelList(
   account: XtreamAccount,
   streams: XtreamStreamItem[],
-  categories: Record<string, string>
+  categoryMap: Record<string, string>
 ): Channel[] {
-  const baseUrl = sanitizeBaseUrl(account.serverUrl);
-  const extension = account.outputFormat === 'm3u8' ? 'm3u8' : 'ts';
+  const baseUrl = cleanBaseUrl(account.serverUrl);
+  const primaryFormat = getDefaultOutputFormat(account.outputFormat);
+  const fallbackFormat = primaryFormat === 'ts' ? 'm3u8' : 'ts';
+  const u = encodeURIComponent(account.username);
+  const p = encodeURIComponent(account.password || '');
 
-  return streams.map((item) => {
-    const group = categories[item.category_id] || (item.stream_type === 'live' ? 'Live TV' : 'VOD');
-    const streamUrl = `${baseUrl}/live/${encodeURIComponent(account.username)}/${encodeURIComponent(account.password)}/${item.stream_id}.${extension}`;
+  return streams.map((stream) => {
+    const groupName = (stream.category_id && categoryMap[stream.category_id]) || 'General';
+    const primaryUrl = `${baseUrl}/live/${u}/${p}/${stream.stream_id}.${primaryFormat}`;
+    const altUrl = `${baseUrl}/live/${u}/${p}/${stream.stream_id}.${fallbackFormat}`;
 
     return {
-      id: `xtream_${item.stream_id}`,
-      name: item.name,
-      logo: item.stream_icon || '',
-      url: streamUrl,
-      group: group,
-      tvgId: item.epg_channel_id || String(item.stream_id),
-      tvgName: item.name
+      id: `xtream_${stream.stream_id}`,
+      name: stream.name || `Channel ${stream.stream_id}`,
+      logo: stream.stream_icon || '',
+      url: primaryUrl,
+      fallbackUrls: [altUrl],
+      group: groupName,
+      tvgId: stream.epg_channel_id || `xtream_${stream.stream_id}`,
+      epgChannelId: stream.epg_channel_id || undefined,
+      metadataSource: 'xtream',
+      isLive: true,
+      catchupDays: stream.tv_archive_duration || (stream.tv_archive ? 3 : 0),
     };
   });
+}
+
+/**
+ * Fetch short EPG guide for a specific Xtream stream
+ */
+export async function fetchXtreamShortEpg(
+  account: XtreamAccount,
+  streamId: number | string,
+  limit = 5
+): Promise<any[]> {
+  const baseUrl = cleanBaseUrl(account.serverUrl);
+  const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password || '')}&action=get_short_epg&stream_id=${streamId}&limit=${limit}`;
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(url, { headers: DEFAULT_HEADERS, signal: controller.signal });
+    clearTimeout(timeout);
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data && Array.isArray(data.epg_listings)) {
+        return data.epg_listings;
+      }
+    }
+  } catch (e) {
+    // optional epg
+  }
+  return [];
 }

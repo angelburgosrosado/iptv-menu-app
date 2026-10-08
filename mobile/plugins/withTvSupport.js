@@ -78,8 +78,9 @@ function withTvSupport(config) {
           }
         }
 
-        // Allow dynamic orientation rotation across Phone & TV
+        // Allow dynamic orientation rotation across Phone & TV and enable native PiP
         mainActivity.$['android:screenOrientation'] = 'user';
+        mainActivity.$['android:supportsPictureInPicture'] = 'true';
         mainActivity.$['android:configChanges'] =
           'keyboard|keyboardHidden|orientation|screenSize|screenLayout|smallestScreenSize|uiMode';
       }
