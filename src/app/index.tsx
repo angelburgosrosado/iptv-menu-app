@@ -355,8 +355,8 @@ export default function HomeScreen() {
     setShowSettings(false);
   };
 
-  // Render splash/loading screens with real percentage parser progress
-  if (isLoading) {
+  // Render splash/loading screens only when no channels exist to prevent blocking boot
+  if (isLoading && channels.length === 0) {
     return (
       <SafeAreaView style={styles.splashContainer}>
         <View style={styles.splashContent}>

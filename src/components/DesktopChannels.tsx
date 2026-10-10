@@ -735,8 +735,8 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
         </div>
       )}
 
-      {/* SKELETON LOADER STATE */}
-      {isLoading ? (
+      {/* SKELETON LOADER STATE - Only when empty, prevents flicker when channels are present */}
+      {isLoading && channels.length === 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="p-4 rounded-2xl bg-[#16161a] border border-white/5 flex items-center justify-between">

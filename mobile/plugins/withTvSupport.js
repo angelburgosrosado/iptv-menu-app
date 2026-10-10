@@ -48,6 +48,7 @@ function withTvSupport(config) {
     // 3. Configure Main Activity with Dual Launcher Intent (Phone + Fire TV)
     const mainApplication = androidManifest.application?.[0];
     if (mainApplication && mainApplication.activity) {
+      mainApplication.$['android:banner'] = mainApplication.$['android:banner'] || '@mipmap/ic_launcher';
       const mainActivity = mainApplication.activity.find((a) =>
         a['intent-filter']?.some((filter) =>
           filter.action?.some((act) => act.$['android:name'] === 'android.intent.action.MAIN')
