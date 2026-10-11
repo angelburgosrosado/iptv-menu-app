@@ -40,6 +40,7 @@ import {
   fetchXtreamSeries,
   generateXtreamSeriesChannelList,
   fetchXtreamShortEpg,
+  parseXtreamUrl,
   XtreamStreamItem,
   XtreamEpgListing
 } from '../utils/xtreamClient';
@@ -239,9 +240,15 @@ export default function XtreamConnector() {
     }
 
     // Standard Xtream Codes Flow
-    const targetServerUrl = customAccount ? customAccount.serverUrl : serverUrl;
-    const targetUsername = customAccount ? customAccount.username : username;
-    const targetPassword = customAccount ? (customAccount.password || '') : password;
+    const rawServerUrl = customAccount ? customAccount.serverUrl : serverUrl;
+    const rawUsername = customAccount ? customAccount.username : username;
+    const rawPassword = customAccount ? (customAccount.password || '') : password;
+
+    // Auto-extract server URL, username, and password if the user pasted a complete Xtream URL
+    const parsedInput = parseXtreamUrl(rawServerUrl);
+    const targetServerUrl = parsedInput.isXtream ? parsedInput.serverUrl : rawServerUrl;
+    const targetUsername = (parsedInput.isXtream && parsedInput.username) ? parsedInput.username : rawUsername;
+    const targetPassword = (parsedInput.isXtream && parsedInput.password) ? parsedInput.password : rawPassword;
 
     if (!targetServerUrl || !targetUsername || !targetPassword) {
       setError('Please fill in server URL, username, and password.');
@@ -262,6 +269,7 @@ export default function XtreamConnector() {
       status: 'idle' as const
     };
 
+    setConnectionStep('Authenticating Xtream Portal handshake...');
     const result = await authenticateXtreamCodes(account);
     let importedChannels: Channel[] = [];
     let liveCount = 0;
@@ -269,7 +277,8 @@ export default function XtreamConnector() {
     let seriesCount = 0;
 
     if (result.success) {
-      const [categories, streams, vodCategories, vodStreams, seriesCategories, seriesItems] = await Promise.all([
+      setConnectionStep('Cataloging Live Streams, VOD & Series Lineup...');
+      const [catRes, streamRes, vodCatRes, vodStreamRes, seriesCatRes, seriesRes] = await Promise.allSettled([
         fetchXtreamCategories(account),
         fetchXtreamStreams(account),
         fetchXtreamVodCategories(account),
@@ -278,11 +287,20 @@ export default function XtreamConnector() {
         fetchXtreamSeries(account)
       ]);
 
+      const categories = catRes.status === 'fulfilled' ? catRes.value : {};
+      const streams = streamRes.status === 'fulfilled' ? streamRes.value : [];
+      const vodCategories = vodCatRes.status === 'fulfilled' ? vodCatRes.value : {};
+      const vodStreams = vodStreamRes.status === 'fulfilled' ? vodStreamRes.value : [];
+      const seriesCategories = seriesCatRes.status === 'fulfilled' ? seriesCatRes.value : {};
+      const seriesItems = seriesRes.status === 'fulfilled' ? seriesRes.value : [];
+
       if (streams.length > 0) {
         importedChannels = generateXtreamChannelList(account, streams, categories);
       } else if (targetServerUrl.includes('melhata.org') || targetServerUrl.includes('dndnscloud.ru')) {
         importedChannels = createMelhataChannels(targetUsername, targetPassword, targetServerUrl);
       } else {
+        // High-capacity streaming fallback: Essential for large accounts (10k-80k channels) where JSON endpoints time out
+        setConnectionStep('Ingesting high-capacity streaming M3U Plus lineup...');
         importedChannels = await fetchXtreamM3uChannels(account);
       }
       liveCount = streams.length || importedChannels.filter(c => c.streamType === 'live' || !c.streamType).length;
@@ -434,7 +452,16 @@ export default function XtreamConnector() {
                       type="text"
                       placeholder="http://iptv.server.com:8080"
                       value={serverUrl}
-                      onChange={(e) => setServerUrl(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setServerUrl(val);
+                        const parsed = parseXtreamUrl(val);
+                        if (parsed.isXtream && parsed.username && parsed.password) {
+                          setServerUrl(parsed.serverUrl);
+                          setUsername(parsed.username);
+                          setPassword(parsed.password);
+                        }
+                      }}
                       className="w-full pl-9 pr-4 py-2.5 bg-black/50 border border-white/10 focus:border-cyan-500/50 rounded-xl text-xs text-white outline-none font-mono placeholder-zinc-600 transition-all"
                     />
                     <Server className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />

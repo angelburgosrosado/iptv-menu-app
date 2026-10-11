@@ -20,6 +20,7 @@ import {
   fetchXtreamSeriesCategories,
   fetchXtreamSeries,
   generateXtreamSeriesChannelList,
+  parseXtreamUrl,
 } from '../utils/xtreamClient';
 
 const defaultTheme: RemoteTheme = {
@@ -325,16 +326,23 @@ export const usePlayerStore = create<AppState>((set, get) => ({
     }
 
     const run = async () => {
-      const url = customUrl || get().playlistUrl;
+      const rawUrl = customUrl || get().playlistUrl;
+      const parsedXtream = parseXtreamUrl(rawUrl);
+      const url = (parsedXtream.isXtream && parsedXtream.m3uUrl) ? parsedXtream.m3uUrl : rawUrl;
+
       set({ isLoading: true, parseProgress: 0, error: null });
 
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 14000);
+        const timeoutId = setTimeout(() => controller.abort(), 60000);
         const response = await fetch(url, { signal: controller.signal });
         clearTimeout(timeoutId);
         if (!response.ok) throw new Error(`HTTP status ${response.status}`);
-        const m3uText = await response.text();
+        let m3uText = await response.text();
+
+        if (!m3uText.includes('#EXTM3U') && m3uText.includes('#EXTINF:')) {
+          m3uText = '#EXTM3U\n' + m3uText;
+        }
 
         const parsedChannels = parseM3U(m3uText, {
           onProgress: (progress) => set({ parseProgress: progress }),

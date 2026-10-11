@@ -35,6 +35,80 @@ export function cleanBaseUrl(url: string): string {
   return cleaned.replace(/\/+$/, '');
 }
 
+export interface ParsedXtreamUrl {
+  isXtream: boolean;
+  serverUrl: string;
+  username: string;
+  password: string;
+  action?: string;
+  type?: string;
+  m3uUrl?: string;
+}
+
+/**
+ * Parses and extracts Xtream Codes server host, username, and password from any
+ * standard Xtream URL (player_api.php, get.php, /live/U/P/ID, etc.).
+ */
+export function parseXtreamUrl(inputUrl: string): ParsedXtreamUrl {
+  if (!inputUrl || typeof inputUrl !== 'string') {
+    return { isXtream: false, serverUrl: '', username: '', password: '' };
+  }
+
+  const trimmed = inputUrl.trim();
+  try {
+    const parsed = new URL(trimmed.startsWith('http://') || trimmed.startsWith('https://') ? trimmed : `http://${trimmed}`);
+    const pathname = parsed.pathname.toLowerCase();
+    const searchParams = parsed.searchParams;
+
+    const username = searchParams.get('username') || searchParams.get('user') || '';
+    const password = searchParams.get('password') || searchParams.get('pass') || '';
+    const serverUrl = `${parsed.protocol}//${parsed.host}`;
+
+    // Pattern 1: get.php, player_api.php, or xmltv.php with username & password
+    if (username && password && (pathname.includes('player_api.php') || pathname.includes('get.php') || pathname.includes('xmltv.php') || pathname === '/' || pathname === '')) {
+      return {
+        isXtream: true,
+        serverUrl,
+        username,
+        password,
+        action: searchParams.get('action') || undefined,
+        type: searchParams.get('type') || undefined,
+        m3uUrl: `${serverUrl}/get.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&type=m3u_plus&output=m3u8`
+      };
+    }
+
+    // Pattern 2: /live/USERNAME/PASSWORD/STREAM_ID.m3u8 or /movie/... or /series/...
+    const pathParts = pathname.split('/').filter(Boolean);
+    if ((pathParts[0] === 'live' || pathParts[0] === 'movie' || pathParts[0] === 'series') && pathParts.length >= 3) {
+      const u = pathParts[1];
+      const p = pathParts[2];
+      return {
+        isXtream: true,
+        serverUrl,
+        username: u,
+        password: p,
+        type: pathParts[0],
+        m3uUrl: `${serverUrl}/get.php?username=${encodeURIComponent(u)}&password=${encodeURIComponent(p)}&type=m3u_plus&output=m3u8`
+      };
+    }
+
+    // Pattern 3: Any IPTV endpoint carrying username and password
+    if (username && password) {
+      return {
+        isXtream: true,
+        serverUrl,
+        username,
+        password,
+        m3uUrl: `${serverUrl}/get.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&type=m3u_plus&output=m3u8`
+      };
+    }
+
+    return { isXtream: false, serverUrl: serverUrl || trimmed, username: '', password: '' };
+  } catch {
+    return { isXtream: false, serverUrl: trimmed, username: '', password: '' };
+  }
+}
+
 /**
  * Determine default streaming container format.
  * iOS / tvOS AVPlayer requires HLS (m3u8) as raw MPEG-TS is not supported natively.
@@ -128,7 +202,7 @@ export async function fetchXtreamStreams(account: XtreamAccount): Promise<Xtream
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 16000);
+    const timeout = setTimeout(() => controller.abort(), 35000);
     const res = await fetch(url, { headers: DEFAULT_HEADERS, signal: controller.signal });
     clearTimeout(timeout);
 
@@ -149,13 +223,18 @@ export async function fetchXtreamM3uChannels(account: XtreamAccount): Promise<Ch
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 18000);
+    const timeout = setTimeout(() => controller.abort(), 60000);
     const res = await fetch(url, { headers: DEFAULT_HEADERS, signal: controller.signal });
     clearTimeout(timeout);
 
     if (res.ok) {
-      const text = await res.text();
-      return parseM3U(text);
+      let text = await res.text();
+      if (text.includes('#EXTM3U') || text.includes('#EXTINF:')) {
+        if (!text.includes('#EXTM3U') && text.includes('#EXTINF:')) {
+          text = '#EXTM3U\n' + text;
+        }
+        return parseM3U(text);
+      }
     }
   } catch (e) {
     console.warn('Failed to fetch Xtream m3u fallback', e);

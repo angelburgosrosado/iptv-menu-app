@@ -8,7 +8,8 @@ import {
   fetchXtreamVodCategories,
   fetchXtreamVodStreams,
   generateXtreamVodChannelList,
-  generateXtreamChannelList
+  generateXtreamChannelList,
+  parseXtreamUrl
 } from '../src/utils/xtreamClient';
 import { usePlayerStore } from '../src/store/usePlayerStore';
 import { XtreamAccount } from '../src/types/iptv';
@@ -197,5 +198,50 @@ describe('Xtream Codes: Live Feeds, VOD & Series Access Engine', () => {
 
     store.setSelectedStreamType('all');
     expect(usePlayerStore.getState().selectedStreamType).toBe('all');
+  });
+
+  describe('Xtream Address & Catalog Auto-Detection Engine', () => {
+    it('parseXtreamUrl should recognize get.php M3U Plus URLs with credentials', () => {
+      const url = 'http://line.provider.cc:8080/get.php?username=vipuser&password=vippass&type=m3u_plus&output=m3u8';
+      const parsed = parseXtreamUrl(url);
+
+      expect(parsed.isXtream).toBe(true);
+      expect(parsed.serverUrl).toBe('http://line.provider.cc:8080');
+      expect(parsed.username).toBe('vipuser');
+      expect(parsed.password).toBe('vippass');
+      expect(parsed.m3uUrl).toContain('get.php');
+      expect(parsed.m3uUrl).toContain('username=vipuser');
+    });
+
+    it('parseXtreamUrl should recognize player_api.php URLs and generate canonical M3U Plus streaming target', () => {
+      const url = 'http://iptv.server.net:25461/player_api.php?username=alpha&password=beta123';
+      const parsed = parseXtreamUrl(url);
+
+      expect(parsed.isXtream).toBe(true);
+      expect(parsed.serverUrl).toBe('http://iptv.server.net:25461');
+      expect(parsed.username).toBe('alpha');
+      expect(parsed.password).toBe('beta123');
+      expect(parsed.m3uUrl).toBe('http://iptv.server.net:25461/get.php?username=alpha&password=beta123&type=m3u_plus&output=m3u8');
+    });
+
+    it('parseXtreamUrl should recognize /live/user/pass/id.m3u8 stream links', () => {
+      const url = 'https://stream.iptvbox.io/live/streamer/secretkey/9912.m3u8';
+      const parsed = parseXtreamUrl(url);
+
+      expect(parsed.isXtream).toBe(true);
+      expect(parsed.serverUrl).toBe('https://stream.iptvbox.io');
+      expect(parsed.username).toBe('streamer');
+      expect(parsed.password).toBe('secretkey');
+      expect(parsed.type).toBe('live');
+    });
+
+    it('parseXtreamUrl should return isXtream: false for generic M3U playlists', () => {
+      const url = 'https://iptv-org.github.io/iptv/countries/us.m3u';
+      const parsed = parseXtreamUrl(url);
+
+      expect(parsed.isXtream).toBe(false);
+      expect(parsed.username).toBe('');
+      expect(parsed.password).toBe('');
+    });
   });
 });

@@ -12,6 +12,7 @@ import { DEFAULT_DSP_CONFIG, DSP_PRESETS, audioDspEngine } from '../utils/audioD
 import { hashPin, verifyPin, DEFAULT_LOCKED_CATEGORIES } from '../utils/parentalSecurity';
 import { formatBytes } from '../utils/streamRecorderEngine';
 import { DEFAULT_SUBTITLE_CONFIG, SUBTITLE_PRESETS, clampSyncOffset, applySubtitleStylesToDom } from '../utils/subtitleEngine';
+import { parseXtreamUrl } from '../utils/xtreamClient';
 
 export const DEFAULT_MATRIX_CONFIG: MultiScreenMatrixConfig = {
   layout: 'quad',
@@ -406,11 +407,16 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   },
 
   loadPlaylist: async (customUrl?: string) => {
-    const url = customUrl || get().playlistUrl;
+    const rawUrl = customUrl || get().playlistUrl;
+    // Auto-detect Xtream Codes URLs (e.g. player_api.php or get.php or base portal with credentials)
+    // and map them directly to high-capacity streaming M3U Plus format to prevent JSON memory limit crashes
+    const parsedXtream = parseXtreamUrl(rawUrl);
+    const url = (parsedXtream.isXtream && parsedXtream.m3uUrl) ? parsedXtream.m3uUrl : rawUrl;
+
     set({ isLoading: true, parseProgress: 0, error: null });
 
     try {
-      console.log(`Fetching IPTV playlist from: ${url}`);
+      console.log(`Fetching IPTV playlist from: ${url} (original: ${rawUrl})`);
       
       let m3uText = '';
       
@@ -418,7 +424,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
       // when CORS issues occur in browser or URL fails
       try {
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout for large IPTV catalogs
         
         const response = await fetch(url, { signal: controller.signal });
         clearTimeout(timeoutId);
@@ -432,7 +438,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
         console.warn('Direct fetch failed or blocked by CORS. Attempting backend stream relay proxy...', e);
         try {
           const proxyUrl = `/api/stream/proxy?url=${encodeURIComponent(url)}`;
-          const proxyResp = await fetch(proxyUrl);
+          const proxyResp = await fetch(proxyUrl, { signal: AbortSignal.timeout(60000) });
           if (proxyResp.ok) {
             m3uText = await proxyResp.text();
           } else {
@@ -443,6 +449,11 @@ export const usePlayerStore = create<AppState>((set, get) => ({
           m3uText = FALLBACK_PLAYLIST;
           set({ error: 'CORS or Network issue prevented fetching URL. Loaded 9 pre-vetted standby channels.' });
         }
+      }
+
+      // Ensure valid EXTM3U header if provider returned raw EXTINF records
+      if (!m3uText.includes('#EXTM3U') && m3uText.includes('#EXTINF:')) {
+        m3uText = '#EXTM3U\n' + m3uText;
       }
 
       // Parse the resulting text resiliently using the custom parser
