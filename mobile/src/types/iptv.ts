@@ -113,6 +113,7 @@ export interface AppState {
   countrySections: CountrySection[];
   selectedCountry: string | null;
   selectedGroup: string | null;
+  selectedStreamType: 'all' | 'live' | 'vod' | 'series';
   searchTerm: string;
   epgSources: EpgSource[];
   epgByChannel: Record<string, NowNextProgrammes>;
@@ -144,6 +145,7 @@ export interface AppState {
   setCurrentPlayingChannel: (channel: Channel | null) => void;
   setSelectedCountry: (code: string | null) => void;
   setSelectedGroup: (group: string | null) => void;
+  setSelectedStreamType: (type: 'all' | 'live' | 'vod' | 'series') => void;
   setSearchTerm: (term: string) => void;
   loadMetadataBundle: () => Promise<void>;
   loadEpgBundle: () => Promise<void>;

@@ -26,6 +26,7 @@ import {
   Clock
 } from 'lucide-react';
 import { usePlayerStore } from '../store/usePlayerStore';
+import { simRouter } from '../shims/expo-router';
 import { 
   authenticateXtreamCodes, 
   generateXtreamChannelList, 
@@ -35,10 +36,18 @@ import {
   fetchXtreamVodCategories,
   fetchXtreamVodStreams,
   generateXtreamVodChannelList,
+  fetchXtreamSeriesCategories,
+  fetchXtreamSeries,
+  generateXtreamSeriesChannelList,
   fetchXtreamShortEpg,
   XtreamStreamItem,
   XtreamEpgListing
 } from '../utils/xtreamClient';
+import { 
+  Film,
+  Tv2,
+  Clapperboard,
+} from 'lucide-react';
 import { 
   authenticateStalkerPortal, 
   fetchStalkerGenres, 
@@ -255,13 +264,18 @@ export default function XtreamConnector() {
 
     const result = await authenticateXtreamCodes(account);
     let importedChannels: Channel[] = [];
+    let liveCount = 0;
+    let vodCount = 0;
+    let seriesCount = 0;
 
     if (result.success) {
-      const [categories, streams, vodCategories, vodStreams] = await Promise.all([
+      const [categories, streams, vodCategories, vodStreams, seriesCategories, seriesItems] = await Promise.all([
         fetchXtreamCategories(account),
         fetchXtreamStreams(account),
         fetchXtreamVodCategories(account),
-        fetchXtreamVodStreams(account)
+        fetchXtreamVodStreams(account),
+        fetchXtreamSeriesCategories(account),
+        fetchXtreamSeries(account)
       ]);
 
       if (streams.length > 0) {
@@ -271,15 +285,31 @@ export default function XtreamConnector() {
       } else {
         importedChannels = await fetchXtreamM3uChannels(account);
       }
+      liveCount = streams.length || importedChannels.filter(c => c.streamType === 'live' || !c.streamType).length;
 
       // Merge VOD items if available
       if (vodStreams.length > 0) {
         const vodChannels = generateXtreamVodChannelList(account, vodStreams, vodCategories);
         importedChannels = [...importedChannels, ...vodChannels];
+        vodCount = vodChannels.length;
+      } else {
+        vodCount = importedChannels.filter(c => c.streamType === 'vod').length;
+      }
+
+      // Merge Series items if available
+      if (seriesItems.length > 0) {
+        const seriesChannels = generateXtreamSeriesChannelList(account, seriesItems, seriesCategories);
+        importedChannels = [...importedChannels, ...seriesChannels];
+        seriesCount = seriesChannels.length;
+      } else {
+        seriesCount = importedChannels.filter(c => c.streamType === 'series').length;
       }
     } else if (targetServerUrl.includes('melhata.org') || targetServerUrl.includes('dndnscloud.ru')) {
       // Direct stream manifest mapping fallback for Melhata gateway (bypasses CORS/proxy limits)
       importedChannels = createMelhataChannels(targetUsername, targetPassword, targetServerUrl);
+      liveCount = importedChannels.filter(c => c.streamType === 'live' || !c.streamType).length;
+      vodCount = importedChannels.filter(c => c.streamType === 'vod').length;
+      seriesCount = importedChannels.filter(c => c.streamType === 'series').length;
     }
 
     if (importedChannels.length > 0) {
@@ -310,9 +340,12 @@ export default function XtreamConnector() {
       } catch {}
 
       setSuccessInfo({
-        title: 'Xtream Subscription Channels Added',
+        title: 'Xtream Live Feeds, VOD & Series Synchronized',
         server: targetServerUrl,
         channels: importedChannels.length,
+        liveCount,
+        vodCount,
+        seriesCount,
         expDate: result.userInfo?.exp_date || 'Active Line'
       });
       setError(null);
@@ -519,13 +552,66 @@ export default function XtreamConnector() {
           )}
 
           {successInfo && (
-            <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-start gap-3 text-xs">
-              <CheckCircle2 className="w-5 h-5 flex-shrink-0 mt-0.5" />
-              <div>
-                <strong className="block font-bold">{successInfo.title}</strong>
-                <p className="mt-0.5 text-zinc-300">
-                  Successfully imported <strong>{successInfo.channels}</strong> live stream feeds from {successInfo.server}. Channels are now active in the Channel Browser and Simulator.
-                </p>
+            <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex flex-col gap-3 text-xs">
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                <div>
+                  <strong className="block font-bold">{successInfo.title}</strong>
+                  <p className="mt-0.5 text-zinc-300">
+                    Successfully loaded <strong>{successInfo.channels}</strong> total streams from {successInfo.server}. All three media tiers are now accessible in the Channel Browser and Video Player.
+                  </p>
+                </div>
+              </div>
+
+              {/* Media Tiers Breakdown Grid */}
+              <div className="grid grid-cols-3 gap-2 pt-2 border-t border-emerald-500/20 text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    usePlayerStore.getState().setSelectedStreamType('live');
+                    simRouter.push('/channels');
+                  }}
+                  className="p-2.5 rounded-xl bg-black/40 border border-emerald-500/20 hover:border-emerald-400 hover:bg-emerald-500/20 transition-all text-left group cursor-pointer"
+                >
+                  <div className="flex items-center gap-1.5 text-emerald-400 text-[11px] font-bold">
+                    <Tv2 className="w-3.5 h-3.5" />
+                    <span>Live TV</span>
+                  </div>
+                  <div className="text-lg font-black text-white mt-1">{successInfo.liveCount ?? 0}</div>
+                  <span className="text-[10px] text-zinc-400 group-hover:text-emerald-300">Browse Live →</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    usePlayerStore.getState().setSelectedStreamType('vod');
+                    simRouter.push('/channels');
+                  }}
+                  className="p-2.5 rounded-xl bg-black/40 border border-cyan-500/20 hover:border-cyan-400 hover:bg-cyan-500/20 transition-all text-left group cursor-pointer"
+                >
+                  <div className="flex items-center gap-1.5 text-cyan-400 text-[11px] font-bold">
+                    <Film className="w-3.5 h-3.5" />
+                    <span>VOD Movies</span>
+                  </div>
+                  <div className="text-lg font-black text-white mt-1">{successInfo.vodCount ?? 0}</div>
+                  <span className="text-[10px] text-zinc-400 group-hover:text-cyan-300">Browse Movies →</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    usePlayerStore.getState().setSelectedStreamType('series');
+                    simRouter.push('/channels');
+                  }}
+                  className="p-2.5 rounded-xl bg-black/40 border border-purple-500/20 hover:border-purple-400 hover:bg-purple-500/20 transition-all text-left group cursor-pointer"
+                >
+                  <div className="flex items-center gap-1.5 text-purple-400 text-[11px] font-bold">
+                    <Clapperboard className="w-3.5 h-3.5" />
+                    <span>TV Series</span>
+                  </div>
+                  <div className="text-lg font-black text-white mt-1">{successInfo.seriesCount ?? 0}</div>
+                  <span className="text-[10px] text-zinc-400 group-hover:text-purple-300">Browse Series →</span>
+                </button>
               </div>
             </div>
           )}

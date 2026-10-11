@@ -264,6 +264,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   selectedTimezone: null,
   selectedSubdivision: null,
   selectedGroup: null,
+  selectedStreamType: 'all',
   searchTerm: '',
   epgSources: [
     { key: 'licensed-primary', label: 'Licensed Primary Backbone', priority: 1, enabled: true },
@@ -285,6 +286,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   setSelectedTimezone: (tz: string | null) => set({ selectedTimezone: tz }),
   setSelectedSubdivision: (sub: string | null) => set({ selectedSubdivision: sub }),
   setSelectedGroup: (group: string | null) => set({ selectedGroup: group }),
+  setSelectedStreamType: (type: 'all' | 'live' | 'vod' | 'series') => set({ selectedStreamType: type }),
   setSearchTerm: (term: string) => set({ searchTerm: term }),
 
   loadMetadataBundle: async () => {

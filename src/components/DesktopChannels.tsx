@@ -31,7 +31,10 @@ import {
   X,
   ShieldAlert,
   Lock,
-  Unlock
+  Unlock,
+  Film,
+  Tv2,
+  Clapperboard
 } from 'lucide-react';
 import { Channel } from '../types/iptv';
 import WebCinemaPlayer from './WebCinemaPlayer';
@@ -41,6 +44,7 @@ import { downloadM3UFile } from '../utils/m3uParser';
 import { ChannelTagModal } from './ChannelTagModal';
 import { ParentalPinModal } from './ParentalPinModal';
 import { VODDetailModal } from './VODDetailModal';
+import { SeriesDetailModal } from './SeriesDetailModal';
 import { parseSearchQuery, matchChannelWithQuery, foldSearchText } from '../utils/searchQueryParser';
 import { 
   getCountryFlag, 
@@ -69,6 +73,8 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
     setSelectedLanguage,
     selectedSubdivision,
     setSelectedSubdivision,
+    selectedStreamType,
+    setSelectedStreamType,
     customTags,
     getAllUniqueCustomTags,
     openPiP,
@@ -99,6 +105,7 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
   const [selectedCustomTag, setSelectedCustomTag] = React.useState<string | null>(null);
   const [taggingChannel, setTaggingChannel] = React.useState<Channel | null>(null);
   const [vodDetailChannel, setVodDetailChannel] = React.useState<Channel | null>(null);
+  const [seriesDetailChannel, setSeriesDetailChannel] = React.useState<Channel | null>(null);
   const [showParentalModal, setShowParentalModal] = React.useState(false);
 
   const parsedSearch = React.useMemo(() => parseSearchQuery(searchQuery), [searchQuery]);
@@ -123,9 +130,46 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
     return getSubdivisionsForCountry(activeCountryCode).slice(0, 25);
   }, [activeCountryCode]);
 
-  // Filter & sort channels based on group/category, language, subdivision, custom tags, and sortMode
+  // Helpers to identify media types across providers
+  const isSeriesChannel = React.useCallback((c: Channel) => {
+    if (c.streamType === 'series') return true;
+    const term = (c.category || c.group || c.name || '').toLowerCase();
+    return term.includes('series') || term.includes('season') || term.includes('episode');
+  }, []);
+
+  const isVodMovieChannel = React.useCallback((c: Channel) => {
+    if (c.streamType === 'vod') return true;
+    if (isSeriesChannel(c)) return false;
+    const term = (c.category || c.group || c.name || '').toLowerCase();
+    return term.includes('movie') || term.includes('vod') || term.includes('film');
+  }, [isSeriesChannel]);
+
+  // Live media tier breakdown counts
+  const liveCount = React.useMemo(() => {
+    return channels.filter((c) => c.streamType === 'live' || (!c.streamType && !isVodMovieChannel(c) && !isSeriesChannel(c))).length;
+  }, [channels, isVodMovieChannel, isSeriesChannel]);
+
+  const vodCount = React.useMemo(() => {
+    return channels.filter((c) => isVodMovieChannel(c)).length;
+  }, [channels, isVodMovieChannel]);
+
+  const seriesCount = React.useMemo(() => {
+    return channels.filter((c) => isSeriesChannel(c)).length;
+  }, [channels, isSeriesChannel]);
+
+  // Filter & sort channels based on streamType, group/category, language, subdivision, custom tags, and sortMode
   const filteredChannels = React.useMemo(() => {
     let list = channels;
+
+    // 1. Filter by Stream Type (Live vs VOD vs Series)
+    if (selectedStreamType === 'live') {
+      list = list.filter((c) => c.streamType === 'live' || (!c.streamType && !isVodMovieChannel(c) && !isSeriesChannel(c)));
+    } else if (selectedStreamType === 'vod') {
+      list = list.filter((c) => isVodMovieChannel(c));
+    } else if (selectedStreamType === 'series') {
+      list = list.filter((c) => isSeriesChannel(c));
+    }
+
     if (selectedCountry) {
       list = list.filter((c) => (c.countryCode || '').toUpperCase() === selectedCountry.toUpperCase());
     }
@@ -185,15 +229,27 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
     }
 
     return list;
-  }, [channels, selectedCountry, selectedSubdivision, selectedGroup, selectedLanguage, selectedCustomTag, searchQuery, sortMode, customTags, parentalControls, isChannelLocked]);
-
-  const isVodChannel = (c: Channel) => {
-    const term = (c.category || c.group || '').toLowerCase();
-    return term.includes('movie') || term.includes('series') || term.includes('vod');
-  };
+  }, [
+    channels, 
+    selectedStreamType, 
+    selectedCountry, 
+    selectedSubdivision, 
+    selectedGroup, 
+    selectedLanguage, 
+    selectedCustomTag, 
+    searchQuery, 
+    sortMode, 
+    customTags, 
+    parentalControls, 
+    isChannelLocked, 
+    isVodMovieChannel, 
+    isSeriesChannel
+  ]);
 
   const handlePlayInSimulator = (channel: Channel) => {
-    if (isVodChannel(channel)) {
+    if (isSeriesChannel(channel)) {
+      setSeriesDetailChannel(channel);
+    } else if (isVodMovieChannel(channel)) {
       setVodDetailChannel(channel);
     } else {
       simRouter.push(`/player/${channel.id}`);
@@ -201,7 +257,9 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
   };
 
   const handleOpenCinema = (channel: Channel) => {
-    if (isVodChannel(channel)) {
+    if (isSeriesChannel(channel)) {
+      setSeriesDetailChannel(channel);
+    } else if (isVodMovieChannel(channel)) {
       setVodDetailChannel(channel);
     } else {
       setCinemaChannel(channel);
@@ -213,6 +271,7 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
     setSelectedGroup(null);
     setSelectedLanguage(null);
     setSelectedCustomTag(null);
+    setSelectedStreamType('all');
     setSortMode('default');
   };
 
@@ -334,6 +393,76 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
             <span className="text-[10px] text-zinc-400 uppercase font-bold block">Categories</span>
             <span className="text-sm font-black text-blue-400">{groups.length} Groups</span>
           </div>
+        </div>
+      </div>
+
+      {/* Media Tiers Navigation Bar (Live Feeds • VOD Movies • TV Series) */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-2 bg-[#16161a] border border-white/5 rounded-2xl">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+          <button
+            onClick={() => setSelectedStreamType('all')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              selectedStreamType === 'all'
+                ? 'bg-white text-black shadow-md shadow-white/10'
+                : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <Globe className="w-3.5 h-3.5" />
+            <span>All Streams</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-md ${selectedStreamType === 'all' ? 'bg-black/20 text-black font-black' : 'bg-white/10 text-zinc-300'}`}>
+              {channels.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setSelectedStreamType('live')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              selectedStreamType === 'live'
+                ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
+                : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-emerald-500/10'
+            }`}
+          >
+            <Tv2 className="w-3.5 h-3.5" />
+            <span>Live Feeds</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-md ${selectedStreamType === 'live' ? 'bg-black/20 text-white font-black' : 'bg-emerald-500/20 text-emerald-300'}`}>
+              {liveCount}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setSelectedStreamType('vod')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              selectedStreamType === 'vod'
+                ? 'bg-cyan-600 text-white shadow-md shadow-cyan-500/20'
+                : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-cyan-500/10'
+            }`}
+          >
+            <Film className="w-3.5 h-3.5" />
+            <span>VOD Movies</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-md ${selectedStreamType === 'vod' ? 'bg-black/20 text-white font-black' : 'bg-cyan-500/20 text-cyan-300'}`}>
+              {vodCount}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setSelectedStreamType('series')}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              selectedStreamType === 'series'
+                ? 'bg-purple-600 text-white shadow-md shadow-purple-500/20'
+                : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-purple-500/10'
+            }`}
+          >
+            <Clapperboard className="w-3.5 h-3.5" />
+            <span>TV Series</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-md ${selectedStreamType === 'series' ? 'bg-black/20 text-white font-black' : 'bg-purple-500/20 text-purple-300'}`}>
+              {seriesCount}
+            </span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-2 text-[11px] text-zinc-400 px-2 font-mono">
+          <span className="hidden sm:inline">Active Tier:</span>
+          <span className="text-white font-bold uppercase">{selectedStreamType}</span>
         </div>
       </div>
 
@@ -1145,6 +1274,17 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
           onPlay={(c) => {
             // After clicking "Play" inside the modal, send it directly to the cinema player
             setCinemaChannel(c);
+          }}
+        />
+      )}
+
+      {/* Series Detail & Season / Episode Browser Modal */}
+      {seriesDetailChannel && (
+        <SeriesDetailModal
+          channel={seriesDetailChannel}
+          onClose={() => setSeriesDetailChannel(null)}
+          onPlayEpisode={(ep) => {
+            setCinemaChannel(ep);
           }}
         />
       )}

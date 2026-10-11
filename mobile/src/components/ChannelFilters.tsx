@@ -8,7 +8,7 @@ import { ScrollView, Text, View, StyleSheet } from 'react-native';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { Focusable } from './Focusable';
 import { PALETTE, RADII } from '../theme/tokens';
-import { Globe, Layers } from 'lucide-react-native';
+import { Globe, Layers, Tv } from 'lucide-react-native';
 
 interface FilterPillProps {
   label: string;
@@ -45,16 +45,69 @@ function FilterPill({ label, count, active, onPress, accessibilityLabel }: Filte
 
 export function ChannelFilters() {
   const {
+    channels,
     countrySections,
     groups,
     selectedCountry,
     selectedGroup,
+    selectedStreamType,
     setSelectedCountry,
     setSelectedGroup,
+    setSelectedStreamType,
   } = usePlayerStore();
+
+  const liveCount = channels.filter(
+    (c) => c.streamType === 'live' || (!c.streamType && !c.group.toLowerCase().includes('vod') && !c.group.toLowerCase().includes('series'))
+  ).length;
+
+  const vodCount = channels.filter(
+    (c) => c.streamType === 'vod' || (c.streamType !== 'series' && c.group.toLowerCase().includes('vod'))
+  ).length;
+
+  const seriesCount = channels.filter(
+    (c) => c.streamType === 'series' || c.group.toLowerCase().includes('series')
+  ).length;
 
   return (
     <View style={styles.container}>
+      {/* Stream Type / Media Tier Filters */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Tv size={14} color={PALETTE.accentLive} />
+          <Text style={styles.sectionTitle}>Media Tiers</Text>
+        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          <FilterPill
+            label="All Streams"
+            count={channels.length}
+            active={selectedStreamType === 'all'}
+            onPress={() => setSelectedStreamType('all')}
+          />
+          <FilterPill
+            label="Live TV"
+            count={liveCount}
+            active={selectedStreamType === 'live'}
+            onPress={() => setSelectedStreamType('live')}
+          />
+          <FilterPill
+            label="VOD Movies"
+            count={vodCount}
+            active={selectedStreamType === 'vod'}
+            onPress={() => setSelectedStreamType('vod')}
+          />
+          <FilterPill
+            label="TV Series"
+            count={seriesCount}
+            active={selectedStreamType === 'series'}
+            onPress={() => setSelectedStreamType('series')}
+          />
+        </ScrollView>
+      </View>
+
       {/* Country Filters */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>

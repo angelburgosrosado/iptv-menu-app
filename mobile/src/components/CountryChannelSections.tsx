@@ -22,6 +22,7 @@ export function CountryChannelSections() {
     searchTerm,
     selectedCountry,
     selectedGroup,
+    selectedStreamType,
     favorites,
     toggleFavorite,
     setCurrentPlayingChannel,
@@ -38,7 +39,7 @@ export function CountryChannelSections() {
     [router, setCurrentPlayingChannel]
   );
 
-  // Filter channels based on search, country, and group
+  // Filter channels based on search, country, group, and streamType
   const flatChannelList = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
     const result: Channel[] = [];
@@ -48,6 +49,15 @@ export function CountryChannelSections() {
 
       for (const channel of section.channels) {
         if (selectedGroup && channel.group !== selectedGroup) continue;
+
+        if (selectedStreamType && selectedStreamType !== 'all') {
+          const isSeries = channel.streamType === 'series' || channel.group.toLowerCase().includes('series');
+          const isVod = channel.streamType === 'vod' || (!isSeries && channel.group.toLowerCase().includes('vod'));
+
+          if (selectedStreamType === 'live' && (isVod || isSeries)) continue;
+          if (selectedStreamType === 'vod' && !isVod) continue;
+          if (selectedStreamType === 'series' && !isSeries) continue;
+        }
 
         if (term) {
           const match =
@@ -62,7 +72,7 @@ export function CountryChannelSections() {
       }
     }
     return result;
-  }, [countrySections, searchTerm, selectedCountry, selectedGroup]);
+  }, [countrySections, searchTerm, selectedCountry, selectedGroup, selectedStreamType]);
 
   const renderItem = useCallback(
     ({ item, index }: { item: Channel; index: number }) => {

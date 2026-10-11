@@ -223,3 +223,225 @@ export async function fetchXtreamShortEpg(
   }
   return [];
 }
+
+export async function fetchXtreamVodCategories(account: XtreamAccount): Promise<Record<string, string>> {
+  const map: Record<string, string> = {};
+  const baseUrl = cleanBaseUrl(account.serverUrl);
+  const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password || '')}&action=get_vod_categories`;
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    const res = await fetch(url, { headers: DEFAULT_HEADERS, signal: controller.signal });
+    clearTimeout(timeout);
+
+    if (res.ok) {
+      const list = await res.json();
+      if (Array.isArray(list)) {
+        list.forEach((cat: any) => {
+          if (cat.category_id && cat.category_name) {
+            map[String(cat.category_id)] = String(cat.category_name);
+          }
+        });
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to fetch Xtream VOD categories', e);
+  }
+  return map;
+}
+
+export async function fetchXtreamVodStreams(account: XtreamAccount, categoryId?: string): Promise<any[]> {
+  const baseUrl = cleanBaseUrl(account.serverUrl);
+  let url = `${baseUrl}/player_api.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password || '')}&action=get_vod_streams`;
+  if (categoryId) {
+    url += `&category_id=${encodeURIComponent(categoryId)}`;
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 16000);
+    const res = await fetch(url, { headers: DEFAULT_HEADERS, signal: controller.signal });
+    clearTimeout(timeout);
+
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) return data;
+    }
+  } catch (e) {
+    console.warn('Failed to fetch Xtream VOD streams', e);
+  }
+  return [];
+}
+
+export function generateXtreamVodChannelList(
+  account: XtreamAccount,
+  vodItems: any[],
+  categoryMap: Record<string, string>
+): Channel[] {
+  const baseUrl = cleanBaseUrl(account.serverUrl);
+  const u = encodeURIComponent(account.username);
+  const p = encodeURIComponent(account.password || '');
+
+  return vodItems.map((item) => {
+    const ext = item.container_extension || 'mp4';
+    const groupName = (item.category_id && categoryMap[item.category_id]) ? `VOD: ${categoryMap[item.category_id]}` : 'VOD / Movies';
+    const primaryUrl = `${baseUrl}/movie/${u}/${p}/${item.stream_id}.${ext}`;
+
+    return {
+      id: `xtream_vod_${item.stream_id}`,
+      name: item.name || `Movie ${item.stream_id}`,
+      logo: item.stream_icon || '',
+      url: primaryUrl,
+      group: groupName,
+      tvgId: `xtream_vod_${item.stream_id}`,
+      metadataSource: 'xtream',
+      streamType: 'vod' as const,
+      isLive: false,
+    };
+  });
+}
+
+export async function fetchXtreamSeriesCategories(account: XtreamAccount): Promise<Record<string, string>> {
+  const map: Record<string, string> = {};
+  const baseUrl = cleanBaseUrl(account.serverUrl);
+  const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password || '')}&action=get_series_categories`;
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    const res = await fetch(url, { headers: DEFAULT_HEADERS, signal: controller.signal });
+    clearTimeout(timeout);
+
+    if (res.ok) {
+      const list = await res.json();
+      if (Array.isArray(list)) {
+        list.forEach((cat: any) => {
+          if (cat.category_id && cat.category_name) {
+            map[String(cat.category_id)] = String(cat.category_name);
+          }
+        });
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to fetch Xtream series categories', e);
+  }
+  return map;
+}
+
+export async function fetchXtreamSeries(account: XtreamAccount, categoryId?: string): Promise<any[]> {
+  const baseUrl = cleanBaseUrl(account.serverUrl);
+  let url = `${baseUrl}/player_api.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password || '')}&action=get_series`;
+  if (categoryId) {
+    url += `&category_id=${encodeURIComponent(categoryId)}`;
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 16000);
+    const res = await fetch(url, { headers: DEFAULT_HEADERS, signal: controller.signal });
+    clearTimeout(timeout);
+
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data)) return data;
+    }
+  } catch (e) {
+    console.warn('Failed to fetch Xtream series', e);
+  }
+  return [];
+}
+
+export async function fetchXtreamSeriesInfo(
+  account: XtreamAccount,
+  seriesId: number | string
+): Promise<{ info?: any; seasons?: any[]; episodes?: Record<string, any[]> } | null> {
+  const baseUrl = cleanBaseUrl(account.serverUrl);
+  const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password || '')}&action=get_series_info&series_id=${encodeURIComponent(seriesId)}`;
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 16000);
+    const res = await fetch(url, { headers: DEFAULT_HEADERS, signal: controller.signal });
+    clearTimeout(timeout);
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data && (data.info || data.episodes || data.seasons)) {
+        return data;
+      }
+    }
+  } catch (e) {
+    console.warn(`Failed to fetch Xtream series info for ${seriesId}`, e);
+  }
+  return null;
+}
+
+export function generateXtreamSeriesChannelList(
+  account: XtreamAccount,
+  seriesItems: any[],
+  categoryMap: Record<string, string>
+): Channel[] {
+  const baseUrl = cleanBaseUrl(account.serverUrl);
+  const u = encodeURIComponent(account.username);
+  const p = encodeURIComponent(account.password || '');
+
+  return seriesItems.map((item) => {
+    const sId = item.series_id || item.id;
+    const groupName = (item.category_id && categoryMap[item.category_id]) ? `Series: ${categoryMap[item.category_id]}` : 'TV Series';
+    const manifestUrl = `${baseUrl}/player_api.php?username=${u}&password=${p}&action=get_series_info&series_id=${sId}`;
+
+    return {
+      id: `xtream_series_${sId}`,
+      name: item.name || `Series ${sId}`,
+      logo: item.cover || item.stream_icon || '',
+      url: manifestUrl,
+      group: groupName,
+      tvgId: `xtream_series_${sId}`,
+      metadataSource: 'xtream',
+      streamType: 'series' as const,
+      isLive: false,
+    };
+  });
+}
+
+export function generateXtreamEpisodesList(
+  account: XtreamAccount,
+  seriesName: string,
+  seriesInfo: { info?: any; episodes?: Record<string, any[]> }
+): Channel[] {
+  const baseUrl = cleanBaseUrl(account.serverUrl);
+  const u = encodeURIComponent(account.username);
+  const p = encodeURIComponent(account.password || '');
+  const channels: Channel[] = [];
+  const episodesMap = seriesInfo.episodes || {};
+
+  Object.keys(episodesMap).forEach((seasonNum) => {
+    const epList = episodesMap[seasonNum];
+    if (Array.isArray(epList)) {
+      epList.forEach((ep: any) => {
+        const ext = ep.container_extension || 'mp4';
+        const epNum = ep.episode_num !== undefined ? ep.episode_num : 1;
+        const sFormatted = String(seasonNum).padStart(2, '0');
+        const eFormatted = String(epNum).padStart(2, '0');
+        const epTitle = ep.title ? ` - ${ep.title}` : '';
+        const name = `${seriesName} S${sFormatted}E${eFormatted}${epTitle}`;
+        const streamUrl = `${baseUrl}/series/${u}/${p}/${ep.id}.${ext}`;
+
+        channels.push({
+          id: `xtream_ep_${ep.id}`,
+          name: name,
+          logo: ep.info?.movie_image || seriesInfo.info?.cover || '',
+          url: streamUrl,
+          group: `Season ${seasonNum}`,
+          tvgId: `xtream_ep_${ep.id}`,
+          metadataSource: 'xtream',
+          streamType: 'series' as const,
+          isLive: false,
+        });
+      });
+    }
+  });
+
+  return channels;
+}

@@ -13,7 +13,13 @@ import {
   fetchXtreamCategories,
   fetchXtreamStreams,
   generateXtreamChannelList,
-  fetchXtreamM3uChannels
+  fetchXtreamM3uChannels,
+  fetchXtreamVodCategories,
+  fetchXtreamVodStreams,
+  generateXtreamVodChannelList,
+  fetchXtreamSeriesCategories,
+  fetchXtreamSeries,
+  generateXtreamSeriesChannelList,
 } from '../utils/xtreamClient';
 
 const defaultTheme: RemoteTheme = {
@@ -45,6 +51,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   countrySections: [],
   selectedCountry: null,
   selectedGroup: null,
+  selectedStreamType: 'all',
   searchTerm: '',
   epgSources: [
     { key: 'backend-live-epg', label: 'Global Live EPG Backbone', priority: 1, enabled: true },
@@ -64,6 +71,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
 
   setSelectedCountry: (code: string | null) => set({ selectedCountry: code }),
   setSelectedGroup: (group: string | null) => set({ selectedGroup: group }),
+  setSelectedStreamType: (type: 'all' | 'live' | 'vod' | 'series') => set({ selectedStreamType: type }),
   setSearchTerm: (term: string) => set({ searchTerm: term }),
 
   loadMetadataBundle: async () => {
@@ -228,9 +236,20 @@ export const usePlayerStore = create<AppState>((set, get) => ({
         name: account.name || auth.userInfo?.username || account.username,
       };
 
-      const [categories, streams] = await Promise.all([
+      const [
+        categories,
+        streams,
+        vodCategories,
+        vodStreams,
+        seriesCategories,
+        seriesItems,
+      ] = await Promise.all([
         fetchXtreamCategories(account),
-        fetchXtreamStreams(account)
+        fetchXtreamStreams(account),
+        fetchXtreamVodCategories(account),
+        fetchXtreamVodStreams(account),
+        fetchXtreamSeriesCategories(account),
+        fetchXtreamSeries(account),
       ]);
 
       let channels: Channel[] = [];
@@ -240,9 +259,21 @@ export const usePlayerStore = create<AppState>((set, get) => ({
         channels = await fetchXtreamM3uChannels(account);
       }
 
+      // Merge VOD movies
+      if (vodStreams && vodStreams.length > 0) {
+        const vodChannels = generateXtreamVodChannelList(account, vodStreams, vodCategories);
+        channels = [...channels, ...vodChannels];
+      }
+
+      // Merge TV series
+      if (seriesItems && seriesItems.length > 0) {
+        const seriesChannels = generateXtreamSeriesChannelList(account, seriesItems, seriesCategories);
+        channels = [...channels, ...seriesChannels];
+      }
+
       if (channels.length === 0) {
-        set({ isLoading: false, error: 'No channels found in this Xtream account' });
-        return { success: false, error: 'No channels found in this Xtream account' };
+        set({ isLoading: false, error: 'No channels, movies, or series found in this Xtream account' });
+        return { success: false, error: 'No channels, movies, or series found in this Xtream account' };
       }
 
       const uniqueGroups = Array.from(new Set(channels.map((c) => c.group))).sort();

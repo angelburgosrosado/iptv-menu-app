@@ -241,6 +241,7 @@ export interface AppState {
   selectedTimezone: string | null;
   selectedSubdivision: string | null;
   selectedGroup: string | null;
+  selectedStreamType: 'all' | 'live' | 'vod' | 'series';
   searchTerm: string;
   epgSources: EpgSource[];
   epgByChannel: Record<string, any>;
@@ -279,6 +280,7 @@ export interface AppState {
   setSelectedTimezone: (tz: string | null) => void;
   setSelectedSubdivision: (sub: string | null) => void;
   setSelectedGroup: (group: string | null) => void;
+  setSelectedStreamType: (type: 'all' | 'live' | 'vod' | 'series') => void;
   setSearchTerm: (term: string) => void;
   loadMetadataBundle: () => Promise<void>;
   loadEpgBundle: () => Promise<void>;

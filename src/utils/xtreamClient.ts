@@ -282,6 +282,36 @@ export async function fetchXtreamVodStreams(account: XtreamAccount, categoryId?:
   return [];
 }
 
+export async function fetchXtreamSeriesCategories(account: XtreamAccount): Promise<Record<string, string>> {
+  let baseUrl = account.serverUrl.trim().replace(/\/+$/, '');
+  if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+    baseUrl = `http://${baseUrl}`;
+  }
+  const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password)}&action=get_series_categories`;
+  try {
+    const res = await guardedFetch(url, 8000, 9000);
+    if (res.ok) {
+      const data = await res.json().catch(() => null);
+      if (Array.isArray(data)) {
+        const catMap: Record<string, string> = {};
+        data.forEach((c: any) => {
+          if (c.category_id && c.category_name) {
+            catMap[String(c.category_id)] = c.category_name;
+          }
+        });
+        return catMap;
+      }
+    }
+  } catch (e: any) {
+    if (e instanceof HostConnectivityFastFailError) {
+      console.warn(`[XtreamClient] Series categories fast-failed: ${e.message}`);
+    } else {
+      console.warn('Could not fetch Xtream series categories', e);
+    }
+  }
+  return {};
+}
+
 export async function fetchXtreamSeries(account: XtreamAccount, categoryId?: string): Promise<any[]> {
   let baseUrl = account.serverUrl.trim().replace(/\/+$/, '');
   if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
@@ -307,6 +337,112 @@ export async function fetchXtreamSeries(account: XtreamAccount, categoryId?: str
     }
   }
   return [];
+}
+
+export async function fetchXtreamSeriesInfo(
+  account: XtreamAccount, 
+  seriesId: number | string
+): Promise<{ info?: any; seasons?: any[]; episodes?: Record<string, any[]> } | null> {
+  let baseUrl = account.serverUrl.trim().replace(/\/+$/, '');
+  if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+    baseUrl = `http://${baseUrl}`;
+  }
+  const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password)}&action=get_series_info&series_id=${encodeURIComponent(seriesId)}`;
+  try {
+    const res = await guardedFetch(url, 15000, 20000);
+    if (res.ok) {
+      const data = await res.json().catch(() => null);
+      if (data && (data.info || data.episodes || data.seasons)) {
+        return data;
+      }
+    }
+  } catch (e: any) {
+    if (e instanceof HostConnectivityFastFailError) {
+      console.warn(`[XtreamClient] Series info fast-failed: ${e.message}`);
+    } else {
+      console.warn(`Could not fetch Xtream series info for ${seriesId}`, e);
+    }
+  }
+  return null;
+}
+
+export function generateXtreamSeriesChannelList(
+  account: XtreamAccount,
+  seriesItems: any[],
+  categories: Record<string, string>
+): Channel[] {
+  let baseUrl = account.serverUrl.trim().replace(/\/+$/, '');
+  if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+    baseUrl = `http://${baseUrl}`;
+  }
+
+  return seriesItems.map((item) => {
+    const sId = item.series_id || item.id;
+    const group = categories[item.category_id] ? `Series: ${categories[item.category_id]}` : 'TV Series';
+    // Deep-linkable stream URL for series metadata inspection
+    const manifestUrl = `${baseUrl}/player_api.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password)}&action=get_series_info&series_id=${sId}`;
+
+    return {
+      id: `xtream_series_${sId}`,
+      name: item.name,
+      logo: item.cover || item.stream_icon || '',
+      url: manifestUrl,
+      group: group,
+      tvgId: String(sId),
+      resolution: item.rating ? `★ ${item.rating}` : 'TV Series',
+      bitrate: 'Multi-Season TV',
+      fps: 24,
+      codec: 'H.264 / AAC',
+      streamType: 'series' as const,
+      directSource: 'xtream' as const
+    };
+  });
+}
+
+export function generateXtreamEpisodesList(
+  account: XtreamAccount,
+  seriesName: string,
+  seriesInfo: { info?: any; episodes?: Record<string, any[]> }
+): Channel[] {
+  let baseUrl = account.serverUrl.trim().replace(/\/+$/, '');
+  if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+    baseUrl = `http://${baseUrl}`;
+  }
+
+  const channels: Channel[] = [];
+  const episodesMap = seriesInfo.episodes || {};
+
+  Object.keys(episodesMap).forEach((seasonNum) => {
+    const epList = episodesMap[seasonNum];
+    if (Array.isArray(epList)) {
+      epList.forEach((ep: any) => {
+        const ext = ep.container_extension || 'mp4';
+        const epNum = ep.episode_num !== undefined ? ep.episode_num : 1;
+        const sFormatted = String(seasonNum).padStart(2, '0');
+        const eFormatted = String(epNum).padStart(2, '0');
+        const epTitle = ep.title ? ` - ${ep.title}` : '';
+        const name = `${seriesName} S${sFormatted}E${eFormatted}${epTitle}`;
+        const streamUrl = `${baseUrl}/series/${account.username}/${account.password}/${ep.id}.${ext}`;
+
+        channels.push({
+          id: `xtream_ep_${ep.id}`,
+          name: name,
+          logo: ep.info?.movie_image || seriesInfo.info?.cover || '',
+          url: streamUrl,
+          group: `Season ${seasonNum}`,
+          tvgId: String(ep.id),
+          resolution: ep.info?.video?.height ? `${ep.info.video.height}p` : '1080p',
+          bitrate: ep.info?.duration ? `${ep.info.duration}` : 'HD Stream',
+          fps: 24,
+          codec: 'H.264 / AAC',
+          streamType: 'series' as const,
+          directSource: 'xtream' as const
+        });
+      });
+    }
+  });
+
+  return channels;
 }
 
 export function generateXtreamVodChannelList(
