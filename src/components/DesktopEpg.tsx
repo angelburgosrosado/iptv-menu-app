@@ -27,7 +27,8 @@ import {
   Film,
   Bookmark as BookmarkIcon,
   RotateCcw,
-  ChevronLeft
+  ChevronLeft,
+  Link2
 } from 'lucide-react';
 import { Channel } from '../types/iptv';
 import { PageProtocolHeader } from './PageProtocolHeader';
@@ -52,6 +53,9 @@ export default function DesktopEpg() {
   const { 
     channels, 
     epgByChannel, 
+    epgOverrides,
+    setCustomEpgOverride,
+    removeCustomEpgOverride,
     isLoading, 
     loadEpgBundle, 
     selectedTimezone, 
@@ -71,6 +75,11 @@ export default function DesktopEpg() {
   const [selectedCategory, setSelectedCategory] = React.useState('all');
   const [showDvrModal, setShowDvrModal] = React.useState(false);
   const [timelineOffsetHours, setTimelineOffsetHours] = React.useState<number>(0);
+
+  // EPG Remapping State
+  const [remapTargetChannel, setRemapTargetChannel] = React.useState<Channel | null>(null);
+  const [customTvgIdInput, setCustomTvgIdInput] = React.useState('');
+  const [remapSearchTerm, setRemapSearchTerm] = React.useState('');
 
   const categories = React.useMemo(() => {
     const set = new Set<string>();
@@ -136,7 +145,8 @@ export default function DesktopEpg() {
     const chGroup = (channel.group || '').toLowerCase();
     const channelSupportsCatchup = isCatchupSupported(channel);
 
-    const channelKey = channel.tvgId || channel.epgChannelId || channel.id;
+    const overrideKey = epgOverrides?.[channel.id];
+    const channelKey = overrideKey || channel.tvgId || channel.epgChannelId || channel.id;
     const storePrograms = epgByChannel?.[channelKey];
 
     const getProgramDetails = (slotOffset: number) => {
@@ -247,7 +257,7 @@ export default function DesktopEpg() {
     }
 
     return slots;
-  }, [currentHour, timelineOffsetHours, epgByChannel, now]);
+  }, [currentHour, timelineOffsetHours, epgByChannel, epgOverrides, now]);
 
   // Auto-select first channel and first show for immediate inspector preview
   React.useEffect(() => {
@@ -565,10 +575,30 @@ export default function DesktopEpg() {
                           className="w-full h-full object-contain"
                         />
                       </div>
-                      <div className="min-w-0 flex flex-col">
-                        <span className="text-xs font-bold text-white truncate leading-snug group-hover:text-cyan-300 transition-colors">
-                          {c.name}
-                        </span>
+                      <div className="min-w-0 flex flex-col flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-white truncate leading-snug group-hover:text-cyan-300 transition-colors">
+                            {c.name}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setRemapTargetChannel(c);
+                              setCustomTvgIdInput(epgOverrides?.[c.id] || c.tvgId || '');
+                              setRemapSearchTerm('');
+                            }}
+                            className={`p-1 rounded-md border text-[9px] flex items-center gap-1 shrink-0 transition-all ${
+                              epgOverrides?.[c.id]
+                                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
+                                : 'bg-white/5 text-zinc-400 border-white/10 opacity-0 group-hover:opacity-100 hover:text-white hover:border-cyan-400 hover:bg-cyan-500/10'
+                            }`}
+                            title={epgOverrides?.[c.id] ? `Custom EPG ID: ${epgOverrides[c.id]} (Click to edit)` : 'Remap EPG to a different channel ID'}
+                          >
+                            <Link2 className="w-2.5 h-2.5" />
+                            {epgOverrides?.[c.id] ? <span className="font-mono text-[8px] font-bold">REMAP</span> : null}
+                          </button>
+                        </div>
                         {c.group && (
                           <span className="text-[10px] text-zinc-400 truncate uppercase tracking-wider font-semibold">
                             {c.group}
@@ -842,6 +872,139 @@ export default function DesktopEpg() {
           </div>
         </div>
         </>
+      )}
+
+      {/* Custom EPG Remapping Modal */}
+      {remapTargetChannel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-[#121316] border border-white/10 rounded-3xl w-full max-w-lg p-6 shadow-2xl relative flex flex-col gap-5">
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+                  <Link2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Channel EPG Re-Mapping</h3>
+                  <p className="text-xs text-zinc-400">Assign or match any XMLTV channel ID to this feed</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setRemapTargetChannel(null)}
+                className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Target Channel Info */}
+            <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 flex items-center justify-between">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-black/60 border border-white/10 p-1 flex items-center justify-center shrink-0">
+                  <img
+                    src={remapTargetChannel.logo || 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=120&auto=format&fit=crop&q=60'}
+                    alt={remapTargetChannel.name}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-sm font-bold text-white truncate">{remapTargetChannel.name}</div>
+                  <div className="text-[11px] text-zinc-400 flex items-center gap-2">
+                    <span>Default: <code className="text-zinc-300 font-mono">{remapTargetChannel.tvgId || 'None'}</code></span>
+                    {epgOverrides?.[remapTargetChannel.id] && (
+                      <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono text-[9px]">
+                        Active Override: {epgOverrides[remapTargetChannel.id]}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Input & Search */}
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-semibold text-zinc-300">Target XMLTV / TVG-ID</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={customTvgIdInput}
+                  onChange={(e) => setCustomTvgIdInput(e.target.value)}
+                  placeholder="e.g. CNN.us or BBCNews.uk"
+                  className="w-full px-4 py-3 rounded-xl bg-black/50 border border-white/10 text-white placeholder-zinc-500 text-sm focus:outline-none focus:border-cyan-400 transition-colors font-mono"
+                />
+              </div>
+            </div>
+
+            {/* Suggested IDs from Loaded Channels */}
+            <div className="flex flex-col gap-2 max-h-48 overflow-hidden">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-zinc-400">Available Channel EPG Identifiers</span>
+                <input
+                  type="text"
+                  value={remapSearchTerm}
+                  onChange={(e) => setRemapSearchTerm(e.target.value)}
+                  placeholder="Filter available IDs..."
+                  className="px-2 py-1 rounded-lg bg-black/40 border border-white/10 text-[11px] text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-cyan-400"
+                />
+              </div>
+              <div className="overflow-y-auto max-h-36 flex flex-col gap-1 pr-1">
+                {channels
+                  .filter((ch) => ch.tvgId && (remapSearchTerm ? (ch.name.toLowerCase().includes(remapSearchTerm.toLowerCase()) || ch.tvgId.toLowerCase().includes(remapSearchTerm.toLowerCase())) : true))
+                  .slice(0, 20)
+                  .map((ch) => (
+                    <button
+                      key={ch.id}
+                      type="button"
+                      onClick={() => setCustomTvgIdInput(ch.tvgId)}
+                      className="px-3 py-2 rounded-xl bg-white/[0.02] hover:bg-cyan-500/10 border border-white/5 hover:border-cyan-500/30 text-left flex items-center justify-between text-xs transition-colors"
+                    >
+                      <span className="text-zinc-200 font-medium truncate">{ch.name}</span>
+                      <code className="text-[10px] text-cyan-400 font-mono ml-2 shrink-0">{ch.tvgId}</code>
+                    </button>
+                  ))}
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-between pt-2 border-t border-white/10">
+              {epgOverrides?.[remapTargetChannel.id] ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    removeCustomEpgOverride(remapTargetChannel.id);
+                    setRemapTargetChannel(null);
+                  }}
+                  className="px-4 py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 text-xs font-semibold transition-colors"
+                >
+                  Reset to Default
+                </button>
+              ) : <div />}
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRemapTargetChannel(null)}
+                  className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 text-xs font-semibold transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!customTvgIdInput.trim()}
+                  onClick={() => {
+                    if (customTvgIdInput.trim()) {
+                      setCustomEpgOverride(remapTargetChannel.id, customTvgIdInput.trim());
+                      setRemapTargetChannel(null);
+                    }
+                  }}
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-bold transition-all shadow-lg shadow-cyan-500/25 disabled:opacity-50"
+                >
+                  Save Mapping
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* DVR & Bookmarks Modal */}

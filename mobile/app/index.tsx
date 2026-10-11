@@ -19,6 +19,7 @@ import { ChannelFilters } from '../src/components/ChannelFilters';
 import { CountryChannelSections } from '../src/components/CountryChannelSections';
 import { EpgBackbonePanel } from '../src/components/EpgBackbonePanel';
 import { XtreamLoginModal } from '../src/components/XtreamLoginModal';
+import { TvPairModal } from '../src/components/TvPairModal';
 import { usePlayerStore } from '../src/store/usePlayerStore';
 import { PALETTE, RADII } from '../src/theme/tokens';
 import { Focusable } from '../src/components/Focusable';
@@ -36,6 +37,7 @@ export default function HomePage() {
     channels,
   } = usePlayerStore();
   const [isXtreamModalVisible, setIsXtreamModalVisible] = useState(false);
+  const [isTvPairModalVisible, setIsTvPairModalVisible] = useState(false);
 
   useEffect(() => {
     loadMetadataBundle();
@@ -62,34 +64,49 @@ export default function HomePage() {
             </View>
           </View>
 
-          {/* Xtream Codes Account Button */}
-          <Focusable
-            onPress={() => setIsXtreamModalVisible(true)}
-            accessibilityRole="button"
-            accessibilityLabel={
-              xtreamAccount
-                ? `Xtream connected: ${xtreamAccount.username}`
-                : 'Connect Xtream Codes Account'
-            }
-            style={[
-              styles.xtreamBtn,
-              xtreamAccount && styles.xtreamBtnConnected,
-            ]}
-          >
-            {xtreamAccount ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            {/* TV Pairing Button */}
+            <Focusable
+              onPress={() => setIsTvPairModalVisible(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Pair TV Device"
+              style={styles.pairTvBtn}
+            >
               <View style={styles.xtreamBtnInner}>
-                <CheckCircle2 size={14} color={PALETTE.accentSuccess} />
-                <Text style={styles.xtreamBtnTextConnected}>
-                  {xtreamAccount.username}
-                </Text>
+                <Tv size={14} color={PALETTE.primary} />
+                <Text style={styles.pairTvBtnText}>Pair TV</Text>
               </View>
-            ) : (
-              <View style={styles.xtreamBtnInner}>
-                <KeyRound size={14} color={PALETTE.primary} />
-                <Text style={styles.xtreamBtnText}>+ Xtream Codes</Text>
-              </View>
-            )}
-          </Focusable>
+            </Focusable>
+
+            {/* Xtream Codes Account Button */}
+            <Focusable
+              onPress={() => setIsXtreamModalVisible(true)}
+              accessibilityRole="button"
+              accessibilityLabel={
+                xtreamAccount
+                  ? `Xtream connected: ${xtreamAccount.username}`
+                  : 'Connect Xtream Codes Account'
+              }
+              style={[
+                styles.xtreamBtn,
+                xtreamAccount && styles.xtreamBtnConnected,
+              ]}
+            >
+              {xtreamAccount ? (
+                <View style={styles.xtreamBtnInner}>
+                  <CheckCircle2 size={14} color={PALETTE.accentSuccess} />
+                  <Text style={styles.xtreamBtnTextConnected}>
+                    {xtreamAccount.username}
+                  </Text>
+                </View>
+              ) : (
+                <View style={styles.xtreamBtnInner}>
+                  <KeyRound size={14} color={PALETTE.primary} />
+                  <Text style={styles.xtreamBtnText}>+ Xtream Codes</Text>
+                </View>
+              )}
+            </Focusable>
+          </View>
         </View>
 
         {/* Hero Section */}
@@ -132,6 +149,12 @@ export default function HomePage() {
       <XtreamLoginModal
         visible={isXtreamModalVisible}
         onClose={() => setIsXtreamModalVisible(false)}
+      />
+
+      {/* TV Pairing Modal */}
+      <TvPairModal
+        visible={isTvPairModalVisible}
+        onClose={() => setIsTvPairModalVisible(false)}
       />
     </SafeAreaView>
   );
@@ -176,6 +199,19 @@ const styles = StyleSheet.create({
     color: PALETTE.textDim,
     fontSize: 10,
     fontWeight: '600',
+  },
+  pairTvBtn: {
+    backgroundColor: 'rgba(56, 189, 248, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.25)',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: RADII.pill,
+  },
+  pairTvBtnText: {
+    color: PALETTE.primary,
+    fontSize: 12,
+    fontWeight: '700',
   },
   xtreamBtn: {
     backgroundColor: 'rgba(56, 189, 248, 0.12)',

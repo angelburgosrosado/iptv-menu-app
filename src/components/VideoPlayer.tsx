@@ -35,7 +35,9 @@ import {
   Square,
   Zap,
   Disc3,
-  RotateCw
+  RotateCw,
+  Sparkles,
+  Search
 } from 'lucide-react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { streamRecorder, formatBytes, formatDuration } from '../utils/streamRecorderEngine';
@@ -44,8 +46,10 @@ import SleepTimerModal from './SleepTimerModal';
 import AudioEqualizerModal from './AudioEqualizerModal';
 import { ParentalPinModal } from './ParentalPinModal';
 import { SubtitleSettingsModal } from './SubtitleSettingsModal';
+import { ExternalSubtitleModal } from './ExternalSubtitleModal';
+import AiProgramContextPanel from './AiProgramContextPanel';
 import { audioDspEngine } from '../utils/audioDspEngine';
-import { applySubtitleStylesToDom } from '../utils/subtitleEngine';
+import { applySubtitleStylesToDom, ExternalSubtitleTrack } from '../utils/subtitleEngine';
 import { 
   resolvePlaybackUrlSourceKind, 
   deriveAlternativeStreamFormat, 
@@ -147,6 +151,41 @@ export function VideoPlayer({
   const [showEqualizer, setShowEqualizer] = React.useState(false);
   const [showParentalModal, setShowParentalModal] = React.useState(false);
   const [showSubtitleSettings, setShowSubtitleSettings] = React.useState(false);
+  const [showAiPanel, setShowAiPanel] = React.useState(false);
+  const [showExternalSubtitleModal, setShowExternalSubtitleModal] = React.useState(false);
+
+  const handleSelectExternalSubtitle = React.useCallback((track: ExternalSubtitleTrack) => {
+    if (typeof document === 'undefined') return;
+    const videoEl = document.querySelector('video') as HTMLVideoElement | null;
+    if (!videoEl) return;
+
+    // Remove existing custom external tracks
+    const existingTracks = videoEl.querySelectorAll('track[data-external="true"]');
+    existingTracks.forEach((t) => t.remove());
+
+    // Inject WebVTT track element
+    const trackEl = document.createElement('track');
+    trackEl.kind = 'subtitles';
+    trackEl.label = track.label;
+    trackEl.srclang = track.language;
+    trackEl.src = track.url;
+    trackEl.default = true;
+    trackEl.setAttribute('data-external', 'true');
+    videoEl.appendChild(trackEl);
+
+    setTimeout(() => {
+      for (let i = 0; i < videoEl.textTracks.length; i++) {
+        const tt = videoEl.textTracks[i];
+        if (tt.label === track.label) {
+          tt.mode = 'showing';
+        } else {
+          tt.mode = 'disabled';
+        }
+      }
+    }, 60);
+
+    triggerChannelHud(`External Subtitles: ${track.label}`);
+  }, []);
 
   // Compute actual active stream URL (either candidate or proxy wrapped)
   const activeRawUrl = streamCandidates[activeCandidateIndex] || streamUrl;
@@ -1211,6 +1250,18 @@ export function VideoPlayer({
 
             <View style={styles.spacer} />
 
+            {/* Live AI Insights Program Context Button */}
+            <TouchableOpacity 
+              onPress={() => setShowAiPanel(true)} 
+              style={[
+                styles.hudIconBtn, 
+                { backgroundColor: 'rgba(6, 182, 212, 0.15)', borderWidth: 1, borderColor: 'rgba(6, 182, 212, 0.35)' }
+              ]} 
+              title="✨ Live AI Insights & Program Context"
+            >
+              <Sparkles size={16} color="#38bdf8" />
+            </TouchableOpacity>
+
             {/* Picture-in-Picture Button */}
             <TouchableOpacity onPress={togglePiP} style={styles.hudIconBtn} title="Picture in Picture (P)">
               <Airplay size={18} color="#94a3b8" />
@@ -1295,30 +1346,57 @@ export function VideoPlayer({
                 })}
 
                 {showTrackModal === 'subtitle' && (
-                  <TouchableOpacity
-                    onPress={() => {
-                      setShowTrackModal(null);
-                      setShowSubtitleSettings(true);
-                    }}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 6,
-                      paddingVertical: 10,
-                      paddingHorizontal: 12,
-                      marginTop: 8,
-                      borderTopWidth: 1,
-                      borderTopColor: '#334155',
-                      backgroundColor: 'rgba(56, 189, 248, 0.1)',
-                      borderRadius: 6,
-                    }}
-                  >
-                    <Sliders size={13} color="#38bdf8" />
-                    <Text style={{ color: '#38bdf8', fontSize: 11, fontWeight: '700' }}>
-                      Customize CC Styles & Timing
-                    </Text>
-                  </TouchableOpacity>
+                  <>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setShowTrackModal(null);
+                        setShowSubtitleSettings(true);
+                      }}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        paddingVertical: 10,
+                        paddingHorizontal: 12,
+                        marginTop: 8,
+                        borderTopWidth: 1,
+                        borderTopColor: '#334155',
+                        backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                        borderRadius: 6,
+                      }}
+                    >
+                      <Sliders size={13} color="#38bdf8" />
+                      <Text style={{ color: '#38bdf8', fontSize: 11, fontWeight: '700' }}>
+                        Customize CC Styles & Timing
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      onPress={() => {
+                        setShowTrackModal(null);
+                        setShowExternalSubtitleModal(true);
+                      }}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6,
+                        paddingVertical: 10,
+                        paddingHorizontal: 12,
+                        marginTop: 6,
+                        borderWidth: 1,
+                        borderColor: 'rgba(99, 102, 241, 0.35)',
+                        backgroundColor: 'rgba(99, 102, 241, 0.12)',
+                        borderRadius: 6,
+                      }}
+                    >
+                      <Search size={13} color="#a5b4fc" />
+                      <Text style={{ color: '#a5b4fc', fontSize: 11, fontWeight: '700' }}>
+                        Search OpenSubtitles On Demand
+                      </Text>
+                    </TouchableOpacity>
+                  </>
                 )}
               </View>
             </View>
@@ -1381,6 +1459,21 @@ export function VideoPlayer({
       <SubtitleSettingsModal
         isOpen={showSubtitleSettings}
         onClose={() => setShowSubtitleSettings(false)}
+      />
+
+      {/* 11. Live AI Insights Interactive Panel */}
+      <AiProgramContextPanel
+        isOpen={showAiPanel}
+        onClose={() => setShowAiPanel(false)}
+        channel={channel}
+      />
+
+      {/* 12. External Subtitles Discovery Modal */}
+      <ExternalSubtitleModal
+        isOpen={showExternalSubtitleModal}
+        onClose={() => setShowExternalSubtitleModal(false)}
+        channelName={channelName}
+        onSelectTrack={handleSelectExternalSubtitle}
       />
     </View>
   );

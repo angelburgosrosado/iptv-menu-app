@@ -271,6 +271,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
     { key: 'community-country-feeds', label: 'Community Country Feeds', priority: 3, enabled: true }
   ],
   epgByChannel: {},
+  epgOverrides: readJsonFromStorage<Record<string, string>>('iptv_epg_overrides', {}),
 
   // Loading & parsing states
   isLoading: false,
@@ -495,6 +496,20 @@ export const usePlayerStore = create<AppState>((set, get) => ({
     }
   },
 
+  setCustomEpgOverride: (channelId: string, tvgId: string) => {
+    const current = get().epgOverrides || {};
+    const updated = { ...current, [channelId]: tvgId.trim() };
+    writeJsonToStorage('iptv_epg_overrides', updated);
+    set({ epgOverrides: updated });
+  },
+
+  removeCustomEpgOverride: (channelId: string) => {
+    const current = { ...(get().epgOverrides || {}) };
+    delete current[channelId];
+    writeJsonToStorage('iptv_epg_overrides', current);
+    set({ epgOverrides: current });
+  },
+
   toggleFavorite: (channelId: string) => {
     const { favorites } = get();
     let newFavorites: string[];
@@ -526,7 +541,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
 
   clearCache: () => {
     storage.clearAll();
-    set({ favorites: [], history: [], dvrRecordings: [], bookmarks: [], customTags: {} });
+    set({ favorites: [], history: [], dvrRecordings: [], bookmarks: [], customTags: {}, epgOverrides: {} });
   },
 
   scheduleRecording: (recordingData: Omit<DvrRecording, 'id' | 'recordedAt'>) => {

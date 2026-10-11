@@ -125,5 +125,30 @@ describe('Advanced Search Query Parser', () => {
       const mismatch = parseSearchQuery('country:us "al jazeera"');
       expect(matchChannelWithQuery(channel1, mismatch)).toBe(false);
     });
+
+    it('should parse and match actor/cast queries (actor: syntax)', () => {
+      const movieChannel: Channel = {
+        id: 'c-movie-1',
+        name: 'Cinema Premiere HD',
+        url: 'https://example.com/movie.m3u8',
+        group: 'Movies',
+        actors: ['Tom Hanks', 'Meg Ryan', 'Bryan Cranston']
+      };
+
+      const actorQuery = parseSearchQuery('actor:"tom hanks"');
+      expect(actorQuery.actors).toEqual(['tom hanks']);
+      expect(matchChannelWithQuery(movieChannel, actorQuery)).toBe(true);
+
+      const castQuery = parseSearchQuery('cast:cranston');
+      expect(castQuery.actors).toEqual(['cranston']);
+      expect(matchChannelWithQuery(movieChannel, castQuery)).toBe(true);
+
+      const nonMatchingActor = parseSearchQuery('actor:"keanu reeves"');
+      expect(matchChannelWithQuery(movieChannel, nonMatchingActor)).toBe(false);
+
+      // Free text matching actor
+      const freeQuery = parseSearchQuery('hanks');
+      expect(matchChannelWithQuery(movieChannel, freeQuery)).toBe(true);
+    });
   });
 });

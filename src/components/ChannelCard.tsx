@@ -25,7 +25,8 @@ export const ChannelCard = React.memo(({
   onFavoriteToggle = () => {},
 }: ChannelCardProps) => {
   const epgByChannel = usePlayerStore((s) => s.epgByChannel);
-  const channelKey = channel.tvgId || channel.epgChannelId || channel.id;
+  const epgOverrides = usePlayerStore((s) => s.epgOverrides);
+  const channelKey = epgOverrides?.[channel.id] || channel.tvgId || channel.epgChannelId || channel.id;
   const currentProgram = epgByChannel?.[channelKey]?.[0];
 
   const [imageError, setImageError] = React.useState(!channel.logo);
@@ -296,6 +297,15 @@ export const ChannelCard = React.memo(({
                   {currentProgram.title}
                 </Text>
               </View>
+            )}
+            {((channel.actors && channel.actors.length > 0) || (channel.cast && channel.cast.length > 0)) && (
+              <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                {[...(channel.actors || []), ...(channel.cast || [])].slice(0, 2).map((actor, idx) => (
+                  <span key={idx} className="text-[9px] font-medium px-1.5 py-0.5 rounded-md bg-purple-500/15 text-purple-300 border border-purple-500/30 truncate max-w-[120px]">
+                    🎭 {actor}
+                  </span>
+                ))}
+              </div>
             )}
           </View>
 

@@ -43,6 +43,8 @@ export interface Channel {
   corsProxyRecommended?: boolean;
   alternateUrls?: string[];
   feedQuality?: 'auto' | 'fhd' | 'hd' | 'sd' | 'backup';
+  actors?: string[];
+  cast?: string[];
 }
 
 export type PlaylistChannel = Channel;
@@ -242,6 +244,7 @@ export interface AppState {
   searchTerm: string;
   epgSources: EpgSource[];
   epgByChannel: Record<string, any>;
+  epgOverrides: Record<string, string>;
 
   // Async Loading States
   isLoading: boolean;
@@ -279,6 +282,8 @@ export interface AppState {
   setSearchTerm: (term: string) => void;
   loadMetadataBundle: () => Promise<void>;
   loadEpgBundle: () => Promise<void>;
+  setCustomEpgOverride: (channelId: string, tvgId: string) => void;
+  removeCustomEpgOverride: (channelId: string) => void;
   toggleFavorite: (channelId: string) => void;
   addToHistory: (channelId: string) => void;
   clearHistory: () => void;

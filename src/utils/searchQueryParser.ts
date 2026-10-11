@@ -15,6 +15,7 @@ export interface ParsedSearchQuery {
   tags: string[];
   qualities: string[];
   statuses: string[];
+  actors: string[];
   negatedCountries: string[];
   negatedStatuses: string[];
   hasFilters: boolean;
@@ -47,16 +48,22 @@ export function foldSearchText(text: string): string {
  */
 export function tokenizeQuery(query: string): string[] {
   const tokens: string[] = [];
-  const regex = /[^\s"']+|"([^"]*)"|'([^']*)'/g;
+  const regex = /(-?[^\s"':]+):"([^"]*)"|(-?[^\s"':]+):'([^']*)'|"([^"]*)"|'([^']*)'|[^\s"']+/g;
   let match: RegExpExecArray | null;
 
   while ((match = regex.exec(query)) !== null) {
     if (match[1] !== undefined) {
-      // Double quoted
-      tokens.push(match[1]);
-    } else if (match[2] !== undefined) {
-      // Single quoted
-      tokens.push(match[2]);
+      // key:"double quoted"
+      tokens.push(`${match[1]}:${match[2]}`);
+    } else if (match[3] !== undefined) {
+      // key:'single quoted'
+      tokens.push(`${match[3]}:${match[4]}`);
+    } else if (match[5] !== undefined) {
+      // "double quoted standalone phrase"
+      tokens.push(match[5]);
+    } else if (match[6] !== undefined) {
+      // 'single quoted standalone phrase'
+      tokens.push(match[6]);
     } else {
       tokens.push(match[0]);
     }
@@ -89,6 +96,7 @@ export function parseSearchQuery(query: string): ParsedSearchQuery {
   const tags: string[] = [];
   const qualities: string[] = [];
   const statuses: string[] = [];
+  const actors: string[] = [];
   const negatedCountries: string[] = [];
   const negatedStatuses: string[] = [];
 
@@ -133,6 +141,11 @@ export function parseSearchQuery(query: string): ParsedSearchQuery {
       if (val) tags.push(val);
       continue;
     }
+    if (lower.startsWith('actor:') || lower.startsWith('cast:')) {
+      const val = foldSearchText(token.substring(token.indexOf(':') + 1));
+      if (val) actors.push(val);
+      continue;
+    }
     if (lower.startsWith('quality:') || lower.startsWith('res:') || lower.startsWith('resolution:')) {
       const val = token.substring(token.indexOf(':') + 1).trim().toLowerCase();
       if (val) qualities.push(val);
@@ -160,6 +173,7 @@ export function parseSearchQuery(query: string): ParsedSearchQuery {
     tags.length > 0 ||
     qualities.length > 0 ||
     statuses.length > 0 ||
+    actors.length > 0 ||
     negatedCountries.length > 0 ||
     negatedStatuses.length > 0;
 
@@ -173,6 +187,7 @@ export function parseSearchQuery(query: string): ParsedSearchQuery {
     tags,
     qualities,
     statuses,
+    actors,
     negatedCountries,
     negatedStatuses,
     hasFilters
@@ -273,6 +288,19 @@ export function matchChannelWithQuery(
     if (!matchesStatus) return false;
   }
 
+  // 9b. Actor / Cast Members Filter
+  if (parsed.actors && parsed.actors.length > 0) {
+    const channelActors = [
+      ...(channel.actors || []),
+      ...(channel.cast || [])
+    ].map((a) => foldSearchText(a));
+
+    const matchesActor = parsed.actors.some((act) =>
+      channelActors.some((ca) => ca.includes(act))
+    );
+    if (!matchesActor) return false;
+  }
+
   // 10. Free text terms (Universal Unicode accent-folded AND logic across all terms)
   if (parsed.freeTerms.length > 0) {
     const rawSearchable = [
@@ -286,6 +314,8 @@ export function matchChannelWithQuery(
       channel.tvgId || '',
       channel.subdivision || '',
       channel.resolution || '',
+      ...(channel.actors || []),
+      ...(channel.cast || []),
       ...channelCustomTags
     ].join(' ');
 

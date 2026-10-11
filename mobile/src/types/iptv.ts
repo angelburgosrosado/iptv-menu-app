@@ -22,6 +22,8 @@ export interface Channel {
   resolution?: string;      // e.g., '1080p', '4K', '720p'
   streamType?: 'live' | 'vod' | 'series';
   catchupDays?: number;
+  actors?: string[];
+  cast?: string[];
 }
 
 export interface CountrySection {
@@ -114,6 +116,7 @@ export interface AppState {
   searchTerm: string;
   epgSources: EpgSource[];
   epgByChannel: Record<string, NowNextProgrammes>;
+  epgOverrides: Record<string, string>;
 
   // Xtream Codes Account Management
   xtreamAccount: XtreamAccount | null;
@@ -144,6 +147,8 @@ export interface AppState {
   setSearchTerm: (term: string) => void;
   loadMetadataBundle: () => Promise<void>;
   loadEpgBundle: () => Promise<void>;
+  setCustomEpgOverride: (channelId: string, tvgId: string) => void;
+  removeCustomEpgOverride: (channelId: string) => void;
   syncRemoteConfig: (appId?: string) => Promise<void>;
   dismissAnnouncement: () => void;
   toggleFavorite: (channelId: string) => void;

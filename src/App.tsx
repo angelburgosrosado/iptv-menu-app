@@ -38,6 +38,7 @@ import AuthModal from './components/AuthModal';
 import WorkspaceSwitcher from './components/WorkspaceSwitcher';
 import FloatingPiPPlayer from './components/FloatingPiPPlayer';
 import WebCinemaPlayer from './components/WebCinemaPlayer';
+import TvPairingModal from './components/TvPairingModal';
 
 const BuilderPage = React.lazy(() => import('./pages/BuilderPage'));
 const PricingPage = React.lazy(() => import('./pages/PricingPage'));
@@ -86,6 +87,8 @@ export default function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = React.useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = React.useState(false);
   const [isOnboardingModalOpen, setIsOnboardingModalOpen] = React.useState(false);
+  const [isTvPairingOpen, setIsTvPairingOpen] = React.useState(false);
+  const [pairingParamCode, setPairingParamCode] = React.useState('');
   const [legalModalState, setLegalModalState] = React.useState<{ isOpen: boolean; tab: LegalTab }>({
     isOpen: false,
     tab: 'privacy'
@@ -120,11 +123,16 @@ export default function App() {
     return () => clearInterval(interval);
   }, [sleepTimer.isActive, tickSleepTimer]);
 
-  // Stripe Checkout Redirect & Session Refresh Handler
+  // Stripe Checkout Redirect & Session Refresh Handler + TV Pairing Link Handler
   React.useEffect(() => {
     try {
       if (typeof window !== 'undefined' && window.location.search) {
         const params = new URLSearchParams(window.location.search);
+        const pairCode = params.get('code') || params.get('pair');
+        if (pairCode) {
+          setPairingParamCode(pairCode);
+          setIsTvPairingOpen(true);
+        }
         if (params.get('checkout') === 'success') {
           authStore.setState({ isPremium: true, role: 'pro' });
           triggerToast('🎉 Payment successful! Pro capabilities are now activated.');
@@ -279,6 +287,16 @@ export default function App() {
             </div>
           )}
         </div>
+
+        {/* Quick TV Device Pairing Button */}
+        <button
+          onClick={() => setIsTvPairingOpen(true)}
+          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-300 hover:text-white text-xs font-semibold transition-all hover:scale-105 active:scale-95 cursor-pointer"
+          title="Pair Apple TV, Android TV, or Fire TV"
+        >
+          <Tv className="w-3.5 h-3.5 text-sky-400" />
+          <span>Pair TV</span>
+        </button>
 
         {/* User Auth Status */}
         <div className="flex items-center gap-3 text-xs">
@@ -536,6 +554,13 @@ export default function App() {
         isOpen={legalModalState.isOpen}
         initialTab={legalModalState.tab}
         onClose={() => setLegalModalState((prev) => ({ ...prev, isOpen: false }))}
+      />
+
+      <TvPairingModal
+        isOpen={isTvPairingOpen}
+        onClose={() => setIsTvPairingOpen(false)}
+        triggerToast={triggerToast}
+        initialCode={pairingParamCode}
       />
 
       {/* Global Feedback Toast */}

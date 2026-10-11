@@ -52,6 +52,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
     { key: 'open-epg', label: 'Public XMLTV Aggregator', priority: 3, enabled: true }
   ],
   epgByChannel: {},
+  epgOverrides: syncStorage.getObject<Record<string, string>>('epg_overrides', {}),
 
   setCurrentPlayingChannel: (channel: Channel | null) => {
     syncStorage.setObject('active_channel', channel);
@@ -427,6 +428,20 @@ export const usePlayerStore = create<AppState>((set, get) => ({
     if (get().channels.length === 0) {
       await get().loadPlaylist();
     }
+  },
+
+  setCustomEpgOverride: (channelId: string, tvgId: string) => {
+    const current = get().epgOverrides || {};
+    const updated = { ...current, [channelId]: tvgId.trim() };
+    syncStorage.setObject('epg_overrides', updated);
+    set({ epgOverrides: updated });
+  },
+
+  removeCustomEpgOverride: (channelId: string) => {
+    const current = { ...(get().epgOverrides || {}) };
+    delete current[channelId];
+    syncStorage.setObject('epg_overrides', current);
+    set({ epgOverrides: current });
   },
 
   dismissAnnouncement: () => {

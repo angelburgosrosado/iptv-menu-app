@@ -338,6 +338,221 @@ app.get('/api/v1/apps/:appId/config', async (req, res) => {
 });
 
 // ==========================================
+// TV DEVICE QUICK-PAIRING ENGINE (IPTVX-STYLE)
+// ==========================================
+interface TvPairingSession {
+  code: string;
+  deviceName: string;
+  createdAt: number;
+  expiresAt: number;
+  claimed: boolean;
+  token?: string;
+  user?: any;
+}
+
+const tvPairingSessions = new Map<string, TvPairingSession>();
+
+// Cleanup expired codes periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [code, session] of tvPairingSessions.entries()) {
+    if (session.expiresAt < now) {
+      tvPairingSessions.delete(code);
+    }
+  }
+}, 60 * 1000);
+
+// 1. TV Client generates 6-digit pairing code
+app.post('/api/public/pair/generate', (req, res) => {
+  try {
+    const { deviceName = 'Smart TV' } = req.body || {};
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const now = Date.now();
+    const ttlMs = 10 * 60 * 1000; // 10 minutes
+
+    const session: TvPairingSession = {
+      code,
+      deviceName,
+      createdAt: now,
+      expiresAt: now + ttlMs,
+      claimed: false,
+    };
+
+    tvPairingSessions.set(code, session);
+    logger.info(`Generated TV pairing code ${code} for device ${deviceName}`);
+
+    res.json({
+      success: true,
+      code,
+      expiresAt: session.expiresAt,
+      ttlSeconds: 600,
+      pairingUrl: `https://iptv.menu/pair?code=${code}`
+    });
+  } catch (error: any) {
+    logger.error('Error generating TV pairing code', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 2. Phone / Web Client claims the TV pairing code
+app.post('/api/pair/claim', authenticateFirebaseToken, (req: any, res) => {
+  try {
+    const { code } = req.body;
+    if (!code || typeof code !== 'string') {
+      return res.status(400).json({ error: 'Pairing code is required.' });
+    }
+
+    const cleanCode = code.trim();
+    const session = tvPairingSessions.get(cleanCode);
+
+    if (!session || session.expiresAt < Date.now()) {
+      return res.status(404).json({ error: 'Pairing code has expired or is invalid. Please generate a new code on your TV.' });
+    }
+
+    const rawAuthHeader = req.headers.authorization;
+    const token = rawAuthHeader?.startsWith('Bearer ') ? rawAuthHeader.split('Bearer ')[1] : '';
+
+    session.claimed = true;
+    session.token = token;
+    session.user = {
+      uid: req.user.uid,
+      email: req.user.email,
+      displayName: req.user.displayName || req.user.name,
+      role: req.user.role || 'user',
+      subscriptionTier: req.user.subscriptionTier || 'free'
+    };
+
+    logger.info(`TV pairing code ${cleanCode} claimed by user ${req.user.email}`);
+
+    res.json({
+      success: true,
+      message: `Device successfully authorized for ${req.user.email}!`,
+      deviceName: session.deviceName
+    });
+  } catch (error: any) {
+    logger.error('Error claiming TV pairing code', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 3. TV Client polls status of the code
+app.get('/api/public/pair/status/:code', (req, res) => {
+  try {
+    const code = req.params.code?.trim();
+    const session = tvPairingSessions.get(code);
+
+    if (!session || session.expiresAt < Date.now()) {
+      return res.json({ status: 'expired' });
+    }
+
+    if (session.claimed && session.token) {
+      const responsePayload = {
+        status: 'claimed',
+        token: session.token,
+        user: session.user
+      };
+      setTimeout(() => tvPairingSessions.delete(code), 30000);
+      return res.json(responsePayload);
+    }
+
+    const remainingSeconds = Math.max(0, Math.floor((session.expiresAt - Date.now()) / 1000));
+    res.json({
+      status: 'pending',
+      remainingSeconds
+    });
+  } catch (error: any) {
+    logger.error('Error polling TV pairing status', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==========================================
+// LIVE AI PROGRAMME CONTEXT & INSIGHTS PANEL (IPTVX-STYLE)
+// ==========================================
+app.post('/api/ai/program-context', async (req, res) => {
+  try {
+    const { title, channelName, category, description } = req.body || {};
+    if (!title && !channelName) {
+      return res.status(400).json({ error: 'Title or channel name is required.' });
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_GENAI_API_KEY || process.env.API_KEY;
+    if (apiKey) {
+      try {
+        const { GoogleGenAI } = await import('@google/genai');
+        const ai = new GoogleGenAI({ apiKey });
+        const prompt = `You are a TV guide expert and film/sports critic. Provide a concise, cinematic breakdown for:
+Program: "${title || 'Live Broadcast'}"
+Channel: "${channelName || 'Television'}"
+Category: "${category || 'General'}"
+Description: "${description || ''}"
+
+Return a clean JSON object with keys:
+"summary": a punchy 2-sentence synopsis or match context,
+"castOrKeyFigures": array of 2-4 key actors, presenters, or players,
+"triviaOrTip": a 1-sentence fun fact or viewer tip,
+"mood": 2-word mood/vibe like "High Energy Sports" or "Gritty Mystery".`;
+
+        const response = await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: prompt,
+        });
+
+        const text = response.text || '';
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          return res.json({
+            success: true,
+            aiGenerated: true,
+            data: parsed,
+            generatedAt: new Date().toISOString()
+          });
+        }
+      } catch (genErr: any) {
+        logger.warn('Gemini AI inference fallback triggered', genErr.message);
+      }
+    }
+
+    const cleanTitle = title || channelName || 'Live Broadcast';
+    const isSports = /sport|football|soccer|espn|nfl|nba|f1|racing|tennis|ufc|boxing/i.test(`${cleanTitle} ${channelName} ${category}`);
+    const isMovie = /movie|cinema|film|action|drama|thriller|comedy/i.test(`${cleanTitle} ${category}`);
+    const isNews = /news|live|cnn|bbc|fox|msnbc|bloomberg/i.test(`${cleanTitle} ${channelName}`);
+
+    const fallbackData = {
+      summary: description && description.length > 20
+        ? description.slice(0, 200) + '...'
+        : isSports
+          ? `Live coverage and competition streaming on ${channelName}. High-stakes tactical matchup broadcast in real-time.`
+          : isMovie
+            ? `Cinematic feature presentation: "${cleanTitle}". Engaging storytelling curated for maximum entertainment.`
+            : isNews
+              ? `Real-time coverage and breaking reports delivered by the ${channelName} newsroom.`
+              : `Current scheduled program on ${channelName}. Live IPTV stream with digital audio and dynamic guide sync.`,
+      castOrKeyFigures: isSports
+        ? ['Team Captains', 'Head Coaches', 'Lead Match Commentator']
+        : isMovie
+          ? ['Lead Protagonist', 'Supporting Cast', 'Director']
+          : ['Broadcast Anchor', 'Correspondents'],
+      triviaOrTip: isSports
+        ? 'Tip: Use the Video Player Multi-Screen matrix to watch simultaneous camera angles or competing matches.'
+        : 'Tip: You can use Audio DSP Speech Boost in player settings to improve dialogue clarity.',
+      mood: isSports ? 'High-Intensity Action' : isMovie ? 'Cinematic Experience' : isNews ? 'Live Insight' : 'Entertaining Stream'
+    };
+
+    return res.json({
+      success: true,
+      aiGenerated: false,
+      data: fallbackData,
+      generatedAt: new Date().toISOString()
+    });
+  } catch (error: any) {
+    logger.error('Error generating AI program context', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ==========================================
 // UNIVERSAL STREAM RELAY & M3U8 PROXY GATEWAY
 // ==========================================
 app.use('/api/stream', cors({ origin: '*' }));
