@@ -21,7 +21,7 @@ export async function attachWorkspaceContext(req: any, res: any, next: () => voi
       const workspacesList = await workspaceRepo.listUserWorkspaces(uid);
       if (workspacesList.length === 0) {
         try {
-          const newWs = await workspaceRepo.createWorkspace({
+          const newWs: Workspace = {
             workspaceId: `ws_${Math.random().toString(36).substring(2, 12)}`,
             name: 'Personal Workspace',
             ownerUid: uid,
@@ -45,7 +45,8 @@ export async function attachWorkspaceContext(req: any, res: any, next: () => voi
             stripeCustomerId: null,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
-          });
+          };
+          await workspaceRepo.createWorkspace(newWs);
           req.workspace = newWs;
           return next();
         } catch (wsErr) {
@@ -83,6 +84,11 @@ export function checkWorkspaceQuota(key: keyof Workspace['entitlements']) {
 
     if (!workspace) {
       return res.status(500).json({ error: 'Internal Error: Workspace context missing' });
+    }
+
+    // Admin bypass: Admins have unrestricted development & debugging quotas
+    if (req.user?.role === 'admin') {
+      return next();
     }
 
     // 1. Subscription Status Guard

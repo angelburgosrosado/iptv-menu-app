@@ -1,4 +1,4 @@
-import { PlaylistRepository, BuildRepository, EpgRepository, getFirestoreDB, getDb, schema, eq, sql } from '@iptv-menu/db';
+import { PlaylistRepository, BuildRepository, EpgRepository, memoryBuilds, getFirestoreDB, getDb, schema, eq, sql } from '@iptv-menu/db';
 import { PlaylistRun, BuildRequest, RunType, RunStatus, BuildStatus, EpgFeed } from '@iptv-menu/types';
 import { Logger } from '@iptv-menu/logging';
 
@@ -201,6 +201,21 @@ export async function pollNextBuildJob(): Promise<BuildRequest | null> {
     } catch (error) {
       logger.error('Error polling or locking build requests on Neon', error);
       return null;
+    }
+  }
+
+  if (memoryBuilds && memoryBuilds.size > 0) {
+    for (const [id, req] of memoryBuilds.entries()) {
+      if (req.status === 'queued') {
+        const updated: BuildRequest = {
+          ...req,
+          status: 'building' as BuildStatus,
+          updatedAt: new Date().toISOString()
+        };
+        memoryBuilds.set(id, updated);
+        logger.info('Locked build request job from memory', { buildId: id });
+        return updated;
+      }
     }
   }
 

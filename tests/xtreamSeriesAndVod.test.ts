@@ -22,12 +22,19 @@ describe('Xtream Codes: Live Feeds, VOD & Series Access Engine', () => {
     status: 'connected'
   };
 
+  const originalFetch = globalThis.fetch;
+
   beforeEach(() => {
     vi.restoreAllMocks();
     usePlayerStore.setState({
       selectedStreamType: 'all',
       channels: []
     });
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    vi.restoreAllMocks();
   });
 
   it('fetchXtreamSeriesCategories should parse categories mapping', async () => {

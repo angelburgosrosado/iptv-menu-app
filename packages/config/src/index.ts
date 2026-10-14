@@ -1,9 +1,13 @@
 import dotenv from 'dotenv';
 import path from 'path';
+const initialNodeEnv = process.env.NODE_ENV;
 dotenv.config();
 dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 dotenv.config({ path: path.resolve(__dirname, '../../../../.env') });
+if (initialNodeEnv) {
+  process.env.NODE_ENV = initialNodeEnv;
+}
 
 export interface AppEnvConfig {
   NODE_ENV: 'development' | 'production' | 'test';
@@ -68,6 +72,11 @@ export const config: AppEnvConfig = {
   EXPO_ACCOUNT_NAME: process.env.EXPO_ACCOUNT_NAME || '',
   EXPO_PROJECT_ID: process.env.EXPO_PROJECT_ID || '',
 };
+
+if (config.NODE_ENV === 'production' && config.JWT_SECRET === 'iptv_menu_default_jwt_signing_key_replace_in_production') {
+  throw new Error('SECURITY VIOLATION: JWT_SECRET must be configured with a secure cryptographic key in production mode.');
+}
+
 
 export const features = {
   enableStripeBilling: !!config.STRIPE_SECRET_KEY,

@@ -280,6 +280,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   parseProgress: 0,
   error: null,
   playlistUrl: storage.getString('playlistUrl') || DEFAULT_PLAYLIST_URL,
+  activePlaylistId: storage.getString('activePlaylistId') || null,
 
   setSelectedCountry: (code: string | null) => set({ selectedCountry: code, selectedSubdivision: null }),
   setSelectedRegion: (region: string | null) => set({ selectedRegion: region }),
@@ -404,6 +405,15 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   setPlaylistUrl: (url: string) => {
     storage.set('playlistUrl', url);
     set({ playlistUrl: url });
+  },
+
+  setActivePlaylistId: (id: string | null) => {
+    if (id) {
+      storage.set('activePlaylistId', id);
+    } else {
+      storage.delete('activePlaylistId');
+    }
+    set({ activePlaylistId: id });
   },
 
   loadPlaylist: async (customUrl?: string) => {

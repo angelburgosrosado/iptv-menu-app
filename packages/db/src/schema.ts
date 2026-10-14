@@ -7,7 +7,8 @@ import type {
   BuildRequest, 
   AdminAction, 
   Workspace,
-  AppConfig 
+  AppConfig,
+  TvPairing
 } from '@iptv-menu/types';
 
 // ==========================================
@@ -80,7 +81,7 @@ export const playlistRuns = pgTable('playlist_runs', {
 export const epgFeeds = pgTable('epg_feeds', {
   epgId: text('epg_id').primaryKey(),
   uid: text('uid').references(() => users.uid, { onDelete: 'cascade' }).notNull(),
-  playlistId: text('playlist_id').references(() => playlists.playlistId, { onDelete: 'cascade' }).notNull(),
+  playlistId: text('playlist_id').references(() => playlists.playlistId, { onDelete: 'cascade' }),
   status: text('status').default('pending').notNull(), // 'pending' | 'generating' | 'ready' | 'failed'
   sourceConfig: jsonb('source_config').$type<EpgFeed['sourceConfig']>().notNull(),
   outputFilePath: text('output_file_path'),
@@ -136,3 +137,18 @@ export const appConfigs = pgTable('app_configs', {
   createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
+
+// ==========================================
+// 9. TV PAIRINGS TABLE
+// ==========================================
+export const tvPairings = pgTable('tv_pairings', {
+  code: text('code').primaryKey(),
+  deviceId: text('device_id'),
+  deviceName: text('device_name').default('Smart TV').notNull(),
+  status: text('status').default('pending').notNull(), // 'pending' | 'claimed' | 'expired'
+  token: text('token'),
+  user: jsonb('user').$type<TvPairing['user']>(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+

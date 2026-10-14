@@ -5,7 +5,7 @@ import { CalendarRange, Loader, Play, Settings } from 'lucide-react';
 import { simRouter } from '../shims/expo-router';
 
 export default function MobileEpg() {
-  const { channels } = usePlayerStore();
+  const { channels, activePlaylistId } = usePlayerStore();
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [statusMsg, setStatusMsg] = React.useState<string | null>(null);
 
@@ -21,11 +21,9 @@ export default function MobileEpg() {
       const res = await fetchWithAuth('/api/epg', {
         method: 'POST',
         body: JSON.stringify({
-          playlistId: 'default_playlist',
-          sourceConfig: {
-            urls: [],
-            refreshIntervalHours: 24,
-          }
+          playlistId: activePlaylistId || undefined,
+          urls: ['https://iptv-org.github.io/epg/guides/us.xml'],
+          refreshIntervalHours: 24,
         })
       });
 

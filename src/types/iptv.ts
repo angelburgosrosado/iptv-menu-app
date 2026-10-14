@@ -45,6 +45,8 @@ export interface Channel {
   feedQuality?: 'auto' | 'fhd' | 'hd' | 'sd' | 'backup';
   actors?: string[];
   cast?: string[];
+  currentProgram?: string;
+  epgDescription?: string;
 }
 
 export type PlaylistChannel = Channel;
@@ -252,6 +254,7 @@ export interface AppState {
   parseProgress: number; // 0 to 100
   error: string | null;
   playlistUrl: string;
+  activePlaylistId: string | null;
 
   // DVR & Bookmark Systems
   dvrRecordings: DvrRecording[];
@@ -273,6 +276,7 @@ export interface AppState {
 
   // Actions
   setPlaylistUrl: (url: string) => void;
+  setActivePlaylistId: (id: string | null) => void;
   loadPlaylist: (url?: string) => Promise<void>;
   setSelectedCountry: (code: string | null) => void;
   setSelectedRegion: (region: string | null) => void;

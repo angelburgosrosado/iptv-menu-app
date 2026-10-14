@@ -11,7 +11,7 @@ import { Channel } from '../types/iptv';
 interface AiProgramContextPanelProps {
   isOpen: boolean;
   onClose: () => void;
-  channel: Channel;
+  channel?: Channel | null;
 }
 
 interface AiInsightsData {
@@ -32,6 +32,7 @@ export default function AiProgramContextPanel({
   const [error, setError] = React.useState<string | null>(null);
 
   const fetchContext = React.useCallback(async () => {
+    if (!channel) return;
     setIsLoading(true);
     setError(null);
 
@@ -67,7 +68,7 @@ export default function AiProgramContextPanel({
     }
   }, [isOpen, fetchContext]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !channel) return null;
 
   return (
     <AnimatePresence>

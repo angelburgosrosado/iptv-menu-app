@@ -1465,7 +1465,7 @@ export function VideoPlayer({
       <AiProgramContextPanel
         isOpen={showAiPanel}
         onClose={() => setShowAiPanel(false)}
-        channel={channel}
+        channel={channels.find(c => c.name === channelName || c.url === streamUrl) || { id: channelName, name: channelName, url: streamUrl, logo: '', group: groupTitle, tvgId: '' }}
       />
 
       {/* 12. External Subtitles Discovery Modal */}

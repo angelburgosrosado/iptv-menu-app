@@ -36,6 +36,17 @@ import { getCountryFlag, getLanguageName, formatUtcOffset } from '../utils/chann
 import { DvrModal } from './DvrModal';
 import { foldSearchText } from '../utils/searchQueryParser';
 import { isCatchupSupported, buildCatchupUrl } from '../utils/catchupEngine';
+import { fetchWithAuth } from '../lib/apiClient';
+
+export const EPG_PRESETS = [
+  { id: 'us', name: 'United States (IPTV-ORG)', url: 'https://iptv-org.github.io/epg/guides/us.xml', description: '850+ major broadcast, sports & cable channels' },
+  { id: 'uk', name: 'United Kingdom & Ireland', url: 'https://iptv-org.github.io/epg/guides/uk.xml', description: 'BBC, ITV, Channel 4, Sky & regional stations' },
+  { id: 'ca', name: 'Canada National Guide', url: 'https://iptv-org.github.io/epg/guides/ca.xml', description: 'CBC, CTV, TSN, Sportsnet & regional feeds' },
+  { id: 'es', name: 'Spain & Latin America', url: 'https://iptv-org.github.io/epg/guides/es.xml', description: 'RTVE, Antena 3, Telecinco & international pan-latino' },
+  { id: 'mx', name: 'Mexico Regional Guide', url: 'https://iptv-org.github.io/epg/guides/mx.xml', description: 'Televisa, TV Azteca, Imagen & Mexican regional' },
+  { id: 'int', name: 'International News & Sports', url: 'https://iptv-org.github.io/epg/guides/int.xml', description: 'Global 24/7 newsrooms and sporting broadcasts' },
+  { id: 'custom', name: 'Custom XMLTV / GZ Feed URL', url: '', description: 'Enter any remote XMLTV (.xml or .xml.gz) source URL' },
+];
 
 interface Show {
   title: string;
@@ -52,6 +63,7 @@ interface Show {
 export default function DesktopEpg() {
   const { 
     channels, 
+    activePlaylistId,
     epgByChannel, 
     epgOverrides,
     setCustomEpgOverride,
@@ -80,6 +92,13 @@ export default function DesktopEpg() {
   const [remapTargetChannel, setRemapTargetChannel] = React.useState<Channel | null>(null);
   const [customTvgIdInput, setCustomTvgIdInput] = React.useState('');
   const [remapSearchTerm, setRemapSearchTerm] = React.useState('');
+
+  // EPG Source Attachment State (Phase 5)
+  const [showAttachEpgModal, setShowAttachEpgModal] = React.useState(false);
+  const [selectedEpgPreset, setSelectedEpgPreset] = React.useState('us');
+  const [customEpgUrl, setCustomEpgUrl] = React.useState('');
+  const [epgRefreshInterval, setEpgRefreshInterval] = React.useState(24);
+  const [isAttachingEpg, setIsAttachingEpg] = React.useState(false);
 
   const categories = React.useMemo(() => {
     const set = new Set<string>();
@@ -286,6 +305,48 @@ export default function DesktopEpg() {
     setTimeout(() => setSyncToast(null), 3000);
   };
 
+  const handleAttachEpgSource = async () => {
+    const targetUrl = selectedEpgPreset === 'custom' 
+      ? customEpgUrl.trim() 
+      : EPG_PRESETS.find(p => p.id === selectedEpgPreset)?.url || '';
+
+    if (!targetUrl) {
+      setSyncToast('Please provide a valid XMLTV EPG source URL.');
+      setTimeout(() => setSyncToast(null), 3000);
+      return;
+    }
+
+    setIsAttachingEpg(true);
+    setSyncToast('Attaching XMLTV guide source to playlist...');
+
+    try {
+      await fetchWithAuth('/api/epg', {
+        method: 'POST',
+        body: JSON.stringify({
+          playlistId: activePlaylistId || undefined,
+          urls: [targetUrl],
+          refreshIntervalHours: epgRefreshInterval
+        })
+      });
+
+      setSyncToast('Syncing freshly attached XMLTV guide feed...');
+      await fetch('/api/epg/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ urls: [targetUrl] })
+      }).catch(() => {});
+
+      await loadEpgBundle();
+      setShowAttachEpgModal(false);
+      setSyncToast(`EPG attached & synchronized (${activePlaylistId ? 'Playlist ' + activePlaylistId : 'Global Feed'})`);
+    } catch (err: any) {
+      setSyncToast(`EPG attachment failed: ${err.message}`);
+    } finally {
+      setIsAttachingEpg(false);
+      setTimeout(() => setSyncToast(null), 4000);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full gap-5">
       {/* EPG Protocol Header */}
@@ -324,6 +385,15 @@ export default function DesktopEpg() {
               <option value="Asia/Tokyo" className="bg-zinc-900 text-white">Tokyo (Asia/Tokyo)</option>
             </select>
           </div>
+
+          <button
+            onClick={() => setShowAttachEpgModal(true)}
+            className="px-3.5 py-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-200 text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-lg shadow-blue-500/10"
+            aria-label="Attach EPG Source"
+          >
+            <Link2 className="w-3.5 h-3.5 text-blue-400" />
+            <span>Attach EPG</span>
+          </button>
 
           <button
             onClick={handleRefreshXmltvFeed}
@@ -1002,6 +1072,137 @@ export default function DesktopEpg() {
                   Save Mapping
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Attach EPG Source Modal (Phase 5) */}
+      {showAttachEpgModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-zinc-900/95 border border-white/10 rounded-2xl w-full max-w-lg p-6 shadow-2xl flex flex-col gap-5 text-white">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-white/10 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
+                  <Link2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    Attach XMLTV EPG Source
+                    <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                      RFC 5545
+                    </span>
+                  </h3>
+                  <p className="text-xs text-zinc-400">Connect a high-accuracy schedule feed to your active playlist</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowAttachEpgModal(false)}
+                className="p-1.5 rounded-lg hover:bg-white/10 text-zinc-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Target Scope Badge */}
+            <div className="p-3 rounded-xl bg-white/[0.03] border border-white/5 flex items-center justify-between text-xs">
+              <span className="text-zinc-400">Target Playlist Scope:</span>
+              <span className="font-mono text-cyan-300 bg-cyan-950/60 px-2.5 py-1 rounded-lg border border-cyan-800/40">
+                {activePlaylistId ? `Playlist: ${activePlaylistId}` : 'Standalone / Global Workspace Feed'}
+              </span>
+            </div>
+
+            {/* Source Preset Selector */}
+            <div className="flex flex-col gap-2">
+              <label className="text-xs font-semibold text-zinc-300">Select EPG Guide Provider / Country Preset</label>
+              <div className="grid grid-cols-1 gap-2 max-h-52 overflow-y-auto pr-1">
+                {EPG_PRESETS.map((preset) => {
+                  const isSelected = selectedEpgPreset === preset.id;
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => setSelectedEpgPreset(preset.id)}
+                      className={`p-3 rounded-xl border text-left flex items-start justify-between transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-blue-600/15 border-blue-500/50 shadow-md shadow-blue-500/10'
+                          : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.05] hover:border-white/10'
+                      }`}
+                    >
+                      <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-xs font-bold ${isSelected ? 'text-blue-300' : 'text-zinc-200'}`}>
+                            {preset.name}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-zinc-400">{preset.description}</span>
+                      </div>
+                      {isSelected && <CheckCircle2 className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Custom URL Input if selected */}
+            {selectedEpgPreset === 'custom' && (
+              <div className="flex flex-col gap-1.5 animate-in fade-in">
+                <label className="text-xs font-semibold text-zinc-300">Custom Remote XMLTV Guide URL (.xml or .xml.gz)</label>
+                <input
+                  type="url"
+                  placeholder="https://example.com/epg/guide.xml"
+                  value={customEpgUrl}
+                  onChange={(e) => setCustomEpgUrl(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/10 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-blue-500 font-mono transition-colors"
+                />
+              </div>
+            )}
+
+            {/* Refresh Interval */}
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-zinc-300 font-semibold">Background Sync Cadence:</span>
+              <select
+                value={epgRefreshInterval}
+                onChange={(e) => setEpgRefreshInterval(Number(e.target.value))}
+                className="bg-black/60 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs text-zinc-200 outline-none cursor-pointer"
+              >
+                <option value={6}>Every 6 Hours</option>
+                <option value={12}>Every 12 Hours</option>
+                <option value={24}>Every 24 Hours (Recommended)</option>
+                <option value={48}>Every 48 Hours</option>
+              </select>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => setShowAttachEpgModal(false)}
+                disabled={isAttachingEpg}
+                className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 text-xs font-semibold transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isAttachingEpg || (selectedEpgPreset === 'custom' && !customEpgUrl.trim())}
+                onClick={handleAttachEpgSource}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 text-white text-xs font-bold transition-all shadow-lg shadow-blue-500/25 disabled:opacity-50 flex items-center gap-2 cursor-pointer"
+              >
+                {isAttachingEpg ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Attaching & Syncing...</span>
+                  </>
+                ) : (
+                  <>
+                    <Link2 className="w-3.5 h-3.5" />
+                    <span>Attach & Ingest Guide</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>

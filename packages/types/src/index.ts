@@ -93,7 +93,7 @@ export interface PlaylistRun {
 export interface EpgFeed {
   epgId: string;
   uid: string;
-  playlistId: string;
+  playlistId: string | null;
   status: 'pending' | 'generating' | 'ready' | 'failed';
   sourceConfig: {
     urls: string[];
@@ -316,3 +316,21 @@ export interface AdSenseConfig {
   updatedAt?: string;
   updatedBy?: string;
 }
+
+export interface TvPairing {
+  code: string;
+  deviceId?: string | null;
+  deviceName: string;
+  status: 'pending' | 'claimed' | 'expired';
+  token?: string | null;
+  user?: {
+    uid: string;
+    email: string;
+    displayName?: string;
+    role?: string;
+    subscriptionTier?: string;
+  } | null;
+  expiresAt: Date | string;
+  createdAt: Date | string;
+}
+

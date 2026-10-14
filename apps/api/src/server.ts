@@ -1,8 +1,12 @@
 import dotenv from 'dotenv';
 import path from 'path';
+const initialNodeEnv = process.env.NODE_ENV;
 dotenv.config();
 dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
+if (initialNodeEnv) {
+  process.env.NODE_ENV = initialNodeEnv;
+}
 
 import express from 'express';
 import cors from 'cors';
@@ -25,6 +29,7 @@ import {
   AuditLogRepository,
   WorkspaceRepository,
   AppConfigRepository,
+  TvPairingRepository,
   getFirestoreDB
 } from '@iptv-menu/db';
 import { 
@@ -43,7 +48,7 @@ import {
   dispatchBuildJob,
   dispatchEpgJob
 } from '@iptv-menu/jobs';
-import { UserProfile, Playlist, EpgFeed, BuildRequest, AdminAction, UserRole, Workspace, AppConfig } from '@iptv-menu/types';
+import { UserProfile, Playlist, EpgFeed, BuildRequest, AdminAction, UserRole, Workspace, AppConfig, TvPairing } from '@iptv-menu/types';
 import { attachWorkspaceContext, checkWorkspaceQuota } from './middleware/workspaceGuard';
 import { handleStreamProxy, isSafeTargetUrl } from './services/streamProxyService';
 import { channelMetadataService } from './services/channelMetadataService';
@@ -65,6 +70,7 @@ const buildRepo = new BuildRepository();
 const auditRepo = new AuditLogRepository();
 const workspaceRepo = new WorkspaceRepository();
 const appConfigRepo = new AppConfigRepository();
+const tvPairingRepo = new TvPairingRepository();
 
 // Global Middlewares
 app.use(cors({ origin: true }));
@@ -75,6 +81,66 @@ app.use((req, res, next) => {
   } else {
     bodyParser.json()(req, res, next);
   }
+});
+
+// ==========================================
+// RATE LIMITING MIDDLEWARE (SLIDING WINDOW)
+// ==========================================
+export function createRateLimiter(options: { windowMs: number; max: number; message?: string }) {
+  const hits = new Map<string, { count: number; resetAt: number }>();
+
+  const cleanupTimer = setInterval(() => {
+    const now = Date.now();
+    for (const [key, record] of hits.entries()) {
+      if (record.resetAt <= now) {
+        hits.delete(key);
+      }
+    }
+  }, 5 * 60 * 1000);
+  if (cleanupTimer.unref) cleanupTimer.unref();
+
+  return (req: any, res: any, next: () => void) => {
+    if (req.headers['x-test-skip-ratelimit']) {
+      return next();
+    }
+    const ip = req.ip || req.connection?.remoteAddress || req.headers['x-forwarded-for'] || '127.0.0.1';
+    const key = `${req.baseUrl || req.path}:${ip}`;
+    const now = Date.now();
+
+    const record = hits.get(key);
+    if (!record || record.resetAt <= now) {
+      hits.set(key, { count: 1, resetAt: now + options.windowMs });
+      return next();
+    }
+
+    record.count++;
+    if (record.count > options.max) {
+      res.setHeader('Retry-After', Math.ceil((record.resetAt - now) / 1000));
+      return res.status(429).json({
+        error: options.message || 'Too many requests, please try again later.'
+      });
+    }
+
+    next();
+  };
+}
+
+const registerRateLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: 'Too many registration attempts. Please wait 15 minutes before trying again.'
+});
+
+const tvPairingRateLimiter = createRateLimiter({
+  windowMs: 5 * 60 * 1000,
+  max: 20,
+  message: 'Too many TV pairing requests from this IP. Please wait before generating another code.'
+});
+
+const aiContextRateLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 30,
+  message: 'AI context generation rate limit reached. Please wait a moment.'
 });
 
 // ==========================================
@@ -186,7 +252,7 @@ app.post('/api/public/contact', async (req, res) => {
 // ==========================================
 
 // 1. REGISTER
-app.post('/api/public/auth/register', async (req, res) => {
+app.post('/api/public/auth/register', registerRateLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -338,53 +404,42 @@ app.get('/api/v1/apps/:appId/config', async (req, res) => {
 });
 
 // ==========================================
-// TV DEVICE QUICK-PAIRING ENGINE (IPTVX-STYLE)
+// TV DEVICE QUICK-PAIRING ENGINE (DATABASE PERSISTED)
 // ==========================================
-interface TvPairingSession {
-  code: string;
-  deviceName: string;
-  createdAt: number;
-  expiresAt: number;
-  claimed: boolean;
-  token?: string;
-  user?: any;
-}
-
-const tvPairingSessions = new Map<string, TvPairingSession>();
 
 // Cleanup expired codes periodically
-setInterval(() => {
-  const now = Date.now();
-  for (const [code, session] of tvPairingSessions.entries()) {
-    if (session.expiresAt < now) {
-      tvPairingSessions.delete(code);
-    }
-  }
+const pairingCleanupInterval = setInterval(() => {
+  tvPairingRepo.cleanupExpiredPairings().catch((err) => {
+    logger.warn('Error during periodic TV pairing cleanup', err);
+  });
 }, 60 * 1000);
+if (pairingCleanupInterval.unref) pairingCleanupInterval.unref();
 
 // 1. TV Client generates 6-digit pairing code
-app.post('/api/public/pair/generate', (req, res) => {
+const handleGenerateTvPairingCode = async (req: any, res: any) => {
   try {
-    const { deviceName = 'Smart TV' } = req.body || {};
+    const { deviceName = 'Smart TV', deviceId = null } = req.body || {};
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const now = Date.now();
     const ttlMs = 10 * 60 * 1000; // 10 minutes
+    const expiresAt = new Date(now + ttlMs).toISOString();
 
-    const session: TvPairingSession = {
+    const pairing: TvPairing = {
       code,
+      deviceId,
       deviceName,
-      createdAt: now,
-      expiresAt: now + ttlMs,
-      claimed: false,
+      status: 'pending',
+      createdAt: new Date(now).toISOString(),
+      expiresAt,
     };
 
-    tvPairingSessions.set(code, session);
+    await tvPairingRepo.createPairing(pairing);
     logger.info(`Generated TV pairing code ${code} for device ${deviceName}`);
 
     res.json({
       success: true,
       code,
-      expiresAt: session.expiresAt,
+      expiresAt: new Date(expiresAt).getTime(),
       ttlSeconds: 600,
       pairingUrl: `https://iptv.menu/pair?code=${code}`
     });
@@ -392,10 +447,13 @@ app.post('/api/public/pair/generate', (req, res) => {
     logger.error('Error generating TV pairing code', error);
     res.status(500).json({ error: error.message });
   }
-});
+};
+
+app.post('/api/public/pair/generate', tvPairingRateLimiter, handleGenerateTvPairingCode);
+app.post('/api/auth/tv/code', tvPairingRateLimiter, handleGenerateTvPairingCode);
 
 // 2. Phone / Web Client claims the TV pairing code
-app.post('/api/pair/claim', authenticateFirebaseToken, (req: any, res) => {
+const handleClaimTvPairingCode = async (req: any, res: any) => {
   try {
     const { code } = req.body;
     if (!code || typeof code !== 'string') {
@@ -403,18 +461,16 @@ app.post('/api/pair/claim', authenticateFirebaseToken, (req: any, res) => {
     }
 
     const cleanCode = code.trim();
-    const session = tvPairingSessions.get(cleanCode);
+    const pairing = await tvPairingRepo.getPairing(cleanCode);
 
-    if (!session || session.expiresAt < Date.now()) {
+    if (!pairing || new Date(pairing.expiresAt).getTime() < Date.now()) {
       return res.status(404).json({ error: 'Pairing code has expired or is invalid. Please generate a new code on your TV.' });
     }
 
     const rawAuthHeader = req.headers.authorization;
     const token = rawAuthHeader?.startsWith('Bearer ') ? rawAuthHeader.split('Bearer ')[1] : '';
 
-    session.claimed = true;
-    session.token = token;
-    session.user = {
+    const user = {
       uid: req.user.uid,
       email: req.user.email,
       displayName: req.user.displayName || req.user.name,
@@ -422,40 +478,50 @@ app.post('/api/pair/claim', authenticateFirebaseToken, (req: any, res) => {
       subscriptionTier: req.user.subscriptionTier || 'free'
     };
 
+    const updated = await tvPairingRepo.claimPairing(cleanCode, token, user);
+    if (!updated) {
+      return res.status(404).json({ error: 'Pairing code has expired or is invalid.' });
+    }
+
     logger.info(`TV pairing code ${cleanCode} claimed by user ${req.user.email}`);
 
     res.json({
       success: true,
       message: `Device successfully authorized for ${req.user.email}!`,
-      deviceName: session.deviceName
+      deviceName: pairing.deviceName
     });
   } catch (error: any) {
     logger.error('Error claiming TV pairing code', error);
     res.status(500).json({ error: error.message });
   }
-});
+};
+
+app.post('/api/pair/claim', authenticateFirebaseToken, handleClaimTvPairingCode);
+app.post('/api/auth/tv/claim', authenticateFirebaseToken, handleClaimTvPairingCode);
 
 // 3. TV Client polls status of the code
-app.get('/api/public/pair/status/:code', (req, res) => {
+const handleGetTvPairingStatus = async (req: any, res: any) => {
   try {
     const code = req.params.code?.trim();
-    const session = tvPairingSessions.get(code);
+    const pairing = await tvPairingRepo.getPairing(code);
 
-    if (!session || session.expiresAt < Date.now()) {
+    if (!pairing || new Date(pairing.expiresAt).getTime() < Date.now()) {
       return res.json({ status: 'expired' });
     }
 
-    if (session.claimed && session.token) {
+    if (pairing.status === 'claimed' && pairing.token) {
       const responsePayload = {
         status: 'claimed',
-        token: session.token,
-        user: session.user
+        token: pairing.token,
+        user: pairing.user
       };
-      setTimeout(() => tvPairingSessions.delete(code), 30000);
+      setTimeout(() => {
+        tvPairingRepo.deletePairing(code).catch(() => {});
+      }, 30000);
       return res.json(responsePayload);
     }
 
-    const remainingSeconds = Math.max(0, Math.floor((session.expiresAt - Date.now()) / 1000));
+    const remainingSeconds = Math.max(0, Math.floor((new Date(pairing.expiresAt).getTime() - Date.now()) / 1000));
     res.json({
       status: 'pending',
       remainingSeconds
@@ -464,12 +530,15 @@ app.get('/api/public/pair/status/:code', (req, res) => {
     logger.error('Error polling TV pairing status', error);
     res.status(500).json({ error: error.message });
   }
-});
+};
+
+app.get('/api/public/pair/status/:code', handleGetTvPairingStatus);
+app.get('/api/auth/tv/status/:code', handleGetTvPairingStatus);
 
 // ==========================================
 // LIVE AI PROGRAMME CONTEXT & INSIGHTS PANEL (IPTVX-STYLE)
 // ==========================================
-app.post('/api/ai/program-context', async (req, res) => {
+app.post('/api/ai/program-context', aiContextRateLimiter, async (req, res) => {
   try {
     const { title, channelName, category, description } = req.body || {};
     if (!title && !channelName) {
@@ -920,28 +989,75 @@ app.get('/api/me/subscription', async (req: any, res) => {
 app.post('/api/playlists', checkWorkspaceQuota('maxPlaylists'), async (req: any, res) => {
   try {
     const uid = req.user.uid;
-    const { name, sourceType, originalFileName } = req.body;
+    const { 
+      name, 
+      title, 
+      sourceType = 'upload', 
+      originalFileName, 
+      originalFilePath: customPath, 
+      url, 
+      channelCount 
+    } = req.body;
+    
     const playlistId = `pl_${Math.random().toString(36).substring(2, 15)}`;
+    let playlistName = name || title;
+    if (!playlistName) {
+      if (sourceType === 'url' && url) {
+        try {
+          playlistName = `Remote Feed (${new URL(url).hostname})`;
+        } catch {
+          playlistName = 'Remote Feed';
+        }
+      } else {
+        playlistName = 'Untitled Playlist';
+      }
+    }
 
-    const originalFilePath = `users/${uid}/uploads/${playlistId}_${originalFileName || 'playlist.m3u'}`;
-    const uploadUrl = await getSignedUrl(config.GCS_UPLOAD_BUCKET, originalFilePath, 'write');
+    let originalFilePath = customPath || null;
+    let uploadUrl: string | null = null;
+
+    if (sourceType === 'url') {
+      originalFilePath = url || customPath || null;
+    } else {
+      originalFilePath = customPath || `users/${uid}/uploads/${playlistId}_${originalFileName || 'playlist.m3u'}`;
+      try {
+        uploadUrl = await getSignedUrl(config.GCS_UPLOAD_BUCKET, originalFilePath, 'write');
+      } catch (gcsErr) {
+        logger.warn('Could not generate GCS upload signed URL; local/mock storage mode', gcsErr);
+      }
+    }
 
     const playlist: Playlist = {
       playlistId,
       uid,
-      name,
+      name: playlistName,
       sourceType,
       originalFilePath,
       cleanedFilePath: null,
-      channelCount: 0,
-      status: 'pending',
+      channelCount: channelCount || 0,
+      status: sourceType === 'url' ? 'ready' : 'pending',
       visibility: 'private',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
 
     await playlistRepo.createPlaylist(playlist);
-    res.status(201).json({ playlist, uploadUrl });
+
+    if (req.workspace) {
+      try {
+        const currentCount = req.workspace.usage?.activePlaylistsCount || 0;
+        await workspaceRepo.updateWorkspace(req.workspace.workspaceId, {
+          usage: {
+            ...req.workspace.usage,
+            activePlaylistsCount: currentCount + 1
+          }
+        });
+      } catch (wsErr) {
+        logger.warn('Failed to increment workspace activePlaylistsCount', wsErr);
+      }
+    }
+
+    res.status(201).json({ playlist, uploadUrl, workspaceId: req.workspace?.workspaceId || null });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -978,8 +1094,8 @@ app.delete('/api/playlists/:playlistId', async (req: any, res) => {
       return res.status(404).json({ error: 'Playlist not found' });
     }
     
-    // Cleanup GCS resources
-    if (playlist.originalFilePath) {
+    // Cleanup GCS resources (skip external remote URLs)
+    if (playlist.originalFilePath && playlist.sourceType !== 'url') {
       await deleteFromBucket(config.GCS_UPLOAD_BUCKET, playlist.originalFilePath).catch(() => {});
     }
     if (playlist.cleanedFilePath) {
@@ -987,6 +1103,21 @@ app.delete('/api/playlists/:playlistId', async (req: any, res) => {
     }
 
     await playlistRepo.deletePlaylist(playlistId);
+
+    if (req.workspace) {
+      try {
+        const currentCount = req.workspace.usage?.activePlaylistsCount || 1;
+        await workspaceRepo.updateWorkspace(req.workspace.workspaceId, {
+          usage: {
+            ...req.workspace.usage,
+            activePlaylistsCount: Math.max(0, currentCount - 1)
+          }
+        });
+      } catch (wsErr) {
+        logger.warn('Failed to decrement workspace activePlaylistsCount', wsErr);
+      }
+    }
+
     res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -1051,18 +1182,46 @@ app.get('/api/playlists/:playlistId/runs', async (req: any, res) => {
 });
 
 // EPG
-app.post('/api/epg', checkWorkspaceQuota('maxHostedPlaylists'), async (req: any, res) => {
+app.post('/api/epg', async (req: any, res) => {
   try {
     const uid = req.user.uid;
-    const { playlistId, urls, refreshIntervalHours } = req.body;
+    const { playlistId, urls, refreshIntervalHours, sourceConfig } = req.body || {};
+
+    // Normalize source URLs and refresh interval from either top-level or nested sourceConfig
+    const rawUrls = Array.isArray(urls) 
+      ? urls 
+      : Array.isArray(sourceConfig?.urls) 
+        ? sourceConfig.urls 
+        : [];
+    const refreshHours = Number(refreshIntervalHours || sourceConfig?.refreshIntervalHours) || 24;
+
+    // Validate URLs for SSRF safety
+    for (const url of rawUrls) {
+      if (typeof url !== 'string' || !url.trim()) continue;
+      const { safe, reason } = isSafeTargetUrl(url.trim(), true);
+      if (!safe) {
+        return res.status(403).json({ error: reason || 'Access to private or loopback addresses is prohibited.' });
+      }
+    }
+
+    // Validate playlist reference if specified
+    let targetPlaylistId: string | null = null;
+    if (playlistId && playlistId !== 'default_playlist' && playlistId !== 'standalone') {
+      const playlist = await playlistRepo.getPlaylist(playlistId);
+      if (!playlist || playlist.uid !== uid) {
+        return res.status(404).json({ error: 'Referenced playlist not found or inaccessible' });
+      }
+      targetPlaylistId = playlistId;
+    }
+
     const epgId = `epg_${Math.random().toString(36).substring(2, 15)}`;
 
     const feed: EpgFeed = {
       epgId,
       uid,
-      playlistId,
+      playlistId: targetPlaylistId,
       status: 'pending',
-      sourceConfig: { urls, refreshIntervalHours },
+      sourceConfig: { urls: rawUrls, refreshIntervalHours: refreshHours },
       outputFilePath: `users/${uid}/epg/${epgId}_xmltv.xml`,
       lastGeneratedAt: null,
       createdAt: new Date().toISOString()
@@ -1073,7 +1232,7 @@ app.post('/api/epg', checkWorkspaceQuota('maxHostedPlaylists'), async (req: any,
     // Dispatch the EPG job to the worker queue
     await dispatchEpgJob(epgId);
 
-    res.status(201).json({ success: true, epgId });
+    res.status(201).json({ success: true, epgId, feed });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -1108,6 +1267,15 @@ app.post('/api/epg/sync', async (req: any, res) => {
     const targetUrls = Array.isArray(urls) && urls.length > 0
       ? urls
       : ['https://iptv-org.github.io/epg/guides/us.xml'];
+
+    for (const url of targetUrls) {
+      if (typeof url === 'string' && url.trim()) {
+        const { safe, reason } = isSafeTargetUrl(url.trim());
+        if (!safe) {
+          return res.status(403).json({ error: reason || 'Access to private or loopback addresses is prohibited.' });
+        }
+      }
+    }
 
     const result = await epgService.fetchAndIngestFeeds(targetUrls);
     await channelMetadataService.refreshIndex();

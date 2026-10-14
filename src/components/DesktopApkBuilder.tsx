@@ -29,18 +29,20 @@ import { PageProtocolHeader } from './PageProtocolHeader';
 import { fetchWithAuth } from '../lib/apiClient';
 import { useAuth } from '../authStore';
 import RateLimitBanner from './RateLimitBanner';
+import { useWorkspaceStore } from '../store/useWorkspaceStore';
 
 interface ApkBuildRecord {
   id: string;
   appName: string;
   bundleId: string;
-  status: 'queued' | 'building' | 'finished' | 'failed';
+  status: 'queued' | 'building' | 'succeeded' | 'failed' | 'finished';
   downloadUrl?: string;
   createdAt: string;
 }
 
 export default function DesktopApkBuilder() {
   const auth = useAuth();
+  const { activeWorkspace, fetchWorkspaces } = useWorkspaceStore();
 
   // Wizard state
   const [builderStep, setBuilderStep] = React.useState<number>(1);
@@ -56,45 +58,58 @@ export default function DesktopApkBuilder() {
   const [uploadedFileName, setUploadedFileName] = React.useState<string | null>(null);
   const [boundAppConfigId, setBoundAppConfigId] = React.useState<string>('');
 
-  // Compiling Simulation States
+  // Compiling & Polling States
   const [isCompiling, setIsCompiling] = React.useState<boolean>(false);
   const [compileProgress, setCompileProgress] = React.useState<number>(0);
   const [compileLogs, setCompileLogs] = React.useState<string[]>([]);
   const [compilationSuccess, setCompilationSuccess] = React.useState<boolean>(false);
-  const [activeBuildId, setActiveBuildId] = React.useState<string>('34cdb52a-7b6e-40e9-b5b8-1c8c2730f55d');
-  const [apkArtifactUrl, setApkArtifactUrl] = React.useState<string | null>('https://expo.dev/artifacts/eas/dEaxtp1LoGphYwP6ntPVI1BJmHi_45_UiRZ4Tj8CKXw.apk');
-  const [buildsUsedThisMonth, setBuildsUsedThisMonth] = React.useState<number>(3);
-  const maxMonthlyBuilds = auth.role === 'admin' ? 999 : 10;
+  const [activeBuildId, setActiveBuildId] = React.useState<string>('');
+  const [apkArtifactUrl, setApkArtifactUrl] = React.useState<string | null>(null);
 
-  const [buildQueue, setBuildQueue] = React.useState<ApkBuildRecord[]>([
-    {
-      id: 'eas-build-9812',
-      appName: 'IPTV Player Pro',
-      bundleId: 'com.iptv.pro.player',
-      status: 'finished',
-      downloadUrl: 'https://expo.dev/artifacts/eas/dEaxtp1LoGphYwP6ntPVI1BJmHi_45_UiRZ4Tj8CKXw.apk',
-      createdAt: 'Today, 10:14 AM'
-    },
-    {
-      id: 'eas-build-9801',
-      appName: 'Latin Streamer Box',
-      bundleId: 'com.latin.stream.box',
-      status: 'finished',
-      downloadUrl: 'https://expo.dev/artifacts/eas/latin_streamer_v2.apk',
-      createdAt: 'Yesterday, 3:20 PM'
+  const buildsUsedThisMonth = activeWorkspace?.usage?.monthlyBuildsUsed ?? 0;
+  const maxMonthlyBuilds = auth.role === 'admin' ? 999 : (activeWorkspace?.entitlements?.maxMonthlyBuilds ?? 0);
+
+  const [buildQueue, setBuildQueue] = React.useState<ApkBuildRecord[]>([]);
+
+  const pollIntervalRef = React.useRef<any>(null);
+
+  const loadBuilds = React.useCallback(async () => {
+    try {
+      const list = await fetchWithAuth('/api/builds');
+      if (Array.isArray(list)) {
+        setBuildQueue(list.map((b: any) => ({
+          id: b.buildId,
+          appName: b.appName || 'IPTV Player',
+          bundleId: b.brandConfig?.bundleId || `com.iptv.${b.appName?.toLowerCase().replace(/[^a-z0-9]/g, '') || 'app'}`,
+          status: b.status,
+          downloadUrl: b.artifactPath || undefined,
+          createdAt: b.createdAt ? new Date(b.createdAt).toLocaleString() : 'Recent'
+        })));
+      }
+    } catch (err) {
+      console.warn('Failed to load build history', err);
     }
-  ]);
+  }, []);
 
-  const compileIntervalRef = React.useRef<any>(null);
+  React.useEffect(() => {
+    fetchWorkspaces();
+    loadBuilds();
+  }, [fetchWorkspaces, loadBuilds]);
+
+  React.useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+    };
+  }, []);
 
   const startApkBuild = async () => {
     if (buildsUsedThisMonth >= maxMonthlyBuilds && auth.role !== 'admin') {
-      alert('Monthly APK build quota reached (10/10). Upgrade your tier or purchase an add-on build pack.');
+      alert(`Monthly APK build quota reached (${buildsUsedThisMonth}/${maxMonthlyBuilds}). Upgrade your workspace tier or contact an administrator.`);
       return;
     }
 
     setIsCompiling(true);
-    setCompileProgress(0);
+    setCompileProgress(15);
     setCompilationSuccess(false);
     setCompileLogs([
       '[EAS Cloud] Initializing build worker container (Debian Bullseye, Node 20)...',
@@ -103,69 +118,96 @@ export default function DesktopApkBuilder() {
     ]);
 
     try {
-      // Attempt real API trigger
+      // Real API trigger: POST /api/builds
       const res = await fetchWithAuth('/api/builds', {
         method: 'POST',
         body: JSON.stringify({
           appName,
-          brandConfig: { primaryColor, accentColor, logoUrl },
+          brandConfig: { primaryColor, accentColor, logoUrl, bundleId },
           playlistSource: {
             type: m3uSourceType,
             value: m3uSourceType === 'url' ? m3uUrl : (uploadedFileName || 'upload')
           },
           appConfigId: boundAppConfigId || null
         })
-      }).catch(() => null);
+      });
 
-      if (res && res.buildId) {
-        setActiveBuildId(res.buildId);
+      if (!res || !res.buildId) {
+        throw new Error(res?.error || 'Failed to dispatch build job');
       }
-    } catch (e) {
-      // Fallback
-    }
 
-    // Step-by-step progress simulation
-    let curProgress = 0;
-    compileIntervalRef.current = setInterval(() => {
-      curProgress += 15;
-      if (curProgress >= 100) {
-        clearInterval(compileIntervalRef.current);
-        setCompileProgress(100);
-        setIsCompiling(false);
-        setCompilationSuccess(true);
-        setCompileLogs(prev => [
-          ...prev,
-          '[Android Gradle] Compiling release APK with ProGuard obfuscation...',
-          '[Code Signing] Signing APK using release keystore certificate...',
-          '[EAS Cloud] Build completed successfully in 42s! Artifact hosted on CDN.'
-        ]);
+      const newBuildId = res.buildId;
+      setActiveBuildId(newBuildId);
+      setCompileProgress(30);
+      setCompileLogs(prev => [
+        ...prev,
+        `[Dispatcher] Job queued successfully with Build ID: ${newBuildId}`,
+        '[EAS Cloud] Polling cloud build runner status...'
+      ]);
 
-        const newBuild: ApkBuildRecord = {
-          id: `eas-${Date.now().toString(36)}`,
-          appName,
-          bundleId,
-          status: 'finished',
-          downloadUrl: apkArtifactUrl || 'https://expo.dev/artifacts/eas/dEaxtp1LoGphYwP6ntPVI1BJmHi_45_UiRZ4Tj8CKXw.apk',
-          createdAt: 'Just now'
-        };
-        setBuildQueue(prev => [newBuild, ...prev]);
-        setBuildsUsedThisMonth(prev => prev + 1);
-      } else {
-        setCompileProgress(curProgress);
-        if (curProgress === 45) {
-          setCompileLogs(prev => [...prev, '[Babel] Compiling JSX modules and native HLS player shims...']);
-        } else if (curProgress === 75) {
-          setCompileLogs(prev => [...prev, '[AAPT2] Merging Android XML resources and app launcher icons...']);
+      // Refresh workspaces to reflect updated monthlyBuildsUsed
+      fetchWorkspaces();
+      loadBuilds();
+
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+
+      let pollCount = 0;
+      pollIntervalRef.current = setInterval(async () => {
+        pollCount++;
+        try {
+          const build = await fetchWithAuth(`/api/builds/${newBuildId}`);
+          if (!build) return;
+
+          if (build.status === 'building') {
+            setCompileProgress(prev => Math.min(prev + 12, 85));
+            if (pollCount === 1) {
+              setCompileLogs(prev => [...prev, '[Babel] Compiling JSX modules and native HLS player shims...']);
+            } else if (pollCount === 2) {
+              setCompileLogs(prev => [...prev, '[Android Gradle] Compiling release APK with ProGuard obfuscation...']);
+            } else if (pollCount === 3) {
+              setCompileLogs(prev => [...prev, '[AAPT2] Merging Android XML resources and app launcher icons...']);
+            }
+          } else if (build.status === 'succeeded' || (build.status as string) === 'finished') {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+            setCompileProgress(100);
+            setIsCompiling(false);
+            setCompilationSuccess(true);
+            const artifactUrl = build.artifactPath || `https://expo.dev/artifacts/eas/${newBuildId}.apk`;
+            setApkArtifactUrl(artifactUrl);
+            setCompileLogs(prev => [
+              ...prev,
+              '[Code Signing] Signed APK using release keystore certificate.',
+              `[EAS Cloud] Build succeeded! Artifact hosted at: ${artifactUrl}`,
+              '[EAS Cloud] Ready for direct APK download & TV sideloading.'
+            ]);
+            loadBuilds();
+            fetchWorkspaces();
+          } else if (build.status === 'failed') {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+            setIsCompiling(false);
+            setCompileLogs(prev => [
+              ...prev,
+              '[EAS Cloud] Compilation failed. Please inspect build configuration.'
+            ]);
+            alert('EAS cloud compilation encountered an error.');
+            loadBuilds();
+          }
+        } catch (pollErr: any) {
+          console.warn('Build status poll error:', pollErr);
         }
-      }
-    }, 600);
-  };
+      }, 2500);
 
-  React.useEffect(() => {
-    return () => {
-      if (compileIntervalRef.current) clearInterval(compileIntervalRef.current);
-    };
-  }, []);
+    } catch (err: any) {
+      setIsCompiling(false);
+      setCompileLogs(prev => [
+        ...prev,
+        `[Error] Failed to initiate build: ${err.message || err}`
+      ]);
+      alert(`Could not start build: ${err.message || err}`);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full gap-6">
@@ -507,7 +549,9 @@ export default function DesktopApkBuilder() {
                 <Terminal className="w-3.5 h-3.5 text-cyan-400" />
                 <span className="text-[10px] font-bold uppercase text-zinc-400">EAS Build Worker Console</span>
               </div>
-              <span className="text-[10px] text-zinc-500">Build ID: {activeBuildId.slice(0, 12)}...</span>
+              <span className="text-[10px] text-zinc-500">
+                Build ID: {activeBuildId ? `${activeBuildId.slice(0, 16)}...` : 'Idle'}
+              </span>
             </div>
 
             <div className="space-y-1.5 min-h-[120px] max-h-[160px] overflow-y-auto scrollbar-thin text-[11px]">
@@ -602,33 +646,65 @@ export default function DesktopApkBuilder() {
               Recent EAS Cloud Build History
             </span>
             <div className="divide-y divide-white/5 border border-white/10 rounded-2xl overflow-hidden bg-black/30">
-              {buildQueue.map((b) => (
-                <div key={b.id} className="p-3.5 flex items-center justify-between hover:bg-white/[0.02] transition-colors">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400">
-                      <Check className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <h5 className="text-xs font-bold text-white truncate">{b.appName}</h5>
-                      <span className="text-[10px] text-zinc-400 font-mono block truncate">{b.bundleId} • {b.createdAt}</span>
-                    </div>
-                  </div>
-
-                  <a
-                    href={b.downloadUrl}
-                    onClick={() => {
-                      if (typeof window !== 'undefined' && window.dataLayer) {
-                        window.dataLayer.push({ event: 'APK_Download' });
-                      }
-                    }}
-                    className="p-2 text-zinc-400 hover:text-cyan-400 transition-colors"
-                    title="Download APK"
-                    aria-label="Download APK"
-                  >
-                    <Download className="w-4 h-4" />
-                  </a>
+              {buildQueue.length === 0 ? (
+                <div className="p-6 text-center text-xs text-zinc-500 italic">
+                  No cloud builds triggered yet. Configure your app and click "Launch EAS Cloud Compile" above.
                 </div>
-              ))}
+              ) : (
+                buildQueue.map((b) => (
+                  <div key={b.id} className="p-3.5 flex items-center justify-between hover:bg-white/[0.02] transition-colors">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                        b.status === 'succeeded' || b.status === 'finished'
+                          ? 'bg-emerald-500/10 text-emerald-400'
+                          : b.status === 'failed'
+                          ? 'bg-rose-500/10 text-rose-400'
+                          : 'bg-cyan-500/10 text-cyan-400'
+                      }`}>
+                        {b.status === 'succeeded' || b.status === 'finished' ? (
+                          <Check className="w-4 h-4" />
+                        ) : b.status === 'failed' ? (
+                          <AlertCircle className="w-4 h-4" />
+                        ) : (
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <h5 className="text-xs font-bold text-white truncate flex items-center gap-2">
+                          {b.appName}
+                          <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono uppercase ${
+                            b.status === 'succeeded' || b.status === 'finished'
+                              ? 'bg-emerald-500/20 text-emerald-300'
+                              : b.status === 'failed'
+                              ? 'bg-rose-500/20 text-rose-300'
+                              : 'bg-cyan-500/20 text-cyan-300'
+                          }`}>
+                            {b.status}
+                          </span>
+                        </h5>
+                        <span className="text-[10px] text-zinc-400 font-mono block truncate">{b.bundleId} • {b.createdAt}</span>
+                      </div>
+                    </div>
+
+                    {b.downloadUrl && (
+                      <a
+                        href={b.downloadUrl}
+                        download
+                        onClick={() => {
+                          if (typeof window !== 'undefined' && window.dataLayer) {
+                            window.dataLayer.push({ event: 'APK_Download' });
+                          }
+                        }}
+                        className="p-2 text-zinc-400 hover:text-cyan-400 transition-colors"
+                        title="Download APK"
+                        aria-label="Download APK"
+                      >
+                        <Download className="w-4 h-4" />
+                      </a>
+                    )}
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

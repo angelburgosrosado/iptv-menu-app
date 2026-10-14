@@ -35,29 +35,40 @@ async function processPlaylistClean(playlistId: string, runId: string) {
 
     logger.info(`Fetching original playlist stream from storage...`);
     const fileBuffer = await downloadFromBucket(config.GCS_UPLOAD_BUCKET, playlist.originalFilePath);
-    const m3uContent = fileBuffer.toString('utf-8');
+    
+    // Streaming line-by-line reader with O(1) deduplication
+    const { Readable } = await import('stream');
+    const readline = await import('readline');
 
-    const lines = m3uContent.split('\n');
-    const uniqueChannels: string[] = [];
+    const rl = readline.createInterface({
+      input: Readable.from(fileBuffer),
+      crlfDelay: Infinity,
+    });
+
+    let currentExtinf: string | null = null;
+    const seenUrls = new Set<string>();
+    const outputLines: string[] = ['#EXTM3U'];
     let channelsProcessed = 0;
     let channelsRemoved = 0;
 
-    // Fast inline deduplication logic
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].startsWith('#EXTINF')) {
+    for await (const rawLine of rl) {
+      const line = rawLine.trim();
+      if (line.startsWith('#EXTINF')) {
         channelsProcessed++;
-        const chanInfo = lines[i];
-        const streamUrl = lines[i + 1]?.trim();
-        if (streamUrl && !uniqueChannels.includes(streamUrl)) {
-          uniqueChannels.push(chanInfo);
-          uniqueChannels.push(streamUrl);
+        currentExtinf = line;
+      } else if (line && !line.startsWith('#') && currentExtinf) {
+        if (!seenUrls.has(line)) {
+          seenUrls.add(line);
+          outputLines.push(currentExtinf);
+          outputLines.push(line);
         } else {
           channelsRemoved++;
         }
+        currentExtinf = null;
       }
     }
 
-    const cleanedM3U = `#EXTM3U\n` + uniqueChannels.join('\n');
+    const cleanedM3U = outputLines.join('\n');
     const cleanedPath = `users/${playlist.uid}/cleaned/${playlistId}_cleaned.m3u`;
     
     // Save output back to Storage

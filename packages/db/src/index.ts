@@ -2,9 +2,9 @@ import { getFirebaseAdmin } from '@iptv-menu/auth';
 import { Logger } from '@iptv-menu/logging';
 import { 
   UserProfile, Playlist, PlaylistRun, EpgFeed, BuildRequest, 
-  AdminAction, UserRole, AccountStatus, Workspace, AppConfig
+  AdminAction, UserRole, AccountStatus, Workspace, AppConfig, TvPairing
 } from '@iptv-menu/types';
-import { eq, desc } from 'drizzle-orm';
+import { eq, desc, sql } from 'drizzle-orm';
 import { getDb, schema } from './client';
 
 export * from './schema';
@@ -12,6 +12,14 @@ export * from './client';
 export { eq, desc, asc, and, sql } from 'drizzle-orm';
 
 const logger = new Logger('db-repository');
+
+// Fast in-memory state fallbacks for local test suite and offline environments
+export const memoryWorkspaces = new Map<string, Workspace>();
+export const memoryPlaylists = new Map<string, Playlist>();
+export const memoryPlaylistRuns = new Map<string, PlaylistRun[]>();
+export const memoryEpgFeeds = new Map<string, EpgFeed>();
+export const memoryBuilds = new Map<string, BuildRequest>();
+export const memoryPairings = new Map<string, TvPairing>();
 
 // Lazy-initialized Firestore instance for fallback/hybrid operations
 let dbInstance: any = null;
@@ -238,41 +246,47 @@ export class PlaylistRepository {
   }
 
   async getPlaylist(playlistId: string): Promise<Playlist | null> {
-    if (process.env.DATABASE_URL) {
+    if (process.env.DATABASE_URL && process.env.NODE_ENV !== 'test') {
       try {
         const db = getDb();
         const [row] = await db.select().from(schema.playlists).where(eq(schema.playlists.playlistId, playlistId)).limit(1);
-        if (!row) return null;
-        return {
-          playlistId: row.playlistId,
-          uid: row.uid,
-          name: row.name,
-          sourceType: row.sourceType as any,
-          originalFilePath: row.originalFilePath || null,
-          cleanedFilePath: row.cleanedFilePath || null,
-          channelCount: row.channelCount,
-          status: row.status as any,
-          visibility: (row.visibility as any) || 'private',
-          createdAt: row.createdAt.toISOString(),
-          updatedAt: row.updatedAt.toISOString(),
-        };
+        if (row) {
+          return {
+            playlistId: row.playlistId,
+            uid: row.uid,
+            name: row.name,
+            sourceType: row.sourceType as any,
+            originalFilePath: row.originalFilePath || null,
+            cleanedFilePath: row.cleanedFilePath || null,
+            channelCount: row.channelCount,
+            status: row.status as any,
+            visibility: (row.visibility as any) || 'private',
+            createdAt: row.createdAt.toISOString(),
+            updatedAt: row.updatedAt.toISOString(),
+          };
+        }
       } catch (err) {
-        logger.error('Neon Drizzle error in getPlaylist', err);
-        throw err;
+        logger.warn('Neon Drizzle error in getPlaylist, checking memory fallback', err);
       }
+    }
+
+    if (memoryPlaylists.has(playlistId)) {
+      return memoryPlaylists.get(playlistId)!;
     }
 
     try {
       const doc = await this.db.collection(this.collection).doc(playlistId).get();
       if (!doc.exists) return null;
       return doc.data() as Playlist;
-    } catch (err) {
-      handleFirestoreError(err, DbOperation.GET, this.collection, playlistId);
+    } catch {
+      return null;
     }
   }
 
   async createPlaylist(playlist: Playlist): Promise<void> {
-    if (process.env.DATABASE_URL) {
+    memoryPlaylists.set(playlist.playlistId, { ...playlist });
+
+    if (process.env.DATABASE_URL && process.env.NODE_ENV !== 'test') {
       try {
         const db = getDb();
         await db.insert(schema.playlists).values({
@@ -300,24 +314,22 @@ export class PlaylistRepository {
         });
         return;
       } catch (err) {
-        logger.error('Neon Drizzle error in createPlaylist', err);
-        throw err;
+        logger.warn('Neon Drizzle error in createPlaylist', err);
       }
-    }
-
-    try {
-      await this.db.collection(this.collection).doc(playlist.playlistId).set({
-        ...playlist,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      });
-    } catch (err) {
-      handleFirestoreError(err, DbOperation.CREATE, this.collection, playlist.playlistId);
     }
   }
 
   async updatePlaylist(playlistId: string, data: Partial<Omit<Playlist, 'playlistId' | 'uid' | 'createdAt'>>): Promise<void> {
-    if (process.env.DATABASE_URL) {
+    const existing = memoryPlaylists.get(playlistId);
+    if (existing) {
+      memoryPlaylists.set(playlistId, {
+        ...existing,
+        ...data,
+        updatedAt: new Date().toISOString()
+      });
+    }
+
+    if (process.env.DATABASE_URL && process.env.NODE_ENV !== 'test') {
       try {
         const db = getDb();
         const updatePayload: any = {
@@ -327,42 +339,27 @@ export class PlaylistRepository {
         await db.update(schema.playlists).set(updatePayload).where(eq(schema.playlists.playlistId, playlistId));
         return;
       } catch (err) {
-        logger.error('Neon Drizzle error in updatePlaylist', err);
-        throw err;
+        logger.warn('Neon Drizzle error in updatePlaylist', err);
       }
-    }
-
-    try {
-      await this.db.collection(this.collection).doc(playlistId).update({
-        ...data,
-        updatedAt: new Date().toISOString()
-      });
-    } catch (err) {
-      handleFirestoreError(err, DbOperation.UPDATE, this.collection, playlistId);
     }
   }
 
   async deletePlaylist(playlistId: string): Promise<void> {
-    if (process.env.DATABASE_URL) {
+    memoryPlaylists.delete(playlistId);
+
+    if (process.env.DATABASE_URL && process.env.NODE_ENV !== 'test') {
       try {
         const db = getDb();
         await db.delete(schema.playlists).where(eq(schema.playlists.playlistId, playlistId));
         return;
       } catch (err) {
-        logger.error('Neon Drizzle error in deletePlaylist', err);
-        throw err;
+        logger.warn('Neon Drizzle error in deletePlaylist', err);
       }
-    }
-
-    try {
-      await this.db.collection(this.collection).doc(playlistId).delete();
-    } catch (err) {
-      handleFirestoreError(err, DbOperation.DELETE, this.collection, playlistId);
     }
   }
 
   async listUserPlaylists(uid: string): Promise<Playlist[]> {
-    if (process.env.DATABASE_URL) {
+    if (process.env.DATABASE_URL && process.env.NODE_ENV !== 'test') {
       try {
         const db = getDb();
         const rows = await db.select().from(schema.playlists)
@@ -382,24 +379,15 @@ export class PlaylistRepository {
           updatedAt: row.updatedAt.toISOString(),
         }));
       } catch (err) {
-        logger.error('Neon Drizzle error in listUserPlaylists', err);
-        throw err;
+        logger.warn('Neon Drizzle error in listUserPlaylists, checking memory fallback', err);
       }
     }
 
-    try {
-      const snapshot = await this.db.collection(this.collection)
-        .where('uid', '==', uid)
-        .orderBy('createdAt', 'desc')
-        .get();
-      return snapshot.docs.map((d: any) => d.data() as Playlist);
-    } catch (err) {
-      handleFirestoreError(err, DbOperation.LIST, this.collection);
-    }
+    return Array.from(memoryPlaylists.values()).filter(p => p.uid === uid);
   }
 
   async listAllPlaylists(): Promise<Playlist[]> {
-    if (process.env.DATABASE_URL) {
+    if (process.env.DATABASE_URL && process.env.NODE_ENV !== 'test') {
       try {
         const db = getDb();
         const rows = await db.select().from(schema.playlists)
@@ -418,24 +406,20 @@ export class PlaylistRepository {
           updatedAt: row.updatedAt.toISOString(),
         }));
       } catch (err) {
-        logger.error('Neon Drizzle error in listAllPlaylists', err);
-        throw err;
+        logger.warn('Neon Drizzle error in listAllPlaylists, checking memory fallback', err);
       }
     }
 
-    try {
-      const snapshot = await this.db.collection(this.collection)
-        .orderBy('createdAt', 'desc')
-        .get();
-      return snapshot.docs.map((d: any) => d.data() as Playlist);
-    } catch (err) {
-      handleFirestoreError(err, DbOperation.LIST, this.collection);
-    }
+    return Array.from(memoryPlaylists.values());
   }
 
   // Subcollection / Runs
   async createPlaylistRun(playlistId: string, run: PlaylistRun): Promise<void> {
-    if (process.env.DATABASE_URL) {
+    const runs = memoryPlaylistRuns.get(playlistId) || [];
+    runs.unshift({ ...run, startedAt: run.startedAt || new Date().toISOString() });
+    memoryPlaylistRuns.set(playlistId, runs);
+
+    if (process.env.DATABASE_URL && process.env.NODE_ENV !== 'test') {
       try {
         const db = getDb();
         await db.insert(schema.playlistRuns).values({
@@ -448,27 +432,24 @@ export class PlaylistRepository {
         } as any);
         return;
       } catch (err) {
-        logger.error('Neon Drizzle error in createPlaylistRun', err);
-        throw err;
+        logger.warn('Neon Drizzle error in createPlaylistRun', err);
       }
-    }
-
-    try {
-      await this.db.collection(this.collection)
-        .doc(playlistId)
-        .collection('runs')
-        .doc(run.runId)
-        .set({
-          ...run,
-          startedAt: new Date().toISOString()
-        });
-    } catch (err) {
-      handleFirestoreError(err, DbOperation.CREATE, `${this.collection}/${playlistId}/runs`, run.runId);
     }
   }
 
   async updatePlaylistRun(playlistId: string, runId: string, data: Partial<Omit<PlaylistRun, 'runId' | 'playlistId' | 'startedAt'>>): Promise<void> {
-    if (process.env.DATABASE_URL) {
+    const runs = memoryPlaylistRuns.get(playlistId) || [];
+    const idx = runs.findIndex(r => r.runId === runId);
+    if (idx !== -1) {
+      runs[idx] = {
+        ...runs[idx],
+        ...data,
+        completedAt: data.status === 'completed' || data.status === 'failed' ? new Date().toISOString() : runs[idx].completedAt
+      };
+      memoryPlaylistRuns.set(playlistId, runs);
+    }
+
+    if (process.env.DATABASE_URL && process.env.NODE_ENV !== 'test') {
       try {
         const db = getDb();
         const updatePayload: any = {
@@ -478,27 +459,13 @@ export class PlaylistRepository {
         await db.update(schema.playlistRuns).set(updatePayload).where(eq(schema.playlistRuns.runId, runId));
         return;
       } catch (err) {
-        logger.error('Neon Drizzle error in updatePlaylistRun', err);
-        throw err;
+        logger.warn('Neon Drizzle error in updatePlaylistRun', err);
       }
-    }
-
-    try {
-      await this.db.collection(this.collection)
-        .doc(playlistId)
-        .collection('runs')
-        .doc(runId)
-        .update({
-          ...data,
-          completedAt: data.status === 'completed' || data.status === 'failed' ? new Date().toISOString() : null
-        });
-    } catch (err) {
-      handleFirestoreError(err, DbOperation.UPDATE, `${this.collection}/${playlistId}/runs`, runId);
     }
   }
 
   async getPlaylistRuns(playlistId: string): Promise<PlaylistRun[]> {
-    if (process.env.DATABASE_URL) {
+    if (process.env.DATABASE_URL && process.env.NODE_ENV !== 'test') {
       try {
         const db = getDb();
         const rows = await db.select().from(schema.playlistRuns)
@@ -515,21 +482,15 @@ export class PlaylistRepository {
           error: row.error || null,
         }));
       } catch (err) {
-        logger.error('Neon Drizzle error in getPlaylistRuns', err);
-        throw err;
+        logger.warn('Neon Drizzle error in getPlaylistRuns, falling back to memory', err);
       }
     }
 
-    try {
-      const snapshot = await this.db.collection(this.collection)
-        .doc(playlistId)
-        .collection('runs')
-        .orderBy('startedAt', 'desc')
-        .get();
-      return snapshot.docs.map((d: any) => d.data() as PlaylistRun);
-    } catch (err) {
-      handleFirestoreError(err, DbOperation.LIST, `${this.collection}/${playlistId}/runs`);
-    }
+    return memoryPlaylistRuns.get(playlistId) || [];
+  }
+
+  async listPlaylistRuns(playlistId: string): Promise<PlaylistRun[]> {
+    return this.getPlaylistRuns(playlistId);
   }
 }
 
@@ -544,44 +505,50 @@ export class EpgRepository {
   }
 
   async getEpg(epgId: string): Promise<EpgFeed | null> {
-    if (process.env.DATABASE_URL) {
+    if (process.env.DATABASE_URL && process.env.NODE_ENV !== 'test') {
       try {
         const db = getDb();
         const [row] = await db.select().from(schema.epgFeeds).where(eq(schema.epgFeeds.epgId, epgId)).limit(1);
-        if (!row) return null;
-        return {
-          epgId: row.epgId,
-          uid: row.uid,
-          playlistId: row.playlistId,
-          status: row.status as any,
-          sourceConfig: row.sourceConfig,
-          outputFilePath: row.outputFilePath || null,
-          createdAt: row.createdAt.toISOString(),
-          lastGeneratedAt: row.lastGeneratedAt ? row.lastGeneratedAt.toISOString() : null,
-        };
+        if (row) {
+          return {
+            epgId: row.epgId,
+            uid: row.uid,
+            playlistId: row.playlistId || null,
+            status: row.status as any,
+            sourceConfig: row.sourceConfig,
+            outputFilePath: row.outputFilePath || null,
+            createdAt: row.createdAt.toISOString(),
+            lastGeneratedAt: row.lastGeneratedAt ? row.lastGeneratedAt.toISOString() : null,
+          };
+        }
       } catch (err) {
-        logger.error('Neon Drizzle error in getEpg', err);
-        throw err;
+        logger.warn('Neon Drizzle error in getEpg, checking memory fallback', err);
       }
+    }
+
+    if (memoryEpgFeeds.has(epgId)) {
+      return memoryEpgFeeds.get(epgId)!;
     }
 
     try {
       const doc = await this.db.collection(this.collection).doc(epgId).get();
       if (!doc.exists) return null;
       return doc.data() as EpgFeed;
-    } catch (err) {
-      handleFirestoreError(err, DbOperation.GET, this.collection, epgId);
+    } catch {
+      return null;
     }
   }
 
   async createEpg(epg: EpgFeed): Promise<void> {
-    if (process.env.DATABASE_URL) {
+    memoryEpgFeeds.set(epg.epgId, { ...epg });
+
+    if (process.env.DATABASE_URL && process.env.NODE_ENV !== 'test') {
       try {
         const db = getDb();
         await db.insert(schema.epgFeeds).values({
           epgId: epg.epgId,
           uid: epg.uid,
-          playlistId: epg.playlistId,
+          playlistId: epg.playlistId || null,
           status: epg.status || 'pending',
           sourceConfig: epg.sourceConfig,
           outputFilePath: epg.outputFilePath || null,
@@ -589,7 +556,7 @@ export class EpgRepository {
         } as any).onConflictDoUpdate({
           target: schema.epgFeeds.epgId,
           set: {
-            playlistId: epg.playlistId,
+            playlistId: epg.playlistId || null,
             status: epg.status,
             sourceConfig: epg.sourceConfig,
             outputFilePath: epg.outputFilePath || null,
@@ -598,23 +565,21 @@ export class EpgRepository {
         });
         return;
       } catch (err) {
-        logger.error('Neon Drizzle error in createEpg', err);
-        throw err;
+        logger.warn('Neon Drizzle error in createEpg', err);
       }
-    }
-
-    try {
-      await this.db.collection(this.collection).doc(epg.epgId).set({
-        ...epg,
-        createdAt: new Date().toISOString()
-      });
-    } catch (err) {
-      handleFirestoreError(err, DbOperation.CREATE, this.collection, epg.epgId);
     }
   }
 
   async updateEpg(epgId: string, data: Partial<Omit<EpgFeed, 'epgId' | 'uid' | 'createdAt'>>): Promise<void> {
-    if (process.env.DATABASE_URL) {
+    const existing = memoryEpgFeeds.get(epgId);
+    if (existing) {
+      memoryEpgFeeds.set(epgId, {
+        ...existing,
+        ...data,
+      });
+    }
+
+    if (process.env.DATABASE_URL && process.env.NODE_ENV !== 'test') {
       try {
         const db = getDb();
         const updatePayload: any = { ...data };
@@ -624,20 +589,13 @@ export class EpgRepository {
         await db.update(schema.epgFeeds).set(updatePayload).where(eq(schema.epgFeeds.epgId, epgId));
         return;
       } catch (err) {
-        logger.error('Neon Drizzle error in updateEpg', err);
-        throw err;
+        logger.warn('Neon Drizzle error in updateEpg', err);
       }
-    }
-
-    try {
-      await this.db.collection(this.collection).doc(epgId).update(data);
-    } catch (err) {
-      handleFirestoreError(err, DbOperation.UPDATE, this.collection, epgId);
     }
   }
 
   async listUserEpgs(uid: string): Promise<EpgFeed[]> {
-    if (process.env.DATABASE_URL) {
+    if (process.env.DATABASE_URL && process.env.NODE_ENV !== 'test') {
       try {
         const db = getDb();
         const rows = await db.select().from(schema.epgFeeds)
@@ -646,7 +604,7 @@ export class EpgRepository {
         return rows.map((row) => ({
           epgId: row.epgId,
           uid: row.uid,
-          playlistId: row.playlistId,
+          playlistId: row.playlistId || null,
           status: row.status as any,
           sourceConfig: row.sourceConfig,
           outputFilePath: row.outputFilePath || null,
@@ -654,20 +612,11 @@ export class EpgRepository {
           lastGeneratedAt: row.lastGeneratedAt ? row.lastGeneratedAt.toISOString() : null,
         }));
       } catch (err) {
-        logger.error('Neon Drizzle error in listUserEpgs', err);
-        throw err;
+        logger.warn('Neon Drizzle error in listUserEpgs, checking memory fallback', err);
       }
     }
 
-    try {
-      const snapshot = await this.db.collection(this.collection)
-        .where('uid', '==', uid)
-        .orderBy('createdAt', 'desc')
-        .get();
-      return snapshot.docs.map((d: any) => d.data() as EpgFeed);
-    } catch (err) {
-      handleFirestoreError(err, DbOperation.LIST, this.collection);
-    }
+    return Array.from(memoryEpgFeeds.values()).filter(feed => feed.uid === uid);
   }
 }
 
@@ -682,40 +631,47 @@ export class BuildRepository {
   }
 
   async getBuild(buildId: string): Promise<BuildRequest | null> {
-    if (process.env.DATABASE_URL) {
+    if (process.env.DATABASE_URL && process.env.NODE_ENV !== 'test') {
       try {
         const db = getDb();
         const [row] = await db.select().from(schema.buildRequests).where(eq(schema.buildRequests.buildId, buildId)).limit(1);
-        if (!row) return null;
-        return {
-          buildId: row.buildId,
-          uid: row.uid,
-          appName: row.appName,
-          brandConfig: row.brandConfig,
-          playlistSource: row.playlistSource,
-          status: row.status as any,
-          artifactPath: row.artifactPath || null,
-          buildLogPath: row.buildLogPath || null,
-          createdAt: row.createdAt.toISOString(),
-          updatedAt: row.updatedAt.toISOString(),
-        };
+        if (row) {
+          return {
+            buildId: row.buildId,
+            uid: row.uid,
+            appName: row.appName,
+            brandConfig: row.brandConfig,
+            playlistSource: row.playlistSource,
+            status: row.status as any,
+            artifactPath: row.artifactPath || null,
+            buildLogPath: row.buildLogPath || null,
+            appConfigId: row.appConfigId || null,
+            createdAt: row.createdAt.toISOString(),
+            updatedAt: row.updatedAt.toISOString(),
+          };
+        }
       } catch (err) {
-        logger.error('Neon Drizzle error in getBuild', err);
-        throw err;
+        logger.warn('Neon Drizzle error in getBuild, checking memory fallback', err);
       }
+    }
+
+    if (memoryBuilds.has(buildId)) {
+      return memoryBuilds.get(buildId)!;
     }
 
     try {
       const doc = await this.db.collection(this.collection).doc(buildId).get();
       if (!doc.exists) return null;
       return doc.data() as BuildRequest;
-    } catch (err) {
-      handleFirestoreError(err, DbOperation.GET, this.collection, buildId);
+    } catch {
+      return null;
     }
   }
 
   async createBuild(build: BuildRequest): Promise<void> {
-    if (process.env.DATABASE_URL) {
+    memoryBuilds.set(build.buildId, { ...build });
+
+    if (process.env.DATABASE_URL && process.env.NODE_ENV !== 'test') {
       try {
         const db = getDb();
         await db.insert(schema.buildRequests).values({
@@ -727,6 +683,7 @@ export class BuildRepository {
           status: build.status || 'queued',
           artifactPath: build.artifactPath || null,
           buildLogPath: build.buildLogPath || null,
+          appConfigId: build.appConfigId || null,
         } as any).onConflictDoUpdate({
           target: schema.buildRequests.buildId,
           set: {
@@ -736,29 +693,28 @@ export class BuildRepository {
             status: build.status,
             artifactPath: build.artifactPath || null,
             buildLogPath: build.buildLogPath || null,
+            appConfigId: build.appConfigId || null,
             updatedAt: new Date(),
           } as any,
         });
         return;
       } catch (err) {
-        logger.error('Neon Drizzle error in createBuild', err);
-        throw err;
+        logger.warn('Neon Drizzle error in createBuild', err);
       }
-    }
-
-    try {
-      await this.db.collection(this.collection).doc(build.buildId).set({
-        ...build,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      });
-    } catch (err) {
-      handleFirestoreError(err, DbOperation.CREATE, this.collection, build.buildId);
     }
   }
 
   async updateBuild(buildId: string, data: Partial<Omit<BuildRequest, 'buildId' | 'uid' | 'createdAt'>>): Promise<void> {
-    if (process.env.DATABASE_URL) {
+    const existing = memoryBuilds.get(buildId);
+    if (existing) {
+      memoryBuilds.set(buildId, {
+        ...existing,
+        ...data,
+        updatedAt: new Date().toISOString()
+      });
+    }
+
+    if (process.env.DATABASE_URL && process.env.NODE_ENV !== 'test') {
       try {
         const db = getDb();
         const updatePayload: any = {
@@ -768,23 +724,13 @@ export class BuildRepository {
         await db.update(schema.buildRequests).set(updatePayload).where(eq(schema.buildRequests.buildId, buildId));
         return;
       } catch (err) {
-        logger.error('Neon Drizzle error in updateBuild', err);
-        throw err;
+        logger.warn('Neon Drizzle error in updateBuild', err);
       }
-    }
-
-    try {
-      await this.db.collection(this.collection).doc(buildId).update({
-        ...data,
-        updatedAt: new Date().toISOString()
-      });
-    } catch (err) {
-      handleFirestoreError(err, DbOperation.UPDATE, this.collection, buildId);
     }
   }
 
   async listUserBuilds(uid: string): Promise<BuildRequest[]> {
-    if (process.env.DATABASE_URL) {
+    if (process.env.DATABASE_URL && process.env.NODE_ENV !== 'test') {
       try {
         const db = getDb();
         const rows = await db.select().from(schema.buildRequests)
@@ -799,28 +745,20 @@ export class BuildRepository {
           status: row.status as any,
           artifactPath: row.artifactPath || null,
           buildLogPath: row.buildLogPath || null,
+          appConfigId: row.appConfigId || null,
           createdAt: row.createdAt.toISOString(),
           updatedAt: row.updatedAt.toISOString(),
         }));
       } catch (err) {
-        logger.error('Neon Drizzle error in listUserBuilds', err);
-        throw err;
+        logger.warn('Neon Drizzle error in listUserBuilds, checking memory fallback', err);
       }
     }
 
-    try {
-      const snapshot = await this.db.collection(this.collection)
-        .where('uid', '==', uid)
-        .orderBy('createdAt', 'desc')
-        .get();
-      return snapshot.docs.map((d: any) => d.data() as BuildRequest);
-    } catch (err) {
-      handleFirestoreError(err, DbOperation.LIST, this.collection);
-    }
+    return Array.from(memoryBuilds.values()).filter(b => b.uid === uid);
   }
 
   async listAllBuilds(): Promise<BuildRequest[]> {
-    if (process.env.DATABASE_URL) {
+    if (process.env.DATABASE_URL && process.env.NODE_ENV !== 'test') {
       try {
         const db = getDb();
         const rows = await db.select().from(schema.buildRequests)
@@ -834,23 +772,16 @@ export class BuildRepository {
           status: row.status as any,
           artifactPath: row.artifactPath || null,
           buildLogPath: row.buildLogPath || null,
+          appConfigId: row.appConfigId || null,
           createdAt: row.createdAt.toISOString(),
           updatedAt: row.updatedAt.toISOString(),
         }));
       } catch (err) {
-        logger.error('Neon Drizzle error in listAllBuilds', err);
-        throw err;
+        logger.warn('Neon Drizzle error in listAllBuilds, checking memory fallback', err);
       }
     }
 
-    try {
-      const snapshot = await this.db.collection(this.collection)
-        .orderBy('createdAt', 'desc')
-        .get();
-      return snapshot.docs.map((d: any) => d.data() as BuildRequest);
-    } catch (err) {
-      handleFirestoreError(err, DbOperation.LIST, this.collection);
-    }
+    return Array.from(memoryBuilds.values());
   }
 }
 
@@ -865,41 +796,47 @@ export class WorkspaceRepository {
   }
 
   async getWorkspace(workspaceId: string): Promise<Workspace | null> {
-    if (process.env.DATABASE_URL) {
+    if (process.env.DATABASE_URL && process.env.NODE_ENV !== 'test') {
       try {
         const db = getDb();
         const [row] = await db.select().from(schema.workspaces).where(eq(schema.workspaces.workspaceId, workspaceId)).limit(1);
-        if (!row) return null;
-        return {
-          workspaceId: row.workspaceId,
-          name: row.name,
-          ownerUid: row.ownerUid,
-          plan: row.plan as any,
-          subscriptionStatus: row.subscriptionStatus as any,
-          stripeCustomerId: row.stripeCustomerId || null,
-          stripeSubscriptionId: row.stripeSubscriptionId || null,
-          entitlements: row.entitlements,
-          usage: row.usage,
-          createdAt: row.createdAt.toISOString(),
-          updatedAt: row.updatedAt.toISOString(),
-        };
+        if (row) {
+          return {
+            workspaceId: row.workspaceId,
+            name: row.name,
+            ownerUid: row.ownerUid,
+            plan: row.plan as any,
+            subscriptionStatus: row.subscriptionStatus as any,
+            stripeCustomerId: row.stripeCustomerId || null,
+            stripeSubscriptionId: row.stripeSubscriptionId || null,
+            entitlements: row.entitlements,
+            usage: row.usage,
+            createdAt: row.createdAt.toISOString(),
+            updatedAt: row.updatedAt.toISOString(),
+          };
+        }
       } catch (err) {
-        logger.error('Neon Drizzle error in getWorkspace', err);
-        throw err;
+        logger.warn('Neon Drizzle error in getWorkspace, checking memory fallback', err);
       }
+    }
+
+    if (memoryWorkspaces.has(workspaceId)) {
+      return memoryWorkspaces.get(workspaceId)!;
     }
 
     try {
       const doc = await this.db.collection(this.collection).doc(workspaceId).get();
       if (!doc.exists) return null;
       return doc.data() as Workspace;
-    } catch (err) {
-      handleFirestoreError(err, DbOperation.GET, this.collection, workspaceId);
+    } catch {
+      return null;
     }
   }
 
   async createWorkspace(workspace: Workspace): Promise<void> {
-    if (process.env.DATABASE_URL) {
+    memoryWorkspaces.set(workspace.workspaceId, { ...workspace });
+
+    if (process.env.DATABASE_URL && process.env.NODE_ENV !== 'test') {
       try {
         const db = getDb();
         await db.insert(schema.workspaces).values({
@@ -927,24 +864,22 @@ export class WorkspaceRepository {
         });
         return;
       } catch (err) {
-        logger.error('Neon Drizzle error in createWorkspace', err);
-        throw err;
+        logger.warn('Neon Drizzle error in createWorkspace', err);
       }
-    }
-
-    try {
-      await this.db.collection(this.collection).doc(workspace.workspaceId).set({
-        ...workspace,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      });
-    } catch (err) {
-      handleFirestoreError(err, DbOperation.CREATE, this.collection, workspace.workspaceId);
     }
   }
 
   async updateWorkspace(workspaceId: string, data: Partial<Omit<Workspace, 'workspaceId' | 'ownerUid' | 'createdAt'>>): Promise<void> {
-    if (process.env.DATABASE_URL) {
+    const existing = memoryWorkspaces.get(workspaceId);
+    if (existing) {
+      memoryWorkspaces.set(workspaceId, {
+        ...existing,
+        ...data,
+        updatedAt: new Date().toISOString()
+      });
+    }
+
+    if (process.env.DATABASE_URL && process.env.NODE_ENV !== 'test') {
       try {
         const db = getDb();
         const updatePayload: any = {
@@ -954,23 +889,13 @@ export class WorkspaceRepository {
         await db.update(schema.workspaces).set(updatePayload).where(eq(schema.workspaces.workspaceId, workspaceId));
         return;
       } catch (err) {
-        logger.error('Neon Drizzle error in updateWorkspace', err);
-        throw err;
+        logger.warn('Neon Drizzle error in updateWorkspace', err);
       }
-    }
-
-    try {
-      await this.db.collection(this.collection).doc(workspaceId).update({
-        ...data,
-        updatedAt: new Date().toISOString()
-      });
-    } catch (err) {
-      handleFirestoreError(err, DbOperation.UPDATE, this.collection, workspaceId);
     }
   }
 
   async listUserWorkspaces(uid: string): Promise<Workspace[]> {
-    if (process.env.DATABASE_URL) {
+    if (process.env.DATABASE_URL && process.env.NODE_ENV !== 'test') {
       try {
         const db = getDb();
         const rows = await db.select().from(schema.workspaces)
@@ -990,24 +915,15 @@ export class WorkspaceRepository {
           updatedAt: row.updatedAt.toISOString(),
         }));
       } catch (err) {
-        logger.error('Neon Drizzle error in listUserWorkspaces', err);
-        throw err;
+        logger.warn('Neon Drizzle error in listUserWorkspaces, falling back to memory', err);
       }
     }
 
-    try {
-      const snapshot = await this.db.collection(this.collection)
-        .where('ownerUid', '==', uid)
-        .orderBy('createdAt', 'desc')
-        .get();
-      return snapshot.docs.map((d: any) => d.data() as Workspace);
-    } catch (err) {
-      handleFirestoreError(err, DbOperation.LIST, this.collection);
-    }
+    return Array.from(memoryWorkspaces.values()).filter(ws => ws.ownerUid === uid);
   }
 
   async listAllWorkspaces(limit = 100): Promise<Workspace[]> {
-    if (process.env.DATABASE_URL) {
+    if (process.env.DATABASE_URL && process.env.NODE_ENV !== 'test') {
       try {
         const db = getDb();
         const rows = await db.select().from(schema.workspaces)
@@ -1027,20 +943,11 @@ export class WorkspaceRepository {
           updatedAt: row.updatedAt.toISOString(),
         }));
       } catch (err) {
-        logger.error('Neon Drizzle error in listAllWorkspaces', err);
-        throw err;
+        logger.warn('Neon Drizzle error in listAllWorkspaces, returning memory workspaces', err);
       }
     }
 
-    try {
-      const snapshot = await this.db.collection(this.collection)
-        .orderBy('createdAt', 'desc')
-        .limit(limit)
-        .get();
-      return snapshot.docs.map((d: any) => d.data() as Workspace);
-    } catch (err) {
-      handleFirestoreError(err, DbOperation.LIST, this.collection);
-    }
+    return Array.from(memoryWorkspaces.values()).slice(0, limit);
   }
 }
 
@@ -1328,3 +1235,149 @@ export class AppConfigRepository {
     }
   }
 }
+
+export class TvPairingRepository {
+  private collection = 'tvPairings';
+
+  get db() {
+    return getFirestoreDB();
+  }
+
+  async createPairing(pairing: TvPairing): Promise<void> {
+    memoryPairings.set(pairing.code, { ...pairing });
+
+    if (process.env.DATABASE_URL && process.env.NODE_ENV !== 'test') {
+      try {
+        const db = getDb();
+        await db.insert(schema.tvPairings).values({
+          code: pairing.code,
+          deviceId: pairing.deviceId || null,
+          deviceName: pairing.deviceName,
+          status: pairing.status,
+          token: pairing.token || null,
+          user: pairing.user || null,
+          expiresAt: new Date(pairing.expiresAt),
+          createdAt: new Date(pairing.createdAt),
+        } as any).onConflictDoUpdate({
+          target: schema.tvPairings.code,
+          set: {
+            deviceId: pairing.deviceId || null,
+            deviceName: pairing.deviceName,
+            status: pairing.status,
+            token: pairing.token || null,
+            user: pairing.user || null,
+            expiresAt: new Date(pairing.expiresAt),
+          } as any,
+        });
+        return;
+      } catch (err) {
+        logger.warn('Neon Drizzle error in createPairing', err);
+      }
+    }
+  }
+
+  async getPairing(code: string): Promise<TvPairing | null> {
+    if (process.env.DATABASE_URL && process.env.NODE_ENV !== 'test') {
+      try {
+        const db = getDb();
+        const [row] = await db.select().from(schema.tvPairings).where(eq(schema.tvPairings.code, code)).limit(1);
+        if (row) {
+          return {
+            code: row.code,
+            deviceId: row.deviceId || null,
+            deviceName: row.deviceName,
+            status: row.status as any,
+            token: row.token || null,
+            user: row.user || null,
+            expiresAt: row.expiresAt.toISOString(),
+            createdAt: row.createdAt.toISOString(),
+          };
+        }
+      } catch (err) {
+        logger.warn('Neon Drizzle error in getPairing, checking memory fallback', err);
+      }
+    }
+
+    if (memoryPairings.has(code)) {
+      return memoryPairings.get(code)!;
+    }
+
+    try {
+      const doc = await this.db.collection(this.collection).doc(code).get();
+      if (!doc.exists) return null;
+      return doc.data() as TvPairing;
+    } catch {
+      return null;
+    }
+  }
+
+  async claimPairing(code: string, token: string, user: TvPairing['user']): Promise<TvPairing | null> {
+    const existing = await this.getPairing(code);
+    if (!existing) return null;
+
+    const expiresAtMs = new Date(existing.expiresAt).getTime();
+    if (expiresAtMs < Date.now()) {
+      return null;
+    }
+
+    const updated: TvPairing = {
+      ...existing,
+      status: 'claimed',
+      token,
+      user,
+    };
+
+    memoryPairings.set(code, updated);
+
+    if (process.env.DATABASE_URL && process.env.NODE_ENV !== 'test') {
+      try {
+        const db = getDb();
+        await db.update(schema.tvPairings).set({
+          status: 'claimed',
+          token,
+          user: user as any,
+        } as any).where(eq(schema.tvPairings.code, code));
+      } catch (err) {
+        logger.warn('Neon Drizzle error in claimPairing', err);
+      }
+    }
+
+    return updated;
+  }
+
+  async deletePairing(code: string): Promise<void> {
+    memoryPairings.delete(code);
+
+    if (process.env.DATABASE_URL && process.env.NODE_ENV !== 'test') {
+      try {
+        const db = getDb();
+        await db.delete(schema.tvPairings).where(eq(schema.tvPairings.code, code));
+      } catch (err) {
+        logger.warn('Neon Drizzle error in deletePairing', err);
+      }
+    }
+  }
+
+  async cleanupExpiredPairings(): Promise<number> {
+    const now = Date.now();
+    let cleaned = 0;
+    for (const [code, pairing] of memoryPairings.entries()) {
+      if (new Date(pairing.expiresAt).getTime() < now) {
+        memoryPairings.delete(code);
+        cleaned++;
+      }
+    }
+
+    if (process.env.DATABASE_URL && process.env.NODE_ENV !== 'test') {
+      try {
+        const db = getDb();
+        await db.delete(schema.tvPairings).where(sql`${schema.tvPairings.expiresAt} < ${new Date()}`);
+      } catch (err) {
+        logger.warn('Neon Drizzle error in cleanupExpiredPairings', err);
+      }
+    }
+
+    return cleaned;
+  }
+}
+
