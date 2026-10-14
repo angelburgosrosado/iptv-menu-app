@@ -34,15 +34,7 @@ import RateLimitBanner from './RateLimitBanner';
 import { PlaylistSubscription } from '../types/iptv';
 import { PlaylistHealthModal, ChannelProbeStatus } from './PlaylistHealthModal';
 
-const QUICK_PRESETS = [
-  { name: 'US Pluto TV (FAST)', url: 'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_pluto.m3u', interval: 60 },
-  { name: 'US Samsung TV Plus (FAST)', url: 'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_samsung.m3u', interval: 60 },
-  { name: 'UK Pluto TV (FAST)', url: 'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/uk_pluto.m3u', interval: 60 },
-  { name: 'US Local & Regional', url: 'https://iptv-org.github.io/iptv/countries/us.m3u', interval: 60 },
-  { name: 'UK Local & Regional', url: 'https://iptv-org.github.io/iptv/countries/uk.m3u', interval: 60 },
-  { name: 'Latin America Regional', url: 'https://iptv-org.github.io/iptv/regions/latam.m3u', interval: 360 },
-  { name: 'US PBS & Educational (FAST)', url: 'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_pbs.m3u', interval: 60 },
-];
+const QUICK_PRESETS: { name: string; url: string; interval: number }[] = [];
 
 const formatLastSync = (isoString?: string) => {
   if (!isoString) return 'Never';
@@ -676,26 +668,28 @@ export default function DesktopM3uUpload() {
                   </button>
                 </div>
 
-                {/* Quick Presets */}
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Quick Presets</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {QUICK_PRESETS.map((p) => (
-                      <button
-                        key={p.name}
-                        type="button"
-                        onClick={() => {
-                          setNewSubName(p.name);
-                          setNewSubUrl(p.url);
-                          setNewSubInterval(p.interval);
-                        }}
-                        className="px-2.5 py-1 bg-white/5 hover:bg-cyan-500/20 hover:border-cyan-500/40 border border-white/10 rounded-lg text-[11px] text-zinc-300 hover:text-cyan-200 transition-all cursor-pointer font-medium"
-                      >
-                        {p.name}
-                      </button>
-                    ))}
+                {/* Quick Presets (Only rendered if configured) */}
+                {QUICK_PRESETS.length > 0 && (
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Quick Presets</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {QUICK_PRESETS.map((p) => (
+                        <button
+                          key={p.name}
+                          type="button"
+                          onClick={() => {
+                            setNewSubName(p.name);
+                            setNewSubUrl(p.url);
+                            setNewSubInterval(p.interval);
+                          }}
+                          className="px-2.5 py-1 bg-white/5 hover:bg-cyan-500/20 hover:border-cyan-500/40 border border-white/10 rounded-lg text-[11px] text-zinc-300 hover:text-cyan-200 transition-all cursor-pointer font-medium"
+                        >
+                          {p.name}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div>

@@ -106,14 +106,7 @@ export default function App() {
     }, 4000);
   };
 
-  // Global Sleep Timer ticker across all views and playback routes
-  const { sleepTimer, tickSleepTimer, activeSubscriptionId, channels, activateSubscription } = usePlayerStore();
-  
-  React.useEffect(() => {
-    if (activeSubscriptionId && channels.length <= 30) {
-      activateSubscription(activeSubscriptionId).catch(console.error);
-    }
-  }, []);
+  const { sleepTimer, tickSleepTimer, channels } = usePlayerStore();
 
   React.useEffect(() => {
     if (!sleepTimer.isActive) return;
@@ -195,7 +188,7 @@ export default function App() {
       case 'premium':
         return <DesktopPremium onTriggerAuth={() => setIsAuthModalOpen(true)} />;
       default:
-        return <DesktopChannels onSwitchToMultiScreen={() => setActiveMenu('multiscreen')} />;
+        return <DesktopChannels onSwitchToMultiScreen={() => setActiveMenu('multiscreen')} onNavigateTab={(tab) => setActiveMenu(tab)} />;
     }
   };
 

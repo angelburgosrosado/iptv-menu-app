@@ -72,56 +72,32 @@ export interface SavedXtreamAccount {
   macAddress?: string;
 }
 
-const DEFAULT_SAVED_ACCOUNTS: SavedXtreamAccount[] = [
-  {
-    id: 'melhata-primary',
-    serverUrl: MELHATA_XTREAM_CONFIG.serverUrl,
-    username: '2fc163abd9',
-    password: '8b1b9283c02f',
-    status: 'Active',
-    channelCount: 7399,
-    lastConnected: 'Today',
-    type: 'xtream'
-  },
-  {
-    id: 'melhata-backup',
-    serverUrl: 'http://line.melhata.org',
-    username: 'adc7b14f9b',
-    password: '8ed764a258b7',
-    status: 'Line 1',
-    channelCount: MELHATA_CHANNELS.length,
-    lastConnected: 'Saved',
-    type: 'xtream'
-  }
-];
+const DEFAULT_SAVED_ACCOUNTS: SavedXtreamAccount[] = [];
 
 const getSavedAccounts = (): SavedXtreamAccount[] => {
   try {
     const raw = localStorage.getItem('iptv_xtream_accounts');
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        if (!parsed.some(a => a.username === '2fc163abd9')) {
-          return [DEFAULT_SAVED_ACCOUNTS[0], ...parsed];
-        }
+      if (Array.isArray(parsed)) {
         return parsed;
       }
     }
   } catch {}
-  return DEFAULT_SAVED_ACCOUNTS;
+  return [];
 };
 
 export default function XtreamConnector() {
   const [protocolType, setProtocolType] = React.useState<'xtream' | 'stalker'>('xtream');
 
-  // Xtream inputs (Pre-filled with Melhata credentials)
-  const [serverUrl, setServerUrl] = React.useState(() => localStorage.getItem('iptv_xtream_server_url') || MELHATA_XTREAM_CONFIG.serverUrl);
-  const [username, setUsername] = React.useState(() => localStorage.getItem('iptv_xtream_username') || MELHATA_XTREAM_CONFIG.username);
-  const [password, setPassword] = React.useState(() => localStorage.getItem('iptv_xtream_password') || MELHATA_XTREAM_CONFIG.password);
+  // Xtream inputs (clean inputs, populated only when entered or saved by user)
+  const [serverUrl, setServerUrl] = React.useState(() => localStorage.getItem('iptv_xtream_server_url') || '');
+  const [username, setUsername] = React.useState(() => localStorage.getItem('iptv_xtream_username') || '');
+  const [password, setPassword] = React.useState(() => localStorage.getItem('iptv_xtream_password') || '');
 
   // Stalker inputs
-  const [stalkerPortalUrl, setStalkerPortalUrl] = React.useState(() => localStorage.getItem('iptv_stalker_portal_url') || 'http://portal.example.com/c/');
-  const [stalkerMac, setStalkerMac] = React.useState(() => localStorage.getItem('iptv_stalker_mac') || '00:1A:79:3B:4C:12');
+  const [stalkerPortalUrl, setStalkerPortalUrl] = React.useState(() => localStorage.getItem('iptv_stalker_portal_url') || '');
+  const [stalkerMac, setStalkerMac] = React.useState(() => localStorage.getItem('iptv_stalker_mac') || '');
   const [stalkerToken, setStalkerToken] = React.useState(() => localStorage.getItem('iptv_stalker_token') || '');
 
   const [savedAccounts, setSavedAccounts] = React.useState<SavedXtreamAccount[]>(getSavedAccounts);

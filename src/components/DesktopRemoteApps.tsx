@@ -47,8 +47,8 @@ const DEFAULT_INITIAL_APPS: RemoteApp[] = [
     name: 'IPTV Player Pro (Living Room)',
     slug: 'iptv-player-pro-living-room',
     theme: { primaryColor: '#3b82f6', accentColor: '#10b981' },
-    playlistUrl: 'https://iptv-org.github.io/iptv/countries/us.m3u',
-    epgUrl: 'https://iptv-org.github.io/epg/guides/us.epg.xml',
+    playlistUrl: '',
+    epgUrl: '',
     announcement: 'Welcome to IPTV.menu Dynamic OTA! Live stream updates are active.',
     version: 1,
     active: true,
@@ -140,7 +140,7 @@ export default function DesktopRemoteApps() {
     setIsEditing(false);
     setSelectedApp(null);
     setName('');
-    setPlaylistUrl('https://iptv-org.github.io/iptv/countries/us.m3u');
+    setPlaylistUrl('');
     setEpgUrl('');
     setPrimaryColor('#6366f1');
     setAccentColor('#10b981');

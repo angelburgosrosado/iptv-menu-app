@@ -85,31 +85,7 @@ const DEFAULT_TV_NAVIGATION: TvNavigationConfig = {
   debugOverlay: false,
 };
 
-// Pre-provided high-definition royalty-free & public IPTV streams fallback
-// Keeps the app fully operational instantly on first launch with CORS-friendly streams
-const FALLBACK_PLAYLIST = `#EXTM3U
-#EXTINF:-1 tvg-id="CBSNews" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/CBS_News_247_logo.svg/960px-CBS_News_247_logo.svg.png" group-title="News",CBS News 24/7 HD
-https://lineup.cbsivideo.com/playout/8877a7d5-b094-4ac8-bc72-75a5fed68e5b/index.m3u8
-
-#EXTINF:-1 tvg-id="AlJazeera" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/c/c1/Al_Jazeera_English_logo_2022.svg" group-title="News",Al Jazeera English HD
-https://live-hls-apps-aje-fa.getaj.net/AJE/01.m3u8
-
-#EXTINF:-1 tvg-id="DW" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/5/5b/Deutsche_Welle_logo_2012.svg" group-title="News",Deutsche Welle (DW) English HD
-https://dwamdstream102.akamaized.net/hls/live/2015525/dwstream102/index.m3u8
-
-#EXTINF:-1 tvg-id="France24" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/8/82/France_24_logo.svg" group-title="News",France 24 Live HD
-https://live.france24.com/hls/live/2037179-b/F24_FR_HI_HLS/master_5000.m3u8
-
-#EXTINF:-1 tvg-id="RedBull" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/c/c8/Red_Bull_Double_Bull_Logo.svg" group-title="Sports",Red Bull TV Live HD
-https://rbmn-live.akamaized.net/hls/live/590964/BoRB-AT/master.m3u8
-
-#EXTINF:-1 tvg-id="BigBuckBunny" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/c/c5/Big_buck_bunny_poster_big.jpg" group-title="Cinema",Big Buck Bunny (60fps HD Demo)
-https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8
-
-#EXTINF:-1 tvg-id="TearsOfSteel" tvg-logo="https://images.unsplash.com/photo-1478760329108-5c3ed9d495a0?w=120" group-title="Cinema",Tears of Steel (4K Cinema Test)
-https://test-streams.mux.dev/test_001/stream.m3u8`;
-
-const DEFAULT_PLAYLIST_URL = 'https://iptv-org.github.io/iptv/countries/us.m3u';
+const DEFAULT_PLAYLIST_URL = '';
 
 import { MELHATA_CHANNELS } from '../data/melhataChannels';
 
@@ -142,76 +118,20 @@ const writeJsonToStorage = (key: string, data: any): void => {
   storage.set(key, JSON.stringify(data));
 };
 
-const INITIAL_FALLBACK_CHANNELS = [...parseM3U(FALLBACK_PLAYLIST), ...MELHATA_CHANNELS];
-const INITIAL_GROUPS = Array.from(new Set(INITIAL_FALLBACK_CHANNELS.map((c) => c.group))).sort();
+const INITIAL_FALLBACK_CHANNELS: Channel[] = [];
+const INITIAL_GROUPS: string[] = [];
 
 const getApiUrl = (path: string): string => {
   if (typeof window !== 'undefined') return path;
   return `http://localhost:${process.env.PORT || 3001}${path}`;
 };
 
-const DEFAULT_SUBSCRIPTIONS: PlaylistSubscription[] = [
-  {
-    id: 'sub-fast-us-pluto',
-    name: 'US Pluto TV (FAST)',
-    url: 'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_pluto.m3u',
-    autoSync: true,
-    syncIntervalMinutes: 60,
-    lastSyncTime: new Date().toISOString(),
-    channelCount: 350,
-    status: 'synced',
-    colorTag: '#f59e0b' // Yellow/Orange for Pluto
-  },
-  {
-    id: 'sub-fast-us-samsung',
-    name: 'US Samsung TV Plus (FAST)',
-    url: 'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_samsung.m3u',
-    autoSync: true,
-    syncIntervalMinutes: 60,
-    lastSyncTime: new Date().toISOString(),
-    channelCount: 200,
-    status: 'synced',
-    colorTag: '#3b82f6' // Blue for Samsung
-  },
-  {
-    id: 'sub-default-us',
-    name: 'US Local & Regional',
-    url: 'https://iptv-org.github.io/iptv/countries/us.m3u',
-    autoSync: true,
-    syncIntervalMinutes: 60,
-    lastSyncTime: new Date().toISOString(),
-    channelCount: 9,
-    status: 'synced',
-    colorTag: '#06b6d4'
-  },
-  {
-    id: 'sub-latam-regional',
-    name: 'Latin America Regional',
-    url: 'https://iptv-org.github.io/iptv/regions/latam.m3u',
-    autoSync: false,
-    syncIntervalMinutes: 360,
-    lastSyncTime: new Date(Date.now() - 3600000 * 5).toISOString(),
-    channelCount: 14,
-    status: 'synced',
-    colorTag: '#10b981'
-  },
-  {
-    id: 'sub-public-news',
-    name: 'Global Public News & Educational',
-    url: 'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_pluto.m3u',
-    autoSync: true,
-    syncIntervalMinutes: 60,
-    lastSyncTime: new Date().toISOString(),
-    channelCount: 20,
-    status: 'synced',
-    colorTag: '#8b5cf6'
-  }
-];
+const DEFAULT_SUBSCRIPTIONS: PlaylistSubscription[] = [];
 
 export const usePlayerStore = create<AppState>((set, get) => ({
-  // Active state holders (pre-seeded with verified streams + Melhata Xtream channels)
-  channels: INITIAL_FALLBACK_CHANNELS,
-  groups: INITIAL_GROUPS,
+  // Clean empty state on first launch: content only loads when added by user
+  channels: [],
+  groups: [],
   favorites: readArrayFromStorage('favorites'),
   history: readArrayFromStorage('history'),
   dvrRecordings: readJsonFromStorage<DvrRecording[]>('iptv_dvr_recordings', []),
@@ -233,8 +153,8 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   },
 
   // M3U Feed Subscriptions & Auto-Sync Engine
-  subscriptions: readJsonFromStorage<PlaylistSubscription[]>('iptv_playlist_subscriptions', DEFAULT_SUBSCRIPTIONS),
-  activeSubscriptionId: storage.getString('iptv_active_subscription_id') || 'sub-fast-us-pluto',
+  subscriptions: readJsonFromStorage<PlaylistSubscription[]>('iptv_playlist_subscriptions', []),
+  activeSubscriptionId: storage.getString('iptv_active_subscription_id') || null,
   
   // Sleep Timer & Playback Automation Engine
   sleepTimer: DEFAULT_SLEEP_TIMER,
@@ -258,7 +178,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   matrixConfig: readJsonFromStorage<MultiScreenMatrixConfig>('iptv_matrix_config', DEFAULT_MATRIX_CONFIG),
 
   // Country & EPG Backbone enhancements
-  countrySections: buildCountrySections(INITIAL_FALLBACK_CHANNELS),
+  countrySections: [],
   selectedCountry: null,
   selectedRegion: null,
   selectedLanguage: null,
@@ -292,11 +212,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   setSearchTerm: (term: string) => set({ searchTerm: term }),
 
   loadMetadataBundle: async () => {
-    let currentChannels = get().channels;
-    if (!currentChannels || currentChannels.length === 0) {
-      await get().loadPlaylist();
-      currentChannels = get().channels;
-    }
+    const currentChannels = get().channels;
     if (!currentChannels || currentChannels.length === 0) return;
 
     try {
@@ -333,10 +249,8 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   },
 
   loadEpgBundle: async () => {
-    let currentChannels = get().channels;
-    if (!currentChannels || currentChannels.length === 0) {
-      currentChannels = parseM3U(FALLBACK_PLAYLIST);
-    }
+    const currentChannels = get().channels;
+    if (!currentChannels || currentChannels.length === 0) return;
 
     const channelKeys = Array.from(
       new Set(
@@ -418,6 +332,10 @@ export const usePlayerStore = create<AppState>((set, get) => ({
 
   loadPlaylist: async (customUrl?: string) => {
     const rawUrl = customUrl || get().playlistUrl;
+    if (!rawUrl) {
+      set({ isLoading: false, parseProgress: 0 });
+      return;
+    }
     // Auto-detect Xtream Codes URLs (e.g. player_api.php or get.php or base portal with credentials)
     // and map them directly to high-capacity streaming M3U Plus format to prevent JSON memory limit crashes
     const parsedXtream = parseXtreamUrl(rawUrl);
@@ -430,8 +348,6 @@ export const usePlayerStore = create<AppState>((set, get) => ({
       
       let m3uText = '';
       
-      // Let's use fetch, but support a robust proxy or fallback immediately to prearranged public streams
-      // when CORS issues occur in browser or URL fails
       try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout for large IPTV catalogs
@@ -455,9 +371,16 @@ export const usePlayerStore = create<AppState>((set, get) => ({
             throw new Error(`Proxy status ${proxyResp.status}`);
           }
         } catch (proxyErr: any) {
-          console.warn('Proxy relay also unreachable, using local fallback playlist.', proxyErr);
-          m3uText = FALLBACK_PLAYLIST;
-          set({ error: 'CORS or Network issue prevented fetching URL. Loaded 9 pre-vetted standby channels.' });
+          console.warn('Proxy relay also unreachable.', proxyErr);
+          set({ 
+            channels: [],
+            groups: [],
+            countrySections: [],
+            isLoading: false, 
+            parseProgress: 0, 
+            error: `Unable to fetch playlist from "${url}". Please verify the URL or check your network connection.` 
+          });
+          return;
         }
       }
 
@@ -474,16 +397,13 @@ export const usePlayerStore = create<AppState>((set, get) => ({
       });
 
       if (parsedChannels.length === 0) {
-        // If the custom parsing yielded nothing, parse fallback so the app isn't empty
-        const fallbackChannels = parseM3U(FALLBACK_PLAYLIST);
-        const uniqueGroups = Array.from(new Set(fallbackChannels.map((c) => c.group))).sort();
         set({
-          channels: fallbackChannels,
-          groups: uniqueGroups,
-          countrySections: buildCountrySections(fallbackChannels),
+          channels: [],
+          groups: [],
+          countrySections: [],
           isLoading: false,
           parseProgress: 100,
-          error: 'Returned playlist was empty or malformed. Loaded pre-vetted standby channels.',
+          error: 'Returned playlist was empty or contained no valid channel definitions.',
         });
         return;
       }
@@ -505,16 +425,13 @@ export const usePlayerStore = create<AppState>((set, get) => ({
 
     } catch (err: any) {
       console.error('IPTV Playlist loading failed:', err);
-      // Fallback
-      const fallbackChannels = parseM3U(FALLBACK_PLAYLIST);
-      const uniqueGroups = Array.from(new Set(fallbackChannels.map((c) => c.group))).sort();
       set({
-        channels: fallbackChannels,
-        groups: uniqueGroups,
-        countrySections: buildCountrySections(fallbackChannels),
+        channels: [],
+        groups: [],
+        countrySections: [],
         isLoading: false,
-        parseProgress: 100,
-        error: `Error loading playlist: ${err.message || err}. Loaded offline-friendly safety feeds.`,
+        parseProgress: 0,
+        error: `Error loading playlist: ${err.message || err}.`,
       });
     }
   },

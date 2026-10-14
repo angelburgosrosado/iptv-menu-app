@@ -176,48 +176,55 @@ export default function OnboardingModal({
             </div>
           )}
 
-          {/* Step 2: Upload or Select First Playlist */}
+          {/* Step 2: Content Source Selection */}
           {step === 2 && (
             <div className="flex flex-col gap-4">
               <div>
-                <h3 className="text-lg font-bold text-white">Select Your Initial Feed</h3>
+                <h3 className="text-lg font-bold text-white">Connect Your Content Source</h3>
                 <p className="text-xs text-zinc-400 mt-1">
-                  Start with a default public feed. Our engine is natively pre-configured with Pluto TV FAST channels, but you can load M3U or Xtream API endpoints later.
+                  IPTV.MENU is a standalone media player. Channels and streams are only loaded when added via your own Xtream Codes credentials or M3U playlist.
                 </p>
               </div>
 
               <div className="flex flex-col gap-2.5">
-                {[
-                  {
-                    name: "Pluto TV FAST Channels (Built-In)",
-                    url: "https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us_pluto.m3u",
-                    channels: "Star Trek, Top Gear, Hell's Kitchen, CSI, Classic Movies, News",
-                  },
-                  {
-                    name: "Global High-Definition Streams",
-                    url: "https://iptv-org.github.io/iptv/countries/us.m3u",
-                    channels: "NASA TV, France 24, Red Bull Sports, DW News",
-                  },
-                  {
-                    name: "European Unified Free Feeds",
-                    url: "https://iptv-org.github.io/iptv/regions/eur.m3u",
-                    channels: "European international channels and news networks",
-                  },
-                ].map((feed, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleSelectPresetAndContinue(feed.url)}
-                    className="p-3.5 rounded-2xl bg-white/[0.02] hover:bg-white/[0.06] border border-white/10 hover:border-cyan-500/40 text-left transition-all cursor-pointer flex items-center justify-between group"
-                  >
-                    <div>
-                      <h4 className="text-xs font-bold text-cyan-400 group-hover:text-cyan-300">
-                        {feed.name}
-                      </h4>
-                      <p className="text-[10px] text-zinc-400 mt-0.5">{feed.channels}</p>
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-zinc-500 group-hover:text-cyan-400 transition-colors" />
-                  </button>
-                ))}
+                <button
+                  onClick={() => onComplete()}
+                  className="p-3.5 rounded-2xl bg-white/[0.02] hover:bg-white/[0.06] border border-white/10 hover:border-cyan-500/40 text-left transition-all cursor-pointer flex items-center justify-between group"
+                >
+                  <div>
+                    <h4 className="text-xs font-bold text-cyan-400 group-hover:text-cyan-300 flex items-center gap-2">
+                      <span>Xtream Codes / Stalker Portal</span>
+                    </h4>
+                    <p className="text-[10px] text-zinc-400 mt-0.5">Connect with your portal server URL, username, and password.</p>
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-zinc-500 group-hover:text-cyan-400 transition-colors" />
+                </button>
+
+                <button
+                  onClick={() => onComplete()}
+                  className="p-3.5 rounded-2xl bg-white/[0.02] hover:bg-white/[0.06] border border-white/10 hover:border-cyan-500/40 text-left transition-all cursor-pointer flex items-center justify-between group"
+                >
+                  <div>
+                    <h4 className="text-xs font-bold text-cyan-400 group-hover:text-cyan-300 flex items-center gap-2">
+                      <span>Custom M3U / M3U8 Playlist</span>
+                    </h4>
+                    <p className="text-[10px] text-zinc-400 mt-0.5">Load an M3U8 URL or upload a local playlist file.</p>
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-zinc-500 group-hover:text-cyan-400 transition-colors" />
+                </button>
+
+                <button
+                  onClick={() => onComplete()}
+                  className="p-3.5 rounded-2xl bg-white/[0.02] hover:bg-white/[0.06] border border-white/10 hover:border-cyan-500/40 text-left transition-all cursor-pointer flex items-center justify-between group"
+                >
+                  <div>
+                    <h4 className="text-xs font-bold text-zinc-300 group-hover:text-white flex items-center gap-2">
+                      <span>Start with Empty Player</span>
+                    </h4>
+                    <p className="text-[10px] text-zinc-500 mt-0.5">Explore the player interface and configure your stream feeds later.</p>
+                  </div>
+                  <ArrowRight className="w-4 h-4 text-zinc-500 group-hover:text-cyan-400 transition-colors" />
+                </button>
               </div>
             </div>
           )}

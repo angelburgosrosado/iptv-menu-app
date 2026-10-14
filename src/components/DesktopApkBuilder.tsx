@@ -54,7 +54,7 @@ export default function DesktopApkBuilder() {
   
   // Stream Source
   const [m3uSourceType, setM3uSourceType] = React.useState<'url' | 'file'>('url');
-  const [m3uUrl, setM3uUrl] = React.useState<string>('https://iptv-org.github.io/iptv/countries/us.m3u');
+  const [m3uUrl, setM3uUrl] = React.useState<string>('');
   const [uploadedFileName, setUploadedFileName] = React.useState<string | null>(null);
   const [boundAppConfigId, setBoundAppConfigId] = React.useState<string>('');
 

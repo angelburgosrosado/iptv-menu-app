@@ -42,7 +42,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   isEpgLoading: false,
   parseProgress: 0,
   error: null,
-  playlistUrl: syncStorage.getString('playlistUrl', 'https://iptv-org.github.io/iptv/countries/us.m3u'),
+  playlistUrl: syncStorage.getString('playlistUrl', '') || '',
 
   // Xtream Codes Account Management
   xtreamAccount: syncStorage.getObject<XtreamAccount | null>('active_xtream_account', null),
@@ -308,7 +308,11 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   disconnectXtreamAccount: () => {
     syncStorage.delete('active_xtream_account');
     set({ xtreamAccount: null });
-    get().loadPlaylist();
+    if (get().playlistUrl) {
+      get().loadPlaylist();
+    } else {
+      set({ channels: [], groups: [], countrySections: [] });
+    }
   },
 
   removeSavedAccount: (serverUrl: string, username: string) => {
@@ -327,6 +331,10 @@ export const usePlayerStore = create<AppState>((set, get) => ({
 
     const run = async () => {
       const rawUrl = customUrl || get().playlistUrl;
+      if (!rawUrl) {
+        set({ isLoading: false, parseProgress: 0 });
+        return;
+      }
       const parsedXtream = parseXtreamUrl(rawUrl);
       const url = (parsedXtream.isXtream && parsedXtream.m3uUrl) ? parsedXtream.m3uUrl : rawUrl;
 
@@ -359,43 +367,13 @@ export const usePlayerStore = create<AppState>((set, get) => ({
           parseProgress: 100,
         });
       } catch (err: any) {
-        console.warn('Playlist fetch failed, loading default fallback list', err);
-        const fallbackChannels: Channel[] = [
-          {
-            id: 'fb-bloomberg',
-            name: 'Bloomberg TV Live',
-            logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/Bloomberg_News_logo.svg/320px-Bloomberg_News_logo.svg.png',
-            url: 'https://live-bloomberg-us.akamaized.net/hls/live/2042971/bloomberg_us/master.m3u8',
-            group: 'News',
-            tvgId: 'bloomberg.us',
-            isLive: true,
-          },
-          {
-            id: 'fb-redbull',
-            name: 'Red Bull TV',
-            logo: 'https://upload.wikimedia.org/wikipedia/en/thumb/f/f5/Red_Bull_TV_logo.svg/320px-Red_Bull_TV_logo.svg.png',
-            url: 'https://rbmn-live.akamaized.net/hls/live/590964/BoRB-AT/master.m3u8',
-            group: 'Sports',
-            tvgId: 'redbull.sports',
-            isLive: true,
-          },
-          {
-            id: 'fb-nasa',
-            name: 'NASA TV Live',
-            logo: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e5/NASA_logo.svg/320px-NASA_logo.svg.png',
-            url: 'https://ntv1.akamaized.net/hls/live/2014075/NASA-NTV1-HLS/master.m3u8',
-            group: 'Documentary',
-            tvgId: 'nasa.live',
-            isLive: true,
-          }
-        ];
-        const countrySections = buildCountrySections(fallbackChannels);
+        console.warn('Playlist fetch failed', err);
         set({
-          channels: fallbackChannels,
-          groups: ['Documentary', 'News', 'Sports'],
-          countrySections,
+          channels: [],
+          groups: [],
+          countrySections: [],
           isLoading: false,
-          error: null,
+          error: 'Unable to load playlist. Please verify the URL or network connection.',
         });
       } finally {
         activePlaylistPromise = null;
@@ -409,7 +387,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   syncRemoteConfig: async (customAppId?: string) => {
     const targetId = customAppId || get().appConfigId || process.env.EXPO_PUBLIC_APP_CONFIG_ID;
     if (!targetId) {
-      if (get().channels.length === 0) {
+      if (get().playlistUrl && get().channels.length === 0) {
         await get().loadPlaylist();
       }
       return;
