@@ -37,7 +37,7 @@ This document provides step-by-step instructions for deploying the **IPTV.menu**
 ### Connection String
 The application connects via the Neon pooled serverless connection:
 ```bash
-DATABASE_URL="postgresql://neondb_owner:npg_qu4rczZoHix9@ep-winter-poetry-ae51hoth-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+DATABASE_URL="postgresql://neondb_owner:[YOUR_NEON_PASSWORD]@ep-winter-poetry-ae51hoth-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
 ```
 
 > [!NOTE]
@@ -85,7 +85,7 @@ Under **Project Settings** > **Environment Variables**, add the following:
 
 | Variable | Recommended Value | Description |
 | :--- | :--- | :--- |
-| `DATABASE_URL` | `postgresql://neondb_owner:npg_qu4rczZoHix9@ep-winter-poetry-ae51hoth-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require` | Live Neon connection string |
+| `DATABASE_URL` | `postgresql://neondb_owner:[YOUR_NEON_PASSWORD]@ep-winter-poetry-ae51hoth-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require` | Live Neon connection string |
 | `NODE_ENV` | `production` | Production environment flag |
 | `APP_ENV` | `production` | App environment flag |
 | `BLOB_READ_WRITE_TOKEN` | *(Injected automatically by Vercel Blob)* | Access token for `@vercel/blob` |
@@ -113,7 +113,7 @@ The background worker daemon handles playlist stream probing, M3U deduplication,
    apps/worker/Dockerfile
    ```
 3. Set the Service Environment Variables:
-   - `DATABASE_URL`: `postgresql://neondb_owner:npg_qu4rczZoHix9@ep-winter-poetry-ae51hoth-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require`
+   - `DATABASE_URL`: `postgresql://neondb_owner:[YOUR_NEON_PASSWORD]@ep-winter-poetry-ae51hoth-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require`
    - `BLOB_READ_WRITE_TOKEN`: *(Copy your token from Vercel Storage settings)*
    - `EXPO_ACCESS_TOKEN`: *(Your Expo access token)*
    - `EXPO_PROJECT_ID`: `1437b933-39d1-42b3-bb8d-803a5f33909e`

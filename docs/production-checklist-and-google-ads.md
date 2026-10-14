@@ -36,7 +36,7 @@ This document is the master operational checklist for taking **IPTV.menu** live 
 - [ ] **Production Pooled Connection String:**
   - Ensure `DATABASE_URL` in Vercel and the Worker container uses the `-pooler` endpoint with PgBouncer:
     ```bash
-    DATABASE_URL="postgresql://neondb_owner:npg_qu4rczZoHix9@ep-winter-poetry-ae51hoth-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+    DATABASE_URL="postgresql://neondb_owner:[YOUR_NEON_PASSWORD]@ep-winter-poetry-ae51hoth-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
     ```
 - [ ] **Migrations & Table Verification:**
   - Verify all 7 tables exist and have appropriate primary keys and indexes:
