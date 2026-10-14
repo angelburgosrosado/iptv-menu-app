@@ -146,6 +146,18 @@ describe('IPTV Channel Enrichment Engine', () => {
 
   it('should initialize and support country filters, EPG sources, and bundles in usePlayerStore', async () => {
     const { usePlayerStore } = await import('../src/store/usePlayerStore');
+    usePlayerStore.setState({
+      channels: [
+        {
+          id: 'test-ch-1',
+          name: 'CNN USA',
+          url: 'https://example.com/cnn.m3u8',
+          group: 'News',
+          countryCode: 'US',
+          tvgId: 'cnn-us'
+        }
+      ]
+    });
     const store = usePlayerStore.getState();
     expect(store.countrySections).toBeDefined();
     expect(Array.isArray(store.countrySections)).toBe(true);

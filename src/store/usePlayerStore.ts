@@ -87,8 +87,6 @@ const DEFAULT_TV_NAVIGATION: TvNavigationConfig = {
 
 const DEFAULT_PLAYLIST_URL = '';
 
-import { MELHATA_CHANNELS } from '../data/melhataChannels';
-
 // Read persistent arrays from MMKV securely
 const readArrayFromStorage = (key: string): string[] => {
   const json = storage.getString(key);

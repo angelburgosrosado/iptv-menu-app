@@ -22,7 +22,7 @@ export default function MobileEpg() {
         method: 'POST',
         body: JSON.stringify({
           playlistId: activePlaylistId || undefined,
-          urls: ['https://iptv-org.github.io/epg/guides/us.xml'],
+          urls: [],
           refreshIntervalHours: 24,
         })
       });

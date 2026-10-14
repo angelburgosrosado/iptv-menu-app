@@ -303,9 +303,9 @@ export default function HomeScreen() {
   };
   // ------------------------------------
 
-  // Trigger playlist load on initial launch
+  // Trigger playlist load on initial launch only if user has configured a playlist URL
   React.useEffect(() => {
-    if (channels.length === 0) {
+    if (channels.length === 0 && playlistUrl) {
       loadPlaylist();
     }
   }, []);
@@ -420,14 +420,14 @@ export default function HomeScreen() {
             />
           </View>
           <View style={styles.settingsActionRow}>
-            <TouchableOpacity
-              onPress={() => {
-                setInputUrl('https://iptv-org.github.io/iptv/countries/us.m3u');
-              }}
-              style={styles.secondaryButton}
-            >
-              <Text style={styles.secondaryButtonText}>Set Public US List</Text>
-            </TouchableOpacity>
+            {inputUrl ? (
+              <TouchableOpacity
+                onPress={() => setInputUrl('')}
+                style={styles.secondaryButton}
+              >
+                <Text style={styles.secondaryButtonText}>Clear</Text>
+              </TouchableOpacity>
+            ) : null}
             
             <TouchableOpacity
               onPress={handleUpdatePlaylist}

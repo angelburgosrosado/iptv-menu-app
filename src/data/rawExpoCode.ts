@@ -204,7 +204,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   isLoading: false,
   parseProgress: 0,
   error: null,
-  playlistUrl: storage.getString('playlistUrl') || 'https://iptv-org.github.io/iptv/countries/us.m3u',
+  playlistUrl: storage.getString('playlistUrl') || '',
 
   setPlaylistUrl: (url: string) => {
     storage.set('playlistUrl', url);

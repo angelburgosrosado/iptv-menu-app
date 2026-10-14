@@ -34,7 +34,9 @@ import {
   Unlock,
   Film,
   Tv2,
-  Clapperboard
+  Clapperboard,
+  Radio,
+  Upload
 } from 'lucide-react';
 import { Channel } from '../types/iptv';
 import WebCinemaPlayer from './WebCinemaPlayer';
@@ -58,9 +60,10 @@ import {
 
 interface DesktopChannelsProps {
   onSwitchToMultiScreen?: () => void;
+  onNavigateTab?: (tab: string) => void;
 }
 
-export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChannelsProps) {
+export default function DesktopChannels({ onSwitchToMultiScreen, onNavigateTab }: DesktopChannelsProps) {
   const { 
     channels, 
     groups, 
@@ -864,8 +867,34 @@ export default function DesktopChannels({ onSwitchToMultiScreen }: DesktopChanne
         </div>
       )}
 
-      {/* SKELETON LOADER STATE - Only when empty, prevents flicker when channels are present */}
-      {isLoading && channels.length === 0 ? (
+      {/* ZERO CHANNELS CONNECTED STATE - Standalone Player Mode */}
+      {channels.length === 0 && !isLoading ? (
+        <div className="flex-1 min-h-[420px] flex flex-col items-center justify-center border border-dashed border-white/10 rounded-3xl bg-white/[0.01] p-8 text-center my-4">
+          <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 flex items-center justify-center text-cyan-400 mb-4 border border-cyan-500/20 shadow-lg shadow-cyan-500/10">
+            <Tv className="w-8 h-8" />
+          </div>
+          <h3 className="text-lg font-bold text-white tracking-tight">No Channels or Playlists Connected</h3>
+          <p className="text-xs text-zinc-400 max-w-md mt-2 leading-relaxed font-medium">
+            IPTV.MENU is an empty shell media player. Connect your Xtream Codes API account or add an M3U playlist URL to load your channels.
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-3 mt-6">
+            <button
+              onClick={() => onNavigateTab ? onNavigateTab('xtream') : null}
+              className="px-5 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-lg shadow-cyan-500/20 cursor-pointer active:scale-95"
+            >
+              <Radio className="w-4 h-4" />
+              <span>Connect Xtream Codes</span>
+            </button>
+            <button
+              onClick={() => onNavigateTab ? onNavigateTab('upload') : null}
+              className="px-5 py-2.5 bg-zinc-900 hover:bg-zinc-800 text-white border border-white/10 hover:border-white/20 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer active:scale-95"
+            >
+              <Upload className="w-4 h-4 text-cyan-400" />
+              <span>Add M3U Playlist</span>
+            </button>
+          </div>
+        </div>
+      ) : isLoading && channels.length === 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="p-4 rounded-2xl bg-[#16161a] border border-white/5 flex items-center justify-between">

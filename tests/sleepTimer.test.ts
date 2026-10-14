@@ -181,7 +181,12 @@ describe('Sleep Timer & Playback Automation Engine', () => {
 
   it('should execute expiration action and deactivate when countdown hits zero', () => {
     const store = usePlayerStore.getState();
-    const closePiPSpy = vi.spyOn(store, 'closePiP');
+    store.openPiP({
+      id: 'sleep-ch',
+      name: 'Sleep Test',
+      url: 'https://example.com/test.m3u8'
+    });
+    expect(usePlayerStore.getState().isPiPActive).toBe(true);
 
     store.setSleepTimer(1, { endAction: 'close' });
     usePlayerStore.setState({
@@ -196,8 +201,6 @@ describe('Sleep Timer & Playback Automation Engine', () => {
     const updated = usePlayerStore.getState().sleepTimer;
     expect(updated.isActive).toBe(false);
     expect(updated.remainingSeconds).toBe(0);
-    expect(closePiPSpy).toHaveBeenCalled();
-
-    closePiPSpy.mockRestore();
+    expect(usePlayerStore.getState().isPiPActive).toBe(false);
   });
 });

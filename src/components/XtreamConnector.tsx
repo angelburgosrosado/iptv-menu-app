@@ -58,8 +58,6 @@ import { buildCountrySections } from '../utils/channelEnrichment';
 import { PageProtocolHeader } from './PageProtocolHeader';
 import { Channel } from '../types/iptv';
 
-import { MELHATA_XTREAM_CONFIG, MELHATA_CHANNELS, createMelhataChannels } from '../data/melhataChannels';
-
 export interface SavedXtreamAccount {
   id: string;
   serverUrl: string;
@@ -272,8 +270,6 @@ export default function XtreamConnector() {
 
       if (streams.length > 0) {
         importedChannels = generateXtreamChannelList(account, streams, categories);
-      } else if (targetServerUrl.includes('melhata.org') || targetServerUrl.includes('dndnscloud.ru')) {
-        importedChannels = createMelhataChannels(targetUsername, targetPassword, targetServerUrl);
       } else {
         // High-capacity streaming fallback: Essential for large accounts (10k-80k channels) where JSON endpoints time out
         setConnectionStep('Ingesting high-capacity streaming M3U Plus lineup...');
@@ -298,12 +294,6 @@ export default function XtreamConnector() {
       } else {
         seriesCount = importedChannels.filter(c => c.streamType === 'series').length;
       }
-    } else if (targetServerUrl.includes('melhata.org') || targetServerUrl.includes('dndnscloud.ru')) {
-      // Direct stream manifest mapping fallback for Melhata gateway (bypasses CORS/proxy limits)
-      importedChannels = createMelhataChannels(targetUsername, targetPassword, targetServerUrl);
-      liveCount = importedChannels.filter(c => c.streamType === 'live' || !c.streamType).length;
-      vodCount = importedChannels.filter(c => c.streamType === 'vod').length;
-      seriesCount = importedChannels.filter(c => c.streamType === 'series').length;
     }
 
     if (importedChannels.length > 0) {

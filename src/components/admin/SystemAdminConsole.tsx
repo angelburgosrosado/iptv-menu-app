@@ -33,7 +33,6 @@ import {
 } from 'lucide-react';
 import { fetchWithAuth } from '../../lib/apiClient';
 import { PageProtocolHeader } from '../PageProtocolHeader';
-import { MELHATA_CHANNELS, MELHATA_XTREAM_CONFIG } from '../../data/melhataChannels';
 import { usePlayerStore } from '../../store/usePlayerStore';
 import { AdSenseConfig, AdSenseSlotConfig } from '../../types/iptv';
 import { useAdSenseStore } from '../../store/useAdSenseStore';
@@ -759,13 +758,19 @@ export default function SystemAdminConsole() {
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-bold text-white font-sans">{MELHATA_XTREAM_CONFIG.name}</h3>
-                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                      Gateway Connected
+                    <h3 className="text-sm font-bold text-white font-sans">
+                      {channels.length > 0 ? 'Active Stream Feeds' : 'No Streams Connected'}
+                    </h3>
+                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                      channels.length > 0
+                        ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                        : 'bg-zinc-500/10 text-zinc-400 border border-zinc-500/20'
+                    }`}>
+                      {channels.length > 0 ? 'Feeds Active' : 'Idle'}
                     </span>
                   </div>
                   <p className="text-xs text-neutral-400 font-mono mt-0.5">
-                    Host: <span className="text-cyan-300 font-semibold">{MELHATA_XTREAM_CONFIG.serverUrl}</span> • User: <span className="text-neutral-200">{MELHATA_XTREAM_CONFIG.username}</span>
+                    Mode: <span className="text-cyan-300 font-semibold">User-Supplied Xtream & M3U</span>
                   </p>
                 </div>
               </div>

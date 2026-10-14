@@ -62,7 +62,7 @@ describe('Picture-in-Picture (PiP) Floating Mini-Player Engine', () => {
     store.openPiP(sampleChannel);
     expect(usePlayerStore.getState().isPiPActive).toBe(true);
 
-    store.closePiP();
+    usePlayerStore.getState().closePiP();
 
     const afterClose = usePlayerStore.getState();
     expect(afterClose.isPiPActive).toBe(false);
