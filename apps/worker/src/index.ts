@@ -77,7 +77,7 @@ async function processPlaylistClean(playlistId: string, runId: string) {
     // Update database records
     await playlistRepo.updatePlaylist(playlistId, {
       cleanedFilePath: cleanedPath,
-      channelCount: uniqueChannels.length / 2,
+      channelCount: seenUrls.size,
       status: 'ready',
     });
 

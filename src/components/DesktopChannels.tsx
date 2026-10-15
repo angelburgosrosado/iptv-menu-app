@@ -36,7 +36,8 @@ import {
   Tv2,
   Clapperboard,
   Radio,
-  Upload
+  Upload,
+  Server
 } from 'lucide-react';
 import { Channel } from '../types/iptv';
 import WebCinemaPlayer from './WebCinemaPlayer';
@@ -59,11 +60,12 @@ import {
 } from '../utils/channelEnrichment';
 
 interface DesktopChannelsProps {
+  initialStreamType?: 'all' | 'live' | 'vod' | 'series';
   onSwitchToMultiScreen?: () => void;
   onNavigateTab?: (tab: string) => void;
 }
 
-export default function DesktopChannels({ onSwitchToMultiScreen, onNavigateTab }: DesktopChannelsProps) {
+export default function DesktopChannels({ initialStreamType, onSwitchToMultiScreen, onNavigateTab }: DesktopChannelsProps) {
   const { 
     channels, 
     groups, 
@@ -93,6 +95,12 @@ export default function DesktopChannels({ onSwitchToMultiScreen, onNavigateTab }
   const [searchQuery, setSearchQuery] = React.useState('');
   const [showSyntaxHelp, setShowSyntaxHelp] = React.useState(false);
   const [selectedGroup, setSelectedGroup] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (initialStreamType) {
+      setSelectedStreamType(initialStreamType);
+    }
+  }, [initialStreamType, setSelectedStreamType]);
   const [viewMode, setViewMode] = React.useState<'grid' | 'list' | 'country'>('grid');
   const [cinemaChannel, setCinemaChannel] = React.useState<Channel | null>(null);
 
@@ -282,15 +290,69 @@ export default function DesktopChannels({ onSwitchToMultiScreen, onNavigateTab }
     <div className="flex flex-col h-full gap-6">
       {/* Protocol & Specification Architecture Header */}
       <PageProtocolHeader
-        title="Live Channel Browser & Stream Simulator"
-        description="Real-time multi-resolution stream index and manifest catalog for live HLS feeds. Streams are parsed from M3U playlists, normalized with ISO-3166-1 regional tags, and dispatched to native players or low-latency Web Cinema playback."
-        protocol="RFC 8216 (HLS) & ISO-3166-1"
-        schema="Extended M3U & IPTV-Org Canonical v1.2"
-        rfcOrStandard="RFC 8216 §4.3.2 • ISO-3166-1 Alpha-2"
-        layer="Transport & Manifest Parsing Layer"
-        supportedTags={['#EXTM3U', '#EXTINF', 'tvg-id', 'tvg-name', 'tvg-country', 'group-title', 'tvg-logo', '60 FPS Web Player']}
-        icon={Tv}
-        badgeColor="cyan"
+        title={
+          selectedStreamType === 'vod'
+            ? 'VOD Movies & Feature Films Catalog'
+            : selectedStreamType === 'series'
+            ? 'TV Series, Seasons & Episodes Catalog'
+            : 'Live Channel Browser & Stream Simulator'
+        }
+        description={
+          selectedStreamType === 'vod'
+            ? 'Direct on-demand feature film catalog. Browse titles by genre, check IMDb/TMDB ratings, and stream directly in 4K/1080p Web Cinema mode.'
+            : selectedStreamType === 'series'
+            ? 'Multi-season television shows with episode-by-episode deep-linking. Inspect season lineups, episode descriptions, and stream directly.'
+            : 'Real-time multi-resolution stream index and manifest catalog for live HLS feeds. Streams are parsed from M3U playlists, normalized with ISO-3166-1 regional tags, and dispatched to native players or low-latency Web Cinema playback.'
+        }
+        protocol={
+          selectedStreamType === 'vod'
+            ? 'Xtream VOD API & MP4/MKV Stream Containers'
+            : selectedStreamType === 'series'
+            ? 'Xtream Series API & Episodic Manifests'
+            : 'RFC 8216 (HLS) & ISO-3166-1'
+        }
+        schema={
+          selectedStreamType === 'vod'
+            ? 'player_api.php get_vod_streams Schema'
+            : selectedStreamType === 'series'
+            ? 'player_api.php get_series & get_series_info'
+            : 'Extended M3U & IPTV-Org Canonical v1.2'
+        }
+        rfcOrStandard={
+          selectedStreamType === 'vod'
+            ? 'ISO/IEC 14496-14 • RFC 8216'
+            : selectedStreamType === 'series'
+            ? 'Matroska / MP4 Container RFC'
+            : 'RFC 8216 §4.3.2 • ISO-3166-1 Alpha-2'
+        }
+        layer={
+          selectedStreamType === 'vod'
+            ? 'On-Demand Feature Film Streaming Layer'
+            : selectedStreamType === 'series'
+            ? 'Episodic Television Streaming Layer'
+            : 'Transport & Manifest Parsing Layer'
+        }
+        supportedTags={
+          selectedStreamType === 'vod'
+            ? ['VOD Movies', 'IMDb Ratings', 'Poster Art', 'Direct MP4/MKV', 'Cinema Mode']
+            : selectedStreamType === 'series'
+            ? ['TV Series', 'Seasons & Episodes', 'Episodic Metadata', 'HD Streams']
+            : ['#EXTM3U', '#EXTINF', 'tvg-id', 'tvg-name', 'tvg-country', 'group-title', 'tvg-logo', '60 FPS Web Player']
+        }
+        icon={
+          selectedStreamType === 'vod'
+            ? Film
+            : selectedStreamType === 'series'
+            ? Clapperboard
+            : Tv
+        }
+        badgeColor={
+          selectedStreamType === 'vod'
+            ? 'cyan'
+            : selectedStreamType === 'series'
+            ? 'purple'
+            : 'cyan'
+        }
       >
         <div className="flex items-center gap-2 flex-wrap">
           {/* Sorting Dropdown */}
@@ -920,21 +982,51 @@ export default function DesktopChannels({ onSwitchToMultiScreen, onNavigateTab }
         /* DESIGNED EMPTY STATE */
         <div className="flex-1 min-h-[350px] flex flex-col items-center justify-center border border-dashed border-white/10 rounded-3xl bg-white/[0.01] p-8 text-center">
           <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 flex items-center justify-center text-cyan-400 mb-4 border border-cyan-500/20">
-            <Tv className="w-8 h-8" />
+            {selectedStreamType === 'vod' ? (
+              <Film className="w-8 h-8" />
+            ) : selectedStreamType === 'series' ? (
+              <Clapperboard className="w-8 h-8" />
+            ) : (
+              <Tv className="w-8 h-8" />
+            )}
           </div>
-          <h3 className="text-base font-bold text-white">No Channels Found</h3>
+          <h3 className="text-base font-bold text-white">
+            {channels.length === 0
+              ? 'No Channels or Playlist Connected'
+              : selectedStreamType === 'vod'
+              ? 'No VOD Movies Found'
+              : selectedStreamType === 'series'
+              ? 'No TV Series Found'
+              : 'No Channels Found'}
+          </h3>
           <p className="text-xs text-zinc-400 max-w-sm mt-1.5 leading-relaxed">
-            {searchQuery 
+            {channels.length === 0
+              ? 'Connect your Xtream Codes portal, upload an M3U playlist, or attach a remote URL to start streaming.'
+              : searchQuery
               ? `No channels matching "${searchQuery}" in ${selectedGroup || 'any category'}.`
+              : selectedStreamType !== 'all'
+              ? `No streams currently classified under ${selectedStreamType.toUpperCase()}. Try switching to "All Streams" or check your categories.`
               : 'No channels currently loaded in this view.'}
           </p>
-          <button
-            onClick={handleResetFilters}
-            className="mt-4 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-cyan-500/20 cursor-pointer"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            Reset All Filters
-          </button>
+          <div className="flex items-center gap-2 mt-4">
+            {channels.length === 0 ? (
+              <button
+                onClick={() => onNavigateTab ? onNavigateTab('xtream') : undefined}
+                className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-cyan-500/20 cursor-pointer"
+              >
+                <Server className="w-3.5 h-3.5" />
+                Connect Xtream / Stalker
+              </button>
+            ) : (
+              <button
+                onClick={handleResetFilters}
+                className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-cyan-500/20 cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Reset All Filters
+              </button>
+            )}
+          </div>
         </div>
       ) : viewMode === 'grid' ? (
         /* GRID VIEW */

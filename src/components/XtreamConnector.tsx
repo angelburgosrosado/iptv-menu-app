@@ -85,7 +85,11 @@ const getSavedAccounts = (): SavedXtreamAccount[] => {
   return [];
 };
 
-export default function XtreamConnector() {
+export interface XtreamConnectorProps {
+  onNavigateTab?: (tab: string) => void;
+}
+
+export default function XtreamConnector({ onNavigateTab }: XtreamConnectorProps = {}) {
   const [protocolType, setProtocolType] = React.useState<'xtream' | 'stalker'>('xtream');
 
   // Xtream inputs (clean inputs, populated only when entered or saved by user)
@@ -305,6 +309,10 @@ export default function XtreamConnector() {
           countrySections: buildCountrySections(merged)
         };
       });
+
+      // Save canonical M3U URL to player store so the playlist persists
+      const canonicalM3u = `${targetServerUrl.replace(/\/+$/, '')}/get.php?username=${encodeURIComponent(targetUsername)}&password=${encodeURIComponent(targetPassword)}&type=m3u_plus&output=m3u8`;
+      usePlayerStore.getState().setPlaylistUrl(canonicalM3u);
 
       const newAccountRecord: SavedXtreamAccount = {
         id: `account-${Date.now()}`,
@@ -562,7 +570,11 @@ export default function XtreamConnector() {
                   type="button"
                   onClick={() => {
                     usePlayerStore.getState().setSelectedStreamType('live');
-                    simRouter.push('/channels');
+                    if (onNavigateTab) {
+                      onNavigateTab('channels');
+                    } else {
+                      simRouter.push('/channels');
+                    }
                   }}
                   className="p-2.5 rounded-xl bg-black/40 border border-emerald-500/20 hover:border-emerald-400 hover:bg-emerald-500/20 transition-all text-left group cursor-pointer"
                 >
@@ -578,7 +590,11 @@ export default function XtreamConnector() {
                   type="button"
                   onClick={() => {
                     usePlayerStore.getState().setSelectedStreamType('vod');
-                    simRouter.push('/channels');
+                    if (onNavigateTab) {
+                      onNavigateTab('vod');
+                    } else {
+                      simRouter.push('/channels');
+                    }
                   }}
                   className="p-2.5 rounded-xl bg-black/40 border border-cyan-500/20 hover:border-cyan-400 hover:bg-cyan-500/20 transition-all text-left group cursor-pointer"
                 >
@@ -594,7 +610,11 @@ export default function XtreamConnector() {
                   type="button"
                   onClick={() => {
                     usePlayerStore.getState().setSelectedStreamType('series');
-                    simRouter.push('/channels');
+                    if (onNavigateTab) {
+                      onNavigateTab('series');
+                    } else {
+                      simRouter.push('/channels');
+                    }
                   }}
                   className="p-2.5 rounded-xl bg-black/40 border border-purple-500/20 hover:border-purple-400 hover:bg-purple-500/20 transition-all text-left group cursor-pointer"
                 >
@@ -657,9 +677,12 @@ export default function XtreamConnector() {
                         <span>EPG</span>
                       </button>
                       <button
-                        onClick={(e) => {
+                        onClick={async (e) => {
                           e.stopPropagation();
-                          handleConnect(undefined, account);
+                          await handleConnect(undefined, account);
+                          if (onNavigateTab) {
+                            onNavigateTab('channels');
+                          }
                         }}
                         className="px-2.5 py-1 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
                         title="Load channels into active guide"

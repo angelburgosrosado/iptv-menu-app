@@ -19,7 +19,9 @@ import {
   User,
   LogIn,
   LogOut,
-  Maximize2
+  Maximize2,
+  Film,
+  Clapperboard
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -106,7 +108,13 @@ export default function App() {
     }, 4000);
   };
 
-  const { sleepTimer, tickSleepTimer, channels } = usePlayerStore();
+  const { sleepTimer, tickSleepTimer, channels, hydrateSavedXtreamSession } = usePlayerStore();
+
+  React.useEffect(() => {
+    if (channels.length === 0 && hydrateSavedXtreamSession) {
+      hydrateSavedXtreamSession();
+    }
+  }, [channels.length, hydrateSavedXtreamSession]);
 
   React.useEffect(() => {
     if (!sleepTimer.isActive) return;
@@ -151,6 +159,8 @@ export default function App() {
   // Streamlined sidebar items for Watch TV mode
   const SIDEBAR_ITEMS = [
     { id: 'channels', label: 'Live Channels', icon: Tv },
+    { id: 'vod', label: 'VOD Movies', icon: Film },
+    { id: 'series', label: 'TV Series', icon: Clapperboard },
     { id: 'epg', label: 'EPG Program Guide', icon: CalendarRange },
     { id: 'multiscreen', label: 'Quad Multi-Screen', icon: LayoutGrid },
     { id: 'favorites', label: 'Favorites & History', icon: Heart },
@@ -161,7 +171,9 @@ export default function App() {
   ];
 
   const MOBILE_TAB_ITEMS = [
-    { id: 'channels', label: 'Channels', icon: Tv },
+    { id: 'channels', label: 'Live', icon: Tv },
+    { id: 'vod', label: 'VOD', icon: Film },
+    { id: 'series', label: 'Series', icon: Clapperboard },
     { id: 'multiscreen', label: 'Quad', icon: LayoutGrid },
     { id: 'epg', label: 'EPG', icon: CalendarRange },
     { id: 'favorites', label: 'Saved', icon: Heart },
@@ -172,7 +184,11 @@ export default function App() {
   const renderActiveSection = () => {
     switch (activeMenu) {
       case 'channels':
-        return <DesktopChannels onSwitchToMultiScreen={() => setActiveMenu('multiscreen')} />;
+        return <DesktopChannels initialStreamType="live" onSwitchToMultiScreen={() => setActiveMenu('multiscreen')} onNavigateTab={(tab) => setActiveMenu(tab)} />;
+      case 'vod':
+        return <DesktopChannels initialStreamType="vod" onSwitchToMultiScreen={() => setActiveMenu('multiscreen')} onNavigateTab={(tab) => setActiveMenu(tab)} />;
+      case 'series':
+        return <DesktopChannels initialStreamType="series" onSwitchToMultiScreen={() => setActiveMenu('multiscreen')} onNavigateTab={(tab) => setActiveMenu(tab)} />;
       case 'multiscreen':
         return <MultiScreenMatrix />;
       case 'favorites':
@@ -180,7 +196,7 @@ export default function App() {
       case 'epg':
         return <DesktopEpg />;
       case 'xtream':
-        return <XtreamConnector />;
+        return <XtreamConnector onNavigateTab={(tab) => setActiveMenu(tab)} />;
       case 'upload':
         return <DesktopM3uUpload />;
       case 'settings':

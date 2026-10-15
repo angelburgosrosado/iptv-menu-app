@@ -278,6 +278,7 @@ export interface AppState {
   setPlaylistUrl: (url: string) => void;
   setActivePlaylistId: (id: string | null) => void;
   loadPlaylist: (url?: string) => Promise<void>;
+  hydrateSavedXtreamSession: () => Promise<void>;
   setSelectedCountry: (code: string | null) => void;
   setSelectedRegion: (region: string | null) => void;
   setSelectedLanguage: (lang: string | null) => void;

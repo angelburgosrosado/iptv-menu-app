@@ -434,6 +434,25 @@ export const usePlayerStore = create<AppState>((set, get) => ({
     }
   },
 
+  hydrateSavedXtreamSession: async () => {
+    if (get().channels.length > 0) return;
+    try {
+      const raw = typeof window !== 'undefined' ? localStorage.getItem('iptv_xtream_accounts') : null;
+      if (!raw) return;
+      const accounts = JSON.parse(raw);
+      if (!Array.isArray(accounts) || accounts.length === 0) return;
+      const account = accounts[0];
+      if (account && account.serverUrl && account.username && account.password) {
+        set({ isLoading: true });
+        const canonicalM3u = `${account.serverUrl.replace(/\/+$/, '')}/get.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password)}&type=m3u_plus&output=m3u8`;
+        await get().loadPlaylist(canonicalM3u);
+      }
+    } catch (e) {
+      console.warn('Auto-hydrating Xtream account failed', e);
+      set({ isLoading: false });
+    }
+  },
+
   setCustomEpgOverride: (channelId: string, tvgId: string) => {
     const current = get().epgOverrides || {};
     const updated = { ...current, [channelId]: tvgId.trim() };
