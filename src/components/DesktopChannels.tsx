@@ -204,8 +204,6 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
   const handlePlayInSimulator = (channel: Channel) => {
     if (isSeriesChannel(channel)) {
       setSeriesDetailChannel(channel);
-    } else if (isVodMovieChannel(channel)) {
-      setVodDetailChannel(channel);
     } else {
       simRouter.push(`/player/${channel.id}`);
     }

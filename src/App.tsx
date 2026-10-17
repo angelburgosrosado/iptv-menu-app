@@ -40,6 +40,7 @@ import AuthModal from './components/AuthModal';
 import WorkspaceSwitcher from './components/WorkspaceSwitcher';
 import FloatingPiPPlayer from './components/FloatingPiPPlayer';
 import WebCinemaPlayer from './components/WebCinemaPlayer';
+import PhoneSimulatorModal from './components/PhoneSimulatorModal';
 import TvPairingModal from './components/TvPairingModal';
 
 const BuilderPage = React.lazy(() => import('./pages/BuilderPage'));
@@ -604,6 +605,14 @@ export default function App() {
             setGlobalCinemaChannel(null);
             setActiveMenu('multiscreen');
           }}
+        />
+      )}
+
+      {/* Global Interactive Mobile Phone Simulator Modal */}
+      {currentRoute !== 'builder' && (
+        <PhoneSimulatorModal
+          onNavigateToBuilder={() => navigate('/builder')}
+          onOpenCinema={(channel) => setGlobalCinemaChannel(channel)}
         />
       )}
 

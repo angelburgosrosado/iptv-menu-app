@@ -1,12 +1,14 @@
 import * as React from 'react';
 
 // A simple global emitter/state for simulation navigation inside the web environment
-type NavListener = (screen: string, params: Record<string, any>) => void;
+type NavListener = (screen: string, params: Record<string, any>, isModalOpen: boolean) => void;
+
 class SimRouter {
   private listeners: Set<NavListener> = new Set();
   private history: Array<{ screen: string; params: Record<string, any> }> = [
     { screen: 'index', params: {} },
   ];
+  private modalOpen: boolean = false;
 
   public currentScreen() {
     return this.history[this.history.length - 1]?.screen || 'index';
@@ -16,6 +18,29 @@ class SimRouter {
     return this.history[this.history.length - 1]?.params || {};
   }
 
+  public isModalOpen() {
+    return this.modalOpen;
+  }
+
+  public setModalOpen(open: boolean) {
+    this.modalOpen = open;
+    this.notify();
+  }
+
+  public openModal(path?: string, params: Record<string, any> = {}) {
+    this.modalOpen = true;
+    if (path) {
+      this.push(path, params);
+    } else {
+      this.notify();
+    }
+  }
+
+  public closeModal() {
+    this.modalOpen = false;
+    this.notify();
+  }
+
   public subscribe(listener: NavListener) {
     this.listeners.add(listener);
     return () => {
@@ -23,33 +48,44 @@ class SimRouter {
     };
   }
 
-  public push(path: string, params: Record<string, any> = {}) {
-    // Resolve path name like "/player/123" or "/"
-    let screenName = path;
-    let resolvedParams = { ...params };
-    
-    if (path.startsWith('/player/')) {
+  private parsePath(path: string, params: Record<string, any> = {}) {
+    const resolvedParams: Record<string, any> = { ...params };
+    let pathWithoutQuery = path;
+
+    if (path.includes('?')) {
+      const [base, queryStr] = path.split('?');
+      pathWithoutQuery = base;
+      if (queryStr) {
+        const searchParams = new URLSearchParams(queryStr);
+        searchParams.forEach((val, key) => {
+          resolvedParams[key] = val;
+        });
+      }
+    }
+
+    let screenName = pathWithoutQuery;
+    if (pathWithoutQuery.startsWith('/player/')) {
       screenName = 'player/[id]';
-      resolvedParams.id = path.split('/player/')[1];
-    } else if (path === '/' || path === '/index' || path === '') {
+      resolvedParams.id = pathWithoutQuery.slice('/player/'.length);
+    } else if (pathWithoutQuery === '/' || pathWithoutQuery === '/index' || pathWithoutQuery === '') {
       screenName = 'index';
     }
 
+    return { screenName, resolvedParams };
+  }
+
+  public push(path: string, params: Record<string, any> = {}) {
+    const { screenName, resolvedParams } = this.parsePath(path, params);
     this.history.push({ screen: screenName, params: resolvedParams });
+    // Automatically open simulator modal when navigating to a stream player
+    if (path.startsWith('/player/')) {
+      this.modalOpen = true;
+    }
     this.notify();
   }
 
   public replace(path: string, params: Record<string, any> = {}) {
-    let screenName = path;
-    let resolvedParams = { ...params };
-
-    if (path.startsWith('/player/')) {
-      screenName = 'player/[id]';
-      resolvedParams.id = path.split('/player/')[1];
-    } else if (path === '/' || path === '/index' || path === '') {
-      screenName = 'index';
-    }
-
+    const { screenName, resolvedParams } = this.parsePath(path, params);
     this.history[this.history.length - 1] = { screen: screenName, params: resolvedParams };
     this.notify();
   }
@@ -63,11 +99,29 @@ class SimRouter {
 
   private notify() {
     const current = this.history[this.history.length - 1];
-    this.listeners.forEach((listener) => listener(current.screen, current.params));
+    const screen = current?.screen || 'index';
+    const params = current?.params || {};
+    this.listeners.forEach((listener) => listener(screen, params, this.modalOpen));
   }
 }
 
 export const simRouter = new SimRouter();
+
+export const useSimulatorModal = () => {
+  const [isOpen, setIsOpen] = React.useState(simRouter.isModalOpen());
+
+  React.useEffect(() => {
+    return simRouter.subscribe((_screen, _params, modalOpen) => {
+      setIsOpen(modalOpen);
+    });
+  }, []);
+
+  return {
+    isOpen,
+    open: (path?: string, params?: Record<string, any>) => simRouter.openModal(path, params),
+    close: () => simRouter.closeModal(),
+  };
+};
 
 export const useRouter = () => {
   const [, setTick] = React.useState(0);
@@ -83,7 +137,7 @@ export const useRouter = () => {
   };
 };
 
-export const useLocalSearchParams = <T extends Record<string, string>>(): T => {
+export const useLocalSearchParams = <T extends Record<string, any>>(): T => {
   const [, setTick] = React.useState(0);
 
   React.useEffect(() => {
@@ -134,7 +188,8 @@ export const Stack = ({ children }: any) => {
   );
 };
 
-Stack.Screen = ({ children, options }: any) => {
+Stack.Screen = ({ children }: any) => {
   // Simulator metadata wrapper
   return <React.Fragment>{children}</React.Fragment>;
 };
+

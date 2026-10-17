@@ -14,15 +14,17 @@ export default function PlayerScreen() {
   const router = useRouter();
   
   // Extract dynamic route parameter
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, catchupUrl, catchupTitle } = useLocalSearchParams<{ id: string; catchupUrl?: string; catchupTitle?: string }>();
 
   // Fetch collections & actions from central store
-  const { channels, favorites, toggleFavorite, addToHistory } = usePlayerStore();
+  const { channels, vodChannels = [], seriesChannels = [], favorites, toggleFavorite, addToHistory } = usePlayerStore();
 
-  // Find channel structures based on parsed IDs
+  // Find channel structures based on parsed IDs (checking live channels, VOD movies, and series)
   const channel = React.useMemo(() => {
-    return channels.find((c) => c.id === id);
-  }, [channels, id]);
+    return channels.find((c) => c.id === id) ||
+           vodChannels.find((c) => c.id === id) ||
+           seriesChannels.find((c) => c.id === id);
+  }, [channels, vodChannels, seriesChannels, id]);
 
   const isFavorite = React.useMemo(() => {
     if (!id) return false;
@@ -63,13 +65,16 @@ export default function PlayerScreen() {
     );
   }
 
+  const effectiveStreamUrl = catchupUrl || channel.url;
+  const effectiveDisplayName = catchupTitle ? `${channel.name} • ${catchupTitle}` : channel.name;
+
   return (
     <SafeAreaView style={styles.safeContainer}>
       {/* Dynamic Video HUD Display */}
       <View style={styles.playerWrapper}>
         <VideoPlayer
-          streamUrl={channel.url}
-          channelName={channel.name}
+          streamUrl={effectiveStreamUrl}
+          channelName={effectiveDisplayName}
           onBackPress={handleBack}
         />
       </View>
@@ -78,10 +83,10 @@ export default function PlayerScreen() {
       <View style={styles.metaContainer}>
         <View style={styles.metaMain}>
           <Text style={styles.channelTitle} numberOfLines={2}>
-            {channel.name}
+            {effectiveDisplayName}
           </Text>
           <Text style={styles.groupBadge}>
-            {channel.group}
+            {catchupUrl ? 'CATCH-UP REPLAY' : channel.group}
           </Text>
         </View>
 

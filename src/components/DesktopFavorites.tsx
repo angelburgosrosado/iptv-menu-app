@@ -21,21 +21,25 @@ import { Channel } from '../types/iptv';
 import { PageProtocolHeader } from './PageProtocolHeader';
 
 export default function DesktopFavorites() {
-  const { channels, favorites, history, toggleFavorite, clearHistory } = usePlayerStore();
+  const { channels, vodChannels = [], seriesChannels = [], favorites, history, toggleFavorite, clearHistory } = usePlayerStore();
   const [activeTab, setActiveTab] = React.useState<'favorites' | 'history'>('favorites');
   const [showClearConfirm, setShowClearConfirm] = React.useState(false);
 
+  const allChannels = React.useMemo(() => {
+    return [...channels, ...vodChannels, ...seriesChannels];
+  }, [channels, vodChannels, seriesChannels]);
+
   // Find all actual channel structures for favorited channel IDs
   const favoriteChannels = React.useMemo(() => {
-    return channels.filter((c) => favorites.includes(c.id));
-  }, [channels, favorites]);
+    return allChannels.filter((c) => favorites.includes(c.id));
+  }, [allChannels, favorites]);
 
   // Find all actual channel structures for history channel IDs (ordered by most recent)
   const historyChannels = React.useMemo(() => {
     return history
-      .map((id) => channels.find((c) => c.id === id))
+      .map((id) => allChannels.find((c) => c.id === id))
       .filter((c): c is Channel => Boolean(c));
-  }, [channels, history]);
+  }, [allChannels, history]);
 
   const handlePlayInSimulator = (channel: Channel) => {
     simRouter.push(`/player/${channel.id}`);
