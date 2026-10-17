@@ -24,6 +24,7 @@ import {
   fetchXtreamSeries,
   generateXtreamSeriesChannelList
 } from '../utils/xtreamClient';
+import { buildStreamProxyUrl } from '../lib/apiClient';
 
 export const DEFAULT_MATRIX_CONFIG: MultiScreenMatrixConfig = {
   layout: 'quad',
@@ -399,7 +400,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
       } catch (e: any) {
         console.warn('Direct fetch failed or blocked by CORS. Attempting backend stream relay proxy...', e);
         try {
-          const proxyUrl = `/api/stream/proxy?url=${encodeURIComponent(url)}`;
+          const proxyUrl = buildStreamProxyUrl(url);
           const proxyResp = await fetch(proxyUrl, { signal: AbortSignal.timeout(60000) });
           if (proxyResp.ok) {
             m3uText = await proxyResp.text();

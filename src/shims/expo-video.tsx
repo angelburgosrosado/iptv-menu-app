@@ -5,6 +5,7 @@
 
 import * as React from 'react';
 import { resolvePlaybackUrlSourceKind } from '../utils/streamDispatcher';
+import { buildStreamProxyUrl } from '../lib/apiClient';
 
 export interface VideoSource {
   uri: string;
@@ -280,7 +281,7 @@ export const VideoView = ({ player, style, startsInFullscreen = false, ...props 
     const isHttpsPage = typeof window !== 'undefined' && window.location.protocol === 'https:';
     const isHttpStream = rawUri.startsWith('http://');
     const initialStreamUrl = (isHttpsPage && isHttpStream && !rawUri.includes('/api/stream/proxy'))
-      ? `/api/stream/proxy?url=${encodeURIComponent(rawUri)}`
+      ? buildStreamProxyUrl(rawUri)
       : rawUri;
 
     // Clean up previous instances
@@ -475,7 +476,7 @@ export const VideoView = ({ player, style, startsInFullscreen = false, ...props 
                     console.log('Direct HLS blocked or network error. Switching to backend stream proxy relay...');
                     hls.destroy();
                     activeHlsRef.current = null;
-                    const proxyUrl = `/api/stream/proxy?url=${encodeURIComponent(rawUri)}`;
+                    const proxyUrl = buildStreamProxyUrl(rawUri);
                     initHls(proxyUrl, true);
                     return;
                   }

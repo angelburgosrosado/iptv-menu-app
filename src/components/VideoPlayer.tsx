@@ -40,6 +40,7 @@ import {
   Search
 } from 'lucide-react';
 import { usePlayerStore } from '../store/usePlayerStore';
+import { buildStreamProxyUrl } from '../lib/apiClient';
 import { streamRecorder, formatBytes, formatDuration } from '../utils/streamRecorderEngine';
 import { DiagnosticsHUD } from './DiagnosticsHUD';
 import SleepTimerModal from './SleepTimerModal';
@@ -252,13 +253,8 @@ export function VideoPlayer({
   const activeEffectiveUrl = React.useMemo(() => {
     let finalUrl = baseStreamUrl;
     if (isUsingProxyRelay && !baseStreamUrl.includes('/api/stream/proxy')) {
-      finalUrl = `/api/stream/proxy?url=${encodeURIComponent(baseStreamUrl)}`;
-      if (activeSubscriptionId) {
-        const sub = subscriptions.find(s => s.id === activeSubscriptionId);
-        if (sub?.userAgent) {
-          finalUrl += `&ua=${encodeURIComponent(sub.userAgent)}`;
-        }
-      }
+      const sub = activeSubscriptionId ? subscriptions.find(s => s.id === activeSubscriptionId) : null;
+      finalUrl = buildStreamProxyUrl(baseStreamUrl, sub?.userAgent);
     }
     return finalUrl;
   }, [baseStreamUrl, isUsingProxyRelay, activeSubscriptionId, subscriptions]);
@@ -417,7 +413,7 @@ export function VideoPlayer({
 
     const targetRaw = streamCandidates[nextIndex];
     const targetUrl = useProxy && !targetRaw.includes('/api/stream/proxy')
-      ? `/api/stream/proxy?url=${encodeURIComponent(targetRaw)}`
+      ? buildStreamProxyUrl(targetRaw)
       : targetRaw;
 
     const decodedUrl = decodeURI(targetUrl);

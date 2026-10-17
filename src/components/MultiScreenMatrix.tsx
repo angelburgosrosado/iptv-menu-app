@@ -28,6 +28,7 @@ import { Channel, MatrixLayoutMode } from '../types/iptv';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { PageProtocolHeader } from './PageProtocolHeader';
 import { resolvePlaybackUrlSourceKind } from '../utils/streamDispatcher';
+import { buildStreamProxyUrl } from '../lib/apiClient';
 
 interface MatrixSlotVideoProps {
   channel: Channel;
@@ -77,7 +78,7 @@ function MatrixSlotVideo({ channel, isMuted, volume, slotIdx, onRetry }: MatrixS
     const isHttpsPage = typeof window !== 'undefined' && window.location.protocol === 'https:';
     const isHttp = rawUrl.startsWith('http://');
     const effectiveUrl = (isHttpsPage && isHttp && !rawUrl.includes('/api/stream/proxy'))
-      ? `/api/stream/proxy?url=${encodeURIComponent(rawUrl)}`
+      ? buildStreamProxyUrl(rawUrl)
       : rawUrl;
 
     const handlePlaying = () => setIsBuffering(false);
@@ -144,7 +145,7 @@ function MatrixSlotVideo({ channel, isMuted, volume, slotIdx, onRetry }: MatrixS
             if (!effectiveUrl.includes('/api/stream/proxy')) {
               hls.destroy();
               hlsRef.current = null;
-              const proxyUrl = `/api/stream/proxy?url=${encodeURIComponent(rawUrl)}`;
+              const proxyUrl = buildStreamProxyUrl(rawUrl);
               if (HlsClass.isSupported()) {
                 const fallbackHls = new HlsClass({ enableWorker: true, lowLatencyMode: true });
                 hlsRef.current = fallbackHls;

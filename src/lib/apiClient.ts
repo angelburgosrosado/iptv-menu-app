@@ -13,6 +13,17 @@ const getBaseUrl = () => {
   return cleanUrl.replace(/\/+$/, '');
 };
 
+export const getApiBaseUrl = getBaseUrl;
+
+export const buildStreamProxyUrl = (rawUrl: string, userAgent?: string): string => {
+  const base = getBaseUrl();
+  let proxyPath = `${base}/api/stream/proxy?url=${encodeURIComponent(rawUrl)}`;
+  if (userAgent) {
+    proxyPath += `&ua=${encodeURIComponent(userAgent)}`;
+  }
+  return proxyPath;
+};
+
 export const fetchWithAuth = async (endpoint: string, options: RequestInit = {}) => {
   const storedToken = authStore.getState().token;
   const token = storedToken || (auth.currentUser ? await auth.currentUser.getIdToken().catch(() => null) : null);
