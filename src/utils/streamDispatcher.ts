@@ -41,7 +41,21 @@ export function resolvePlaybackUrlSourceKind(url: string, isRadio = false): Play
   if (!url) return 'native';
   if (isRadio) return 'radio';
 
-  const clean = url.split('?')[0].toLowerCase().trim();
+  // If this is a proxied URL, extract the inner stream URL for accurate format inspection
+  let targetUrl = url;
+  try {
+    if (url.includes('/api/stream/proxy') || url.includes('/stream/proxy')) {
+      const parsed = new URL(url, 'http://localhost');
+      const inner = parsed.searchParams.get('url');
+      if (inner) {
+        targetUrl = inner;
+      }
+    }
+  } catch {
+    // fallback to original url if parsing fails
+  }
+
+  const clean = targetUrl.split('?')[0].toLowerCase().trim();
 
   // DASH Manifests
   if (clean.endsWith('.mpd')) {
@@ -63,8 +77,12 @@ export function resolvePlaybackUrlSourceKind(url: string, isRadio = false): Play
     return 'mpegts';
   }
 
-  // Common direct video files
-  if (/\.(mp4|mkv|webm|mov|avi|flv)$/i.test(clean)) {
+  // Common direct video files (MP4, MKV, WebM, MOV, AVI, FLV, M4V, etc.) or Xtream movie/series endpoints
+  if (
+    /\.(mp4|mkv|webm|mov|avi|flv|m4v|3gp|wmv)$/i.test(clean) ||
+    /\/movie\/[^/]+\/[^/]+\/\d+/i.test(clean) ||
+    /\/series\/[^/]+\/[^/]+\/\d+/i.test(clean)
+  ) {
     return 'native';
   }
 
@@ -74,7 +92,7 @@ export function resolvePlaybackUrlSourceKind(url: string, isRadio = false): Play
   }
 
   // If path doesn't have an extension, IPTV streams are typically MPEG-TS or HLS
-  // By default, route through HLS if /proxy or /hls is in path, else MPEG-TS
+  // By default, route through HLS if /hls/ or output=hls is in path, else MPEG-TS
   if (clean.includes('/hls/') || clean.includes('output=hls')) {
     return 'hls';
   }

@@ -352,7 +352,7 @@ export async function fetchXtreamVodStreams(account: XtreamAccount, categoryId?:
     url += `&category_id=${encodeURIComponent(categoryId)}`;
   }
   try {
-    const res = await guardedFetch(url, 15000, 20000);
+    const res = await guardedFetch(url, 60000, 90000, true);
     if (res.ok) {
       const data = await res.json().catch(() => null);
       if (Array.isArray(data)) {
@@ -409,7 +409,7 @@ export async function fetchXtreamSeries(account: XtreamAccount, categoryId?: str
     url += `&category_id=${encodeURIComponent(categoryId)}`;
   }
   try {
-    const res = await guardedFetch(url, 15000, 20000);
+    const res = await guardedFetch(url, 60000, 90000, true);
     if (res.ok) {
       const data = await res.json().catch(() => null);
       if (Array.isArray(data)) {
@@ -436,7 +436,7 @@ export async function fetchXtreamSeriesInfo(
   }
   const url = `${baseUrl}/player_api.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password)}&action=get_series_info&series_id=${encodeURIComponent(seriesId)}`;
   try {
-    const res = await guardedFetch(url, 15000, 20000);
+    const res = await guardedFetch(url, 25000, 35000, true);
     if (res.ok) {
       const data = await res.json().catch(() => null);
       if (data && (data.info || data.episodes || data.seasons)) {

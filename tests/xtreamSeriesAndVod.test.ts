@@ -11,6 +11,7 @@ import {
   generateXtreamChannelList,
   parseXtreamUrl
 } from '../src/utils/xtreamClient';
+import { resolvePlaybackUrlSourceKind } from '../src/utils/streamDispatcher';
 import { usePlayerStore } from '../src/store/usePlayerStore';
 import { XtreamAccount } from '../src/types/iptv';
 
@@ -251,4 +252,30 @@ describe('Xtream Codes: Live Feeds, VOD & Series Access Engine', () => {
       expect(parsed.password).toBe('');
     });
   });
+
+  describe('Stream Dispatcher VOD & Proxied URL Classification', () => {
+    it('should classify direct MP4/MKV VOD files as native video', () => {
+      expect(resolvePlaybackUrlSourceKind('http://iptv.server:8080/movie/user/pass/12345.mp4')).toBe('native');
+      expect(resolvePlaybackUrlSourceKind('http://iptv.server:8080/movie/user/pass/12345.mkv')).toBe('native');
+      expect(resolvePlaybackUrlSourceKind('http://iptv.server:8080/movie/user/pass/12345')).toBe('native');
+      expect(resolvePlaybackUrlSourceKind('http://iptv.server:8080/series/user/pass/9876.mp4')).toBe('native');
+    });
+
+    it('should unwrap proxied VOD URLs and classify as native instead of incorrectly defaulting to HLS', () => {
+      const proxiedVod = '/api/stream/proxy?url=' + encodeURIComponent('http://iptv.server:8080/movie/user/pass/54321.mp4');
+      expect(resolvePlaybackUrlSourceKind(proxiedVod)).toBe('native');
+
+      const proxiedSeries = '/api/stream/proxy?url=' + encodeURIComponent('http://iptv.server:8080/series/user/pass/8765.mkv');
+      expect(resolvePlaybackUrlSourceKind(proxiedSeries)).toBe('native');
+    });
+
+    it('should still correctly classify proxied HLS and MPEG-TS live feeds', () => {
+      const proxiedHls = '/api/stream/proxy?url=' + encodeURIComponent('http://iptv.server:8080/live/user/pass/101.m3u8');
+      expect(resolvePlaybackUrlSourceKind(proxiedHls)).toBe('hls');
+
+      const proxiedTs = '/api/stream/proxy?url=' + encodeURIComponent('http://iptv.server:8080/live/user/pass/101.ts');
+      expect(resolvePlaybackUrlSourceKind(proxiedTs)).toBe('mpegts');
+    });
+  });
 });
+

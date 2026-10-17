@@ -255,22 +255,18 @@ export default function XtreamConnector({ onNavigateTab }: XtreamConnectorProps 
     let seriesCount = 0;
 
     if (result.success) {
-      setConnectionStep('Cataloging Live Streams, VOD & Series Lineup...');
-      const [catRes, streamRes, vodCatRes, vodStreamRes, seriesCatRes, seriesRes] = await Promise.allSettled([
+      setConnectionStep('Cataloging Live Channels & Media Categories...');
+      const [catRes, streamRes, vodCatRes, seriesCatRes] = await Promise.allSettled([
         fetchXtreamCategories(account),
         fetchXtreamStreams(account),
         fetchXtreamVodCategories(account),
-        fetchXtreamVodStreams(account),
-        fetchXtreamSeriesCategories(account),
-        fetchXtreamSeries(account)
+        fetchXtreamSeriesCategories(account)
       ]);
 
       const categories = catRes.status === 'fulfilled' ? catRes.value : {};
       const streams = streamRes.status === 'fulfilled' ? streamRes.value : [];
       const vodCategories = vodCatRes.status === 'fulfilled' ? vodCatRes.value : {};
-      const vodStreams = vodStreamRes.status === 'fulfilled' ? vodStreamRes.value : [];
       const seriesCategories = seriesCatRes.status === 'fulfilled' ? seriesCatRes.value : {};
-      const seriesItems = seriesRes.status === 'fulfilled' ? seriesRes.value : [];
 
       if (streams.length > 0) {
         importedChannels = generateXtreamChannelList(account, streams, categories);
@@ -280,36 +276,24 @@ export default function XtreamConnector({ onNavigateTab }: XtreamConnectorProps 
         importedChannels = await fetchXtreamM3uChannels(account);
       }
       liveCount = streams.length || importedChannels.filter(c => c.streamType === 'live' || !c.streamType).length;
+      vodCount = Object.keys(vodCategories).length;
+      seriesCount = Object.keys(seriesCategories).length;
 
-      // Merge VOD items if available
-      if (vodStreams.length > 0) {
-        const vodChannels = generateXtreamVodChannelList(account, vodStreams, vodCategories);
-        importedChannels = [...importedChannels, ...vodChannels];
-        vodCount = vodChannels.length;
-      } else {
-        vodCount = importedChannels.filter(c => c.streamType === 'vod').length;
-      }
-
-      // Merge Series items if available
-      if (seriesItems.length > 0) {
-        const seriesChannels = generateXtreamSeriesChannelList(account, seriesItems, seriesCategories);
-        importedChannels = [...importedChannels, ...seriesChannels];
-        seriesCount = seriesChannels.length;
-      } else {
-        seriesCount = importedChannels.filter(c => c.streamType === 'series').length;
-      }
-    }
-
-    if (importedChannels.length > 0) {
       usePlayerStore.setState((state) => {
         const merged = [...importedChannels, ...state.channels.filter(c => !importedChannels.some(i => i.id === c.id))];
         return {
           channels: merged,
           groups: Array.from(new Set(merged.map(c => c.group))).sort(),
-          countrySections: buildCountrySections(merged)
+          countrySections: buildCountrySections(merged),
+          vodCategories,
+          seriesCategories,
+          vodChannels: [],
+          seriesChannels: []
         };
       });
+    }
 
+    if (importedChannels.length > 0) {
       // Save canonical M3U URL to player store so the playlist persists
       const canonicalM3u = `${targetServerUrl.replace(/\/+$/, '')}/get.php?username=${encodeURIComponent(targetUsername)}&password=${encodeURIComponent(targetPassword)}&type=m3u_plus&output=m3u8`;
       usePlayerStore.getState().setPlaylistUrl(canonicalM3u);

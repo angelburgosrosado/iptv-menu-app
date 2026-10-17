@@ -13,36 +13,26 @@ import {
   Tv, 
   Grid, 
   List, 
-  Maximize2, 
   Smartphone, 
-  Globe, 
-  Activity, 
-  CheckCircle2, 
-  AlertCircle, 
   RotateCcw,
-  Sparkles,
   LayoutGrid,
   Download,
   Tag,
   ArrowUpDown,
   PictureInPicture,
   SlidersHorizontal,
-  HelpCircle,
   X,
-  ShieldAlert,
   Lock,
   Unlock,
   Film,
-  Tv2,
   Clapperboard,
-  Radio,
-  Upload,
-  Server
+  Server,
+  RefreshCw,
+  MoreVertical
 } from 'lucide-react';
 import { Channel } from '../types/iptv';
 import WebCinemaPlayer from './WebCinemaPlayer';
 import CountryChannelSections from './CountryChannelSections';
-import { PageProtocolHeader } from './PageProtocolHeader';
 import { downloadM3UFile } from '../utils/m3uParser';
 import { ChannelTagModal } from './ChannelTagModal';
 import { ParentalPinModal } from './ParentalPinModal';
@@ -50,12 +40,7 @@ import { VODDetailModal } from './VODDetailModal';
 import { SeriesDetailModal } from './SeriesDetailModal';
 import { parseSearchQuery, matchChannelWithQuery, foldSearchText } from '../utils/searchQueryParser';
 import { 
-  getCountryFlag, 
   normalizeCategory, 
-  POPULAR_LANGUAGES, 
-  getLanguageName,
-  getSubdivisionsForCountry,
-  getSubdivisionName,
   getChannelAvatarDataUri
 } from '../utils/channelEnrichment';
 
@@ -71,75 +56,53 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
     groups, 
     favorites, 
     toggleFavorite, 
-    addToHistory,
-    selectedCountry,
-    setSelectedCountry,
-    selectedLanguage,
-    setSelectedLanguage,
-    selectedSubdivision,
-    setSelectedSubdivision,
-    selectedStreamType,
-    setSelectedStreamType,
-    customTags,
-    getAllUniqueCustomTags,
-    openPiP,
-    parentalControls,
-    isChannelLocked,
-    toggleChannelLock,
-    tvNavigation,
-    isLoading,
-    error,
-    matrixConfig,
-    setMatrixSlot
+    selectedStreamType, 
+    setSelectedStreamType, 
+    customTags, 
+    openPiP, 
+    parentalControls, 
+    isChannelLocked, 
+    toggleChannelLock, 
+    matrixConfig, 
+    setMatrixSlot,
+    vodChannels,
+    seriesChannels,
+    vodCategories,
+    seriesCategories,
+    isVodLoading,
+    isSeriesLoading,
+    loadXtreamVod,
+    loadXtreamSeries,
+    isLoading
   } = usePlayerStore();
+
   const [searchQuery, setSearchQuery] = React.useState('');
-  const [showSyntaxHelp, setShowSyntaxHelp] = React.useState(false);
   const [selectedGroup, setSelectedGroup] = React.useState<string | null>(null);
+  const [viewMode, setViewMode] = React.useState<'grid' | 'list' | 'country'>('grid');
+  const [sortMode, setSortMode] = React.useState<'default' | 'name-asc' | 'name-desc' | 'health'>('default');
+  const [displayLimit, setDisplayLimit] = React.useState(60);
+  const [openMenuChannelId, setOpenMenuChannelId] = React.useState<string | null>(null);
+
+  // Active Modals
+  const [cinemaChannel, setCinemaChannel] = React.useState<Channel | null>(null);
+  const [taggingChannel, setTaggingChannel] = React.useState<Channel | null>(null);
+  const [vodDetailChannel, setVodDetailChannel] = React.useState<Channel | null>(null);
+  const [seriesDetailChannel, setSeriesDetailChannel] = React.useState<Channel | null>(null);
+  const [showParentalModal, setShowParentalModal] = React.useState(false);
 
   React.useEffect(() => {
     if (initialStreamType) {
       setSelectedStreamType(initialStreamType);
     }
   }, [initialStreamType, setSelectedStreamType]);
-  const [viewMode, setViewMode] = React.useState<'grid' | 'list' | 'country'>('grid');
-  const [cinemaChannel, setCinemaChannel] = React.useState<Channel | null>(null);
 
-  const handleAddToMultiScreen = (c: Channel) => {
-    const emptyIdx = matrixConfig.slots.findIndex((s: Channel | null) => s === null);
-    const targetIdx = emptyIdx >= 0 ? emptyIdx : 0;
-    setMatrixSlot(targetIdx, c);
-    if (onSwitchToMultiScreen) {
-      onSwitchToMultiScreen();
-    }
-  };
-  const [sortMode, setSortMode] = React.useState<'default' | 'name-asc' | 'name-desc' | 'health' | 'country'>('default');
-  const [selectedCustomTag, setSelectedCustomTag] = React.useState<string | null>(null);
-  const [taggingChannel, setTaggingChannel] = React.useState<Channel | null>(null);
-  const [vodDetailChannel, setVodDetailChannel] = React.useState<Channel | null>(null);
-  const [seriesDetailChannel, setSeriesDetailChannel] = React.useState<Channel | null>(null);
-  const [showParentalModal, setShowParentalModal] = React.useState(false);
-
-  const parsedSearch = React.useMemo(() => parseSearchQuery(searchQuery), [searchQuery]);
-
-  const allCustomTags = React.useMemo(() => {
-    return getAllUniqueCustomTags();
-  }, [customTags, getAllUniqueCustomTags]);
-
-  // Derive standardized categories from loaded channels
-  const availableCategories = React.useMemo(() => {
-    const cats = new Set<string>();
-    for (const ch of channels) {
-      const norm = ch.category || normalizeCategory(ch.group);
-      if (norm) cats.add(norm);
-    }
-    return Array.from(cats).sort();
-  }, [channels]);
-
-  // Available subdivisions for the active country (if a country is selected or derived)
-  const activeCountryCode = selectedCountry || 'US';
-  const availableSubdivisions = React.useMemo(() => {
-    return getSubdivisionsForCountry(activeCountryCode).slice(0, 25);
-  }, [activeCountryCode]);
+  // Close context menu on outside click
+  React.useEffect(() => {
+    if (!openMenuChannelId) return;
+    const handleOutside = () => setOpenMenuChannelId(null);
+    window.addEventListener('click', handleOutside);
+    return () => window.removeEventListener('click', handleOutside);
+  }, [openMenuChannelId]);
 
   // Helpers to identify media types across providers
   const isSeriesChannel = React.useCallback((c: Channel) => {
@@ -155,43 +118,35 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
     return term.includes('movie') || term.includes('vod') || term.includes('film');
   }, [isSeriesChannel]);
 
-  // Live media tier breakdown counts
-  const liveCount = React.useMemo(() => {
-    return channels.filter((c) => c.streamType === 'live' || (!c.streamType && !isVodMovieChannel(c) && !isSeriesChannel(c))).length;
-  }, [channels, isVodMovieChannel, isSeriesChannel]);
+  // Segregated Active Catalog: Divided to avoid mixing tens of thousands of items into live TV
+  const activeCatalog = React.useMemo(() => {
+    if (selectedStreamType === 'vod') {
+      if (vodChannels && vodChannels.length > 0) return vodChannels;
+      return channels.filter(isVodMovieChannel);
+    }
+    if (selectedStreamType === 'series') {
+      if (seriesChannels && seriesChannels.length > 0) return seriesChannels;
+      return channels.filter(isSeriesChannel);
+    }
+    return channels.filter((c) => c.streamType === 'live' || (!c.streamType && !isVodMovieChannel(c) && !isSeriesChannel(c)));
+  }, [selectedStreamType, channels, vodChannels, seriesChannels, isVodMovieChannel, isSeriesChannel]);
 
-  const vodCount = React.useMemo(() => {
-    return channels.filter((c) => isVodMovieChannel(c)).length;
-  }, [channels, isVodMovieChannel]);
+  // Available Categories derived cleanly from active catalog only
+  const availableCategories = React.useMemo(() => {
+    const cats = new Set<string>();
+    for (const ch of activeCatalog) {
+      const norm = ch.category || normalizeCategory(ch.group);
+      if (norm) cats.add(norm);
+    }
+    return Array.from(cats).sort();
+  }, [activeCatalog]);
 
-  const seriesCount = React.useMemo(() => {
-    return channels.filter((c) => isSeriesChannel(c)).length;
-  }, [channels, isSeriesChannel]);
+  const parsedSearch = React.useMemo(() => parseSearchQuery(searchQuery), [searchQuery]);
 
-  // Filter & sort channels based on streamType, group/category, language, subdivision, custom tags, and sortMode
+  // Filter & sort channels based on active catalog
   const filteredChannels = React.useMemo(() => {
-    let list = channels;
+    let list = activeCatalog;
 
-    // 1. Filter by Stream Type (Live vs VOD vs Series)
-    if (selectedStreamType === 'live') {
-      list = list.filter((c) => c.streamType === 'live' || (!c.streamType && !isVodMovieChannel(c) && !isSeriesChannel(c)));
-    } else if (selectedStreamType === 'vod') {
-      list = list.filter((c) => isVodMovieChannel(c));
-    } else if (selectedStreamType === 'series') {
-      list = list.filter((c) => isSeriesChannel(c));
-    }
-
-    if (selectedCountry) {
-      list = list.filter((c) => (c.countryCode || '').toUpperCase() === selectedCountry.toUpperCase());
-    }
-    if (selectedSubdivision) {
-      const subTarget = foldSearchText(selectedSubdivision);
-      list = list.filter((c) => {
-        const cSub = foldSearchText(c.subdivision || '');
-        const cName = foldSearchText(c.name);
-        return cSub === subTarget || cName.includes(subTarget);
-      });
-    }
     if (selectedGroup) {
       const groupTarget = foldSearchText(selectedGroup);
       list = list.filter((c) => {
@@ -199,21 +154,7 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
         return foldSearchText(c.group) === groupTarget || cat === groupTarget;
       });
     }
-    if (selectedLanguage && selectedLanguage !== 'ALL') {
-      const target = foldSearchText(selectedLanguage);
-      list = list.filter((c) => {
-        const lang = foldSearchText(c.language || '');
-        const langName = foldSearchText(c.languageName || '');
-        return lang === target || lang.startsWith(target) || target.startsWith(lang) || langName.includes(target);
-      });
-    }
-    if (selectedCustomTag) {
-      const targetTag = foldSearchText(selectedCustomTag);
-      list = list.filter((c) => {
-        const tags = customTags[c.id] || [];
-        return tags.some((t) => foldSearchText(t) === targetTag);
-      });
-    }
+
     if (searchQuery.trim()) {
       list = list.filter((c) => matchChannelWithQuery(c, parsedSearch, customTags[c.id] || []));
     }
@@ -230,8 +171,6 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
         const pb = b.healthStatus ? statusPriority[b.healthStatus] ?? 1 : 1;
         return pa - pb;
       });
-    } else if (sortMode === 'country') {
-      list = [...list].sort((a, b) => (a.countryCode || 'ZZ').localeCompare(b.countryCode || 'ZZ'));
     }
 
     // Parental Controls: Conceal locked channels if setting is enabled and session is locked
@@ -240,22 +179,25 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
     }
 
     return list;
-  }, [
-    channels, 
-    selectedStreamType, 
-    selectedCountry, 
-    selectedSubdivision, 
-    selectedGroup, 
-    selectedLanguage, 
-    selectedCustomTag, 
-    searchQuery, 
-    sortMode, 
-    customTags, 
-    parentalControls, 
-    isChannelLocked, 
-    isVodMovieChannel, 
-    isSeriesChannel
-  ]);
+  }, [activeCatalog, selectedGroup, searchQuery, sortMode, customTags, parentalControls, isChannelLocked, parsedSearch]);
+
+  // Reset display limit when query or filter options change
+  React.useEffect(() => {
+    setDisplayLimit(60);
+  }, [selectedStreamType, selectedGroup, searchQuery, sortMode]);
+
+  const visibleChannels = React.useMemo(() => {
+    return filteredChannels.slice(0, displayLimit);
+  }, [filteredChannels, displayLimit]);
+
+  const handleAddToMultiScreen = (c: Channel) => {
+    const emptyIdx = matrixConfig.slots.findIndex((s: Channel | null) => s === null);
+    const targetIdx = emptyIdx >= 0 ? emptyIdx : 0;
+    setMatrixSlot(targetIdx, c);
+    if (onSwitchToMultiScreen) {
+      onSwitchToMultiScreen();
+    }
+  };
 
   const handlePlayInSimulator = (channel: Channel) => {
     if (isSeriesChannel(channel)) {
@@ -280,110 +222,78 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
   const handleResetFilters = () => {
     setSearchQuery('');
     setSelectedGroup(null);
-    setSelectedLanguage(null);
-    setSelectedCustomTag(null);
-    setSelectedStreamType('all');
     setSortMode('default');
   };
 
   return (
-    <div className="flex flex-col h-full gap-6">
-      {/* Protocol & Specification Architecture Header */}
-      <PageProtocolHeader
-        title={
-          selectedStreamType === 'vod'
-            ? 'VOD Movies & Feature Films Catalog'
-            : selectedStreamType === 'series'
-            ? 'TV Series, Seasons & Episodes Catalog'
-            : 'Live Channel Browser & Stream Simulator'
-        }
-        description={
-          selectedStreamType === 'vod'
-            ? 'Direct on-demand feature film catalog. Browse titles by genre, check IMDb/TMDB ratings, and stream directly in 4K/1080p Web Cinema mode.'
-            : selectedStreamType === 'series'
-            ? 'Multi-season television shows with episode-by-episode deep-linking. Inspect season lineups, episode descriptions, and stream directly.'
-            : 'Real-time multi-resolution stream index and manifest catalog for live HLS feeds. Streams are parsed from M3U playlists, normalized with ISO-3166-1 regional tags, and dispatched to native players or low-latency Web Cinema playback.'
-        }
-        protocol={
-          selectedStreamType === 'vod'
-            ? 'Xtream VOD API & MP4/MKV Stream Containers'
-            : selectedStreamType === 'series'
-            ? 'Xtream Series API & Episodic Manifests'
-            : 'RFC 8216 (HLS) & ISO-3166-1'
-        }
-        schema={
-          selectedStreamType === 'vod'
-            ? 'player_api.php get_vod_streams Schema'
-            : selectedStreamType === 'series'
-            ? 'player_api.php get_series & get_series_info'
-            : 'Extended M3U & IPTV-Org Canonical v1.2'
-        }
-        rfcOrStandard={
-          selectedStreamType === 'vod'
-            ? 'ISO/IEC 14496-14 • RFC 8216'
-            : selectedStreamType === 'series'
-            ? 'Matroska / MP4 Container RFC'
-            : 'RFC 8216 §4.3.2 • ISO-3166-1 Alpha-2'
-        }
-        layer={
-          selectedStreamType === 'vod'
-            ? 'On-Demand Feature Film Streaming Layer'
-            : selectedStreamType === 'series'
-            ? 'Episodic Television Streaming Layer'
-            : 'Transport & Manifest Parsing Layer'
-        }
-        supportedTags={
-          selectedStreamType === 'vod'
-            ? ['VOD Movies', 'IMDb Ratings', 'Poster Art', 'Direct MP4/MKV', 'Cinema Mode']
-            : selectedStreamType === 'series'
-            ? ['TV Series', 'Seasons & Episodes', 'Episodic Metadata', 'HD Streams']
-            : ['#EXTM3U', '#EXTINF', 'tvg-id', 'tvg-name', 'tvg-country', 'group-title', 'tvg-logo', '60 FPS Web Player']
-        }
-        icon={
-          selectedStreamType === 'vod'
-            ? Film
-            : selectedStreamType === 'series'
-            ? Clapperboard
-            : Tv
-        }
-        badgeColor={
-          selectedStreamType === 'vod'
-            ? 'cyan'
-            : selectedStreamType === 'series'
-            ? 'purple'
-            : 'cyan'
-        }
-      >
+    <div className="flex flex-col h-full gap-5">
+      {/* 1. Sleek, Uncluttered Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-white/5">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
+            {selectedStreamType === 'vod' ? (
+              <Film className="w-6 h-6 text-cyan-400" />
+            ) : selectedStreamType === 'series' ? (
+              <Clapperboard className="w-6 h-6 text-purple-400" />
+            ) : (
+              <Tv className="w-6 h-6 text-cyan-400" />
+            )}
+            <span>
+              {selectedStreamType === 'vod'
+                ? 'Movies & VOD'
+                : selectedStreamType === 'series'
+                ? 'TV Series'
+                : 'Live Channels'}
+            </span>
+          </h1>
+          <p className="text-xs text-zinc-400 mt-0.5">
+            {visibleChannels.length < filteredChannels.length
+              ? `Showing ${visibleChannels.length} of ${filteredChannels.length} ${selectedStreamType === 'vod' ? 'movies' : selectedStreamType === 'series' ? 'series' : 'channels'}`
+              : `${filteredChannels.length} ${selectedStreamType === 'vod' ? 'movies' : selectedStreamType === 'series' ? 'series' : 'channels'} available`}
+          </p>
+        </div>
+
+        {/* Quick Search, Sort & View Controls */}
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Sorting Dropdown */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs text-zinc-300">
-            <ArrowUpDown className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
+          {/* Quick Search Input */}
+          <div className="relative min-w-[200px] sm:min-w-[260px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder={`Search ${selectedStreamType === 'vod' ? 'movies' : selectedStreamType === 'series' ? 'series' : 'channels'}...`}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-8 py-1.5 bg-[#16161a] hover:bg-[#1c1c21] focus:bg-black border border-white/10 focus:border-cyan-500/50 rounded-xl text-xs text-white outline-none placeholder-zinc-500 transition-all font-sans"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Sort Dropdown */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#16161a] border border-white/10 text-xs text-zinc-300">
+            <ArrowUpDown className="w-3.5 h-3.5 text-cyan-400" />
             <select
               value={sortMode}
               onChange={(e) => setSortMode(e.target.value as any)}
               className="bg-transparent text-xs text-white outline-none cursor-pointer font-sans"
-              aria-label="Sort channels"
+              aria-label="Sort Order"
             >
-              <option value="default" className="bg-zinc-900 text-white">Default Order</option>
+              <option value="default" className="bg-zinc-900 text-white">Default</option>
               <option value="name-asc" className="bg-zinc-900 text-white">Name (A → Z)</option>
               <option value="name-desc" className="bg-zinc-900 text-white">Name (Z → A)</option>
-              <option value="health" className="bg-zinc-900 text-white">Health (Online First)</option>
-              <option value="country" className="bg-zinc-900 text-white">Country Code (A → Z)</option>
+              <option value="health" className="bg-zinc-900 text-white">Online First</option>
             </select>
           </div>
 
-          {onSwitchToMultiScreen && (
-            <button
-              onClick={onSwitchToMultiScreen}
-              className="px-3 py-1.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/20 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
-              aria-label="Switch to Quad Multi-Screen View"
-            >
-              <LayoutGrid className="w-3.5 h-3.5" />
-              <span>Quad View</span>
-            </button>
-          )}
-
-          <div className="flex items-center bg-white/5 border border-white/10 rounded-xl p-1">
+          {/* View Toggle */}
+          <div className="flex items-center bg-[#16161a] border border-white/10 rounded-xl p-1">
             <button
               onClick={() => setViewMode('grid')}
               className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
@@ -392,7 +302,7 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
               title="Grid View"
               aria-label="Grid View"
             >
-              <Grid className="w-4 h-4" />
+              <Grid className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => setViewMode('list')}
@@ -402,396 +312,46 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
               title="List View"
               aria-label="List View"
             >
-              <List className="w-4 h-4" />
+              <List className="w-3.5 h-3.5" />
             </button>
+          </div>
+
+          {/* MultiScreen shortcut for live TV */}
+          {onSwitchToMultiScreen && selectedStreamType === 'live' && (
             <button
-              onClick={() => setViewMode('country')}
-              className={`p-1.5 rounded-lg transition-colors flex items-center gap-1 text-xs font-semibold cursor-pointer ${
-                viewMode === 'country' ? 'bg-cyan-600 text-white shadow-md' : 'text-zinc-400 hover:text-white'
-              }`}
-              title="Country Sections View"
-              aria-label="Country Sections View"
+              onClick={onSwitchToMultiScreen}
+              className="px-3 py-1.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/20 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+              title="Quad Multi-Screen View"
             >
-              <Globe className="w-4 h-4" />
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Quad</span>
             </button>
-          </div>
-        </div>
-      </PageProtocolHeader>
+          )}
 
-      {/* Stream Health & Metrics Summary Ribbon */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="p-3 rounded-2xl bg-[#16161a] border border-white/5 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-cyan-500/10 flex items-center justify-center text-cyan-400">
-            <Tv className="w-4 h-4" />
-          </div>
-          <div>
-            <span className="text-[10px] text-zinc-400 uppercase font-bold block">Total Channels</span>
-            <span className="text-sm font-black text-white">{channels.length}</span>
-          </div>
-        </div>
-
-        <div className="p-3 rounded-2xl bg-[#16161a] border border-white/5 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400">
-            <CheckCircle2 className="w-4 h-4" />
-          </div>
-          <div>
-            <span className="text-[10px] text-zinc-400 uppercase font-bold block">Live Streams</span>
-            <span className="text-sm font-black text-emerald-400">{channels.length} Online</span>
-          </div>
-        </div>
-
-        <div className="p-3 rounded-2xl bg-[#16161a] border border-white/5 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-400">
-            <Heart className="w-4 h-4" />
-          </div>
-          <div>
-            <span className="text-[10px] text-zinc-400 uppercase font-bold block">Favorites</span>
-            <span className="text-sm font-black text-purple-400">{favorites.length} Saved</span>
-          </div>
-        </div>
-
-        <div className="p-3 rounded-2xl bg-[#16161a] border border-white/5 flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400">
-            <Activity className="w-4 h-4" />
-          </div>
-          <div>
-            <span className="text-[10px] text-zinc-400 uppercase font-bold block">Categories</span>
-            <span className="text-sm font-black text-blue-400">{groups.length} Groups</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Media Tiers Navigation Bar (Live Feeds • VOD Movies • TV Series) */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-2 bg-[#16161a] border border-white/5 rounded-2xl">
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
-          <button
-            onClick={() => setSelectedStreamType('all')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-              selectedStreamType === 'all'
-                ? 'bg-white text-black shadow-md shadow-white/10'
-                : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            <Globe className="w-3.5 h-3.5" />
-            <span>All Streams</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded-md ${selectedStreamType === 'all' ? 'bg-black/20 text-black font-black' : 'bg-white/10 text-zinc-300'}`}>
-              {channels.length}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setSelectedStreamType('live')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-              selectedStreamType === 'live'
-                ? 'bg-emerald-500 text-white shadow-md shadow-emerald-500/20'
-                : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-emerald-500/10'
-            }`}
-          >
-            <Tv2 className="w-3.5 h-3.5" />
-            <span>Live Feeds</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded-md ${selectedStreamType === 'live' ? 'bg-black/20 text-white font-black' : 'bg-emerald-500/20 text-emerald-300'}`}>
-              {liveCount}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setSelectedStreamType('vod')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-              selectedStreamType === 'vod'
-                ? 'bg-cyan-600 text-white shadow-md shadow-cyan-500/20'
-                : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-cyan-500/10'
-            }`}
-          >
-            <Film className="w-3.5 h-3.5" />
-            <span>VOD Movies</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded-md ${selectedStreamType === 'vod' ? 'bg-black/20 text-white font-black' : 'bg-cyan-500/20 text-cyan-300'}`}>
-              {vodCount}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setSelectedStreamType('series')}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-              selectedStreamType === 'series'
-                ? 'bg-purple-600 text-white shadow-md shadow-purple-500/20'
-                : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-purple-500/10'
-            }`}
-          >
-            <Clapperboard className="w-3.5 h-3.5" />
-            <span>TV Series</span>
-            <span className={`text-[10px] px-1.5 py-0.2 rounded-md ${selectedStreamType === 'series' ? 'bg-black/20 text-white font-black' : 'bg-purple-500/20 text-purple-300'}`}>
-              {seriesCount}
-            </span>
-          </button>
-        </div>
-
-        <div className="flex items-center gap-2 text-[11px] text-zinc-400 px-2 font-mono">
-          <span className="hidden sm:inline">Active Tier:</span>
-          <span className="text-white font-bold uppercase">{selectedStreamType}</span>
-        </div>
-      </div>
-
-      {/* Directory Search & Filter Subbar */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-zinc-400">
-            Showing <strong className="text-white">{filteredChannels.length}</strong> streams across{' '}
-            <strong className="text-white">{groups.length}</strong> categories
-          </span>
+          {/* Export M3U Button */}
           <button
             onClick={() => downloadM3UFile(filteredChannels, `iptv-curated-${filteredChannels.length}.m3u`)}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-[11px] font-semibold text-zinc-300 hover:text-white border border-white/10 transition-all cursor-pointer"
-            title="Download currently filtered channels as standard M3U playlist file"
-            aria-label="Export M3U Playlist"
+            className="p-1.5 rounded-xl bg-[#16161a] hover:bg-white/10 text-zinc-400 hover:text-white border border-white/10 transition-all cursor-pointer"
+            title="Export M3U Playlist"
+            aria-label="Export M3U"
           >
             <Download className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Export M3U</span>
           </button>
-
-          <button
-            onClick={() => setShowParentalModal(true)}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer ${
-              parentalControls.isEnabled
-                ? parentalControls.isSessionUnlocked
-                  ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/30'
-                  : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                : 'bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border-white/10'
-            }`}
-            title="Parental Controls & Content Security PIN"
-            aria-label="Parental Controls"
-          >
-            {parentalControls.isEnabled ? (
-              parentalControls.isSessionUnlocked ? (
-                <Unlock className="w-3.5 h-3.5 text-amber-400" />
-              ) : (
-                <Lock className="w-3.5 h-3.5 text-emerald-400" />
-              )
-            ) : (
-              <ShieldAlert className="w-3.5 h-3.5 text-zinc-400" />
-            )}
-            <span>
-              {parentalControls.isEnabled
-                ? parentalControls.isSessionUnlocked
-                  ? 'Parental (Unlocked)'
-                  : 'Parental (Locked)'
-                : 'Parental PIN'}
-            </span>
-          </button>
-        </div>
-
-        <div className="flex flex-col gap-2 w-full md:w-96 relative">
-          <div className="relative w-full">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Search or syntax (e.g. country:us quality:hd tag:sports)..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-16 py-2 bg-[#16161a] hover:bg-[#1c1c21] focus:bg-black border border-white/10 focus:border-cyan-500/50 rounded-xl text-xs text-white outline-none placeholder-zinc-500 transition-all font-sans shadow-inner"
-              aria-label="Advanced search query"
-            />
-            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="p-1 rounded-md text-zinc-500 hover:text-white hover:bg-white/10 transition-colors"
-                  title="Clear search"
-                  aria-label="Clear search"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => setShowSyntaxHelp((prev) => !prev)}
-                className={`p-1 rounded-md border transition-all ${
-                  showSyntaxHelp
-                    ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
-                    : 'text-zinc-400 hover:text-white border-transparent hover:bg-white/10'
-                }`}
-                title="Syntax Filter Guide (country:, lang:, quality:, tag:)"
-                aria-label="Toggle search syntax guide"
-              >
-                <SlidersHorizontal className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-
-          {/* Syntax Help Guide Popover */}
-          {showSyntaxHelp && (
-            <div className="absolute top-full right-0 mt-2 w-80 sm:w-96 bg-zinc-950/95 backdrop-blur-xl border border-white/15 rounded-2xl p-3.5 shadow-2xl z-30 flex flex-col gap-2.5 text-left text-xs animate-in fade-in duration-150">
-              <div className="flex items-center justify-between border-b border-white/10 pb-2">
-                <div className="flex items-center gap-1.5 text-cyan-400 font-bold">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Advanced Search Syntax</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowSyntaxHelp(false)}
-                  className="text-zinc-500 hover:text-white p-0.5 rounded"
-                >
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-
-              <div className="flex flex-col gap-1.5 text-[11px] font-mono text-zinc-300">
-                <div className="flex items-center justify-between">
-                  <code className="text-cyan-300 bg-cyan-500/10 px-1.5 py-0.5 rounded">country:us</code>
-                  <span className="text-zinc-400 font-sans text-[10px]">Filter by ISO country code</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <code className="text-cyan-300 bg-cyan-500/10 px-1.5 py-0.5 rounded">lang:en</code>
-                  <span className="text-zinc-400 font-sans text-[10px]">Filter by broadcast language</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <code className="text-cyan-300 bg-cyan-500/10 px-1.5 py-0.5 rounded">quality:4k / quality:hd</code>
-                  <span className="text-zinc-400 font-sans text-[10px]">Filter stream resolution</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <code className="text-cyan-300 bg-cyan-500/10 px-1.5 py-0.5 rounded">tag:sports</code>
-                  <span className="text-zinc-400 font-sans text-[10px]">Filter by custom user tag</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <code className="text-cyan-300 bg-cyan-500/10 px-1.5 py-0.5 rounded">group:news</code>
-                  <span className="text-zinc-400 font-sans text-[10px]">Category or channel group</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <code className="text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded">-status:blocked</code>
-                  <span className="text-zinc-400 font-sans text-[10px]">Exclude flagged/blocked</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <code className="text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded">-country:ru</code>
-                  <span className="text-zinc-400 font-sans text-[10px]">Exclude country code</span>
-                </div>
-              </div>
-
-              {/* Quick Preset Injectors */}
-              <div className="border-t border-white/10 pt-2 flex flex-col gap-1">
-                <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">Quick Filters</span>
-                <div className="flex flex-wrap gap-1.5">
-                  {[
-                    { label: '4K Streams', query: 'quality:4k' },
-                    { label: 'US HD', query: 'country:us quality:hd' },
-                    { label: 'English News', query: 'lang:en group:news' },
-                    { label: 'Verified Only', query: '-status:blocked' },
-                  ].map((preset) => (
-                    <button
-                      key={preset.label}
-                      type="button"
-                      onClick={() => {
-                        setSearchQuery((prev) => (prev ? `${prev.trim()} ${preset.query}` : preset.query));
-                      }}
-                      className="px-2 py-0.5 rounded bg-white/5 hover:bg-cyan-500/20 text-zinc-300 hover:text-cyan-300 border border-white/10 text-[10px] font-semibold transition-colors"
-                    >
-                      + {preset.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Active Filter Badges */}
-          {parsedSearch.hasFilters && (
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {parsedSearch.countries.map((c) => (
-                <span key={c} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-cyan-500/15 border border-cyan-500/30 text-[10px] font-bold text-cyan-300">
-                  Country: {c}
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery((prev) => prev.replace(new RegExp(`\\b(country|cc):${c}\\b`, 'gi'), '').trim())}
-                    className="hover:text-white"
-                  >
-                    <X className="w-2.5 h-2.5" />
-                  </button>
-                </span>
-              ))}
-              {parsedSearch.languages.map((l) => (
-                <span key={l} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-500/15 border border-blue-500/30 text-[10px] font-bold text-blue-300">
-                  Lang: {l}
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery((prev) => prev.replace(new RegExp(`\\b(lang|language):${l}\\b`, 'gi'), '').trim())}
-                    className="hover:text-white"
-                  >
-                    <X className="w-2.5 h-2.5" />
-                  </button>
-                </span>
-              ))}
-              {parsedSearch.qualities.map((q) => (
-                <span key={q} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-500/15 border border-purple-500/30 text-[10px] font-bold text-purple-300">
-                  Quality: {q.toUpperCase()}
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery((prev) => prev.replace(new RegExp(`\\b(quality|res|resolution):${q}\\b`, 'gi'), '').trim())}
-                    className="hover:text-white"
-                  >
-                    <X className="w-2.5 h-2.5" />
-                  </button>
-                </span>
-              ))}
-              {parsedSearch.tags.map((t) => (
-                <span key={t} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/30 text-[10px] font-bold text-amber-300">
-                  Tag: #{t}
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery((prev) => prev.replace(new RegExp(`\\btag:${t}\\b`, 'gi'), '').trim())}
-                    className="hover:text-white"
-                  >
-                    <X className="w-2.5 h-2.5" />
-                  </button>
-                </span>
-              ))}
-              {parsedSearch.groups.map((g) => (
-                <span key={g} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/15 border border-emerald-500/30 text-[10px] font-bold text-emerald-300">
-                  Group: {g}
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery((prev) => prev.replace(new RegExp(`\\b(group|cat|category):${g}\\b`, 'gi'), '').trim())}
-                    className="hover:text-white"
-                  >
-                    <X className="w-2.5 h-2.5" />
-                  </button>
-                </span>
-              ))}
-              {parsedSearch.negatedCountries.map((nc) => (
-                <span key={nc} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-500/15 border border-rose-500/30 text-[10px] font-bold text-rose-300">
-                  Exclude: {nc}
-                  <button
-                    type="button"
-                    onClick={() => setSearchQuery((prev) => prev.replace(new RegExp(`-(country|cc):${nc}\\b`, 'gi'), '').trim())}
-                    className="hover:text-white"
-                  >
-                    <X className="w-2.5 h-2.5" />
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
         </div>
       </div>
 
-      {/* Group & Genre Quick Filter Bar */}
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest px-1">
-            Filter by Genre & Category
-          </span>
-          <span className="text-[10px] text-zinc-500 font-mono">
-            IPTV-Org Standardized Taxonomy
-          </span>
-        </div>
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-white/10">
+      {/* 2. Single Category / Genre Horizontal Pill Bar */}
+      {availableCategories.length > 0 && (
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-white/10 no-scrollbar">
           <button
             onClick={() => setSelectedGroup(null)}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all border cursor-pointer ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all border cursor-pointer ${
               !selectedGroup
                 ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-sm'
                 : 'bg-white/5 text-zinc-400 border-transparent hover:bg-white/10 hover:text-zinc-200'
             }`}
           >
-            All Genres ({channels.length})
+            All ({activeCatalog.length})
           </button>
           {availableCategories.map((g) => {
             const isActive = selectedGroup === g;
@@ -810,166 +370,97 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
             );
           })}
         </div>
-      </div>
-
-      {/* Language Quick Filter Bar */}
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest px-1">
-            Filter by Broadcast Language
-          </span>
-          <span className="text-[10px] text-zinc-500 font-mono">
-            ISO-639 Multilingual Engine
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-white/10">
-          {POPULAR_LANGUAGES.map((lang) => {
-            const isSelected = (!selectedLanguage && lang.code === 'ALL') || selectedLanguage === lang.code;
-            return (
-              <button
-                key={lang.code}
-                onClick={() => setSelectedLanguage(lang.code === 'ALL' ? null : lang.code)}
-                className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border cursor-pointer ${
-                  isSelected
-                    ? 'bg-cyan-600 text-white border-cyan-500 shadow-sm'
-                    : 'bg-white/5 text-zinc-400 border-transparent hover:bg-white/10 hover:text-zinc-200'
-                }`}
-              >
-                <span className="text-xs">{lang.icon}</span>
-                <span>{lang.name}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Regional Subdivisions / States Filter Bar */}
-      {availableSubdivisions.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest px-1">
-              Filter by Region / State ({activeCountryCode})
-            </span>
-            <span className="text-[10px] text-zinc-500 font-mono">
-              ISO-3166-2 Subdivisions
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-white/10">
-            <button
-              onClick={() => setSelectedSubdivision(null)}
-              className={`px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border cursor-pointer ${
-                !selectedSubdivision
-                  ? 'bg-purple-600 text-white border-purple-500 shadow-sm'
-                  : 'bg-white/5 text-zinc-400 border-transparent hover:bg-white/10 hover:text-zinc-200'
-              }`}
-            >
-              All Regions
-            </button>
-            {availableSubdivisions.map((sub) => {
-              const isSelected = selectedSubdivision === sub.name || selectedSubdivision === sub.code;
-              return (
-                <button
-                  key={sub.code}
-                  onClick={() => setSelectedSubdivision(isSelected ? null : sub.name)}
-                  className={`px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border cursor-pointer ${
-                    isSelected
-                      ? 'bg-purple-600 text-white border-purple-500 shadow-sm'
-                      : 'bg-white/5 text-zinc-400 border-transparent hover:bg-white/10 hover:text-zinc-200'
-                  }`}
-                  title={`${sub.code}: ${sub.name}`}
-                >
-                  <span>{sub.name}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
       )}
 
-      {/* Custom User Tags Filter Bar */}
-      {allCustomTags.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest px-1 flex items-center gap-1.5">
-              <Tag className="w-3 h-3 text-cyan-400" />
-              Filter by Custom Tag
-            </span>
-            <span className="text-[10px] text-zinc-500 font-mono">
-              User Tagging Engine
-            </span>
+      {/* 3. On-Demand VOD Catalog Trigger (Divided Loading) */}
+      {selectedStreamType === 'vod' && activeCatalog.length === 0 && (
+        <div className="flex-1 min-h-[340px] flex flex-col items-center justify-center border border-dashed border-white/10 rounded-3xl bg-white/[0.01] p-8 text-center my-2">
+          <div className="w-14 h-14 rounded-2xl bg-cyan-500/10 flex items-center justify-center text-cyan-400 mb-3 border border-cyan-500/20 shadow-lg shadow-cyan-500/10">
+            <Film className="w-7 h-7" />
           </div>
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-white/10">
-            <button
-              onClick={() => setSelectedCustomTag(null)}
-              className={`px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border cursor-pointer ${
-                !selectedCustomTag
-                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-sm'
-                  : 'bg-white/5 text-zinc-400 border-transparent hover:bg-white/10 hover:text-zinc-200'
-              }`}
-            >
-              All Tags ({allCustomTags.length})
-            </button>
-            {allCustomTags.map((tag) => {
-              const isSelected = selectedCustomTag === tag;
-              return (
-                <button
-                  key={tag}
-                  onClick={() => setSelectedCustomTag(isSelected ? null : tag)}
-                  className={`px-3 py-1 rounded-xl text-xs font-semibold whitespace-nowrap transition-all border cursor-pointer ${
-                    isSelected
-                      ? 'bg-cyan-600 text-white border-cyan-500 shadow-sm'
-                      : 'bg-white/5 text-zinc-400 border-transparent hover:bg-white/10 hover:text-zinc-200'
-                  }`}
-                >
-                  #{tag}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* ZERO CHANNELS CONNECTED STATE - Standalone Player Mode */}
-      {channels.length === 0 && !isLoading ? (
-        <div className="flex-1 min-h-[420px] flex flex-col items-center justify-center border border-dashed border-white/10 rounded-3xl bg-white/[0.01] p-8 text-center my-4">
-          <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 flex items-center justify-center text-cyan-400 mb-4 border border-cyan-500/20 shadow-lg shadow-cyan-500/10">
-            <Tv className="w-8 h-8" />
-          </div>
-          <h3 className="text-lg font-bold text-white tracking-tight">No Channels or Playlists Connected</h3>
-          <p className="text-xs text-zinc-400 max-w-md mt-2 leading-relaxed font-medium">
-            IPTV.MENU is an empty shell media player. Connect your Xtream Codes API account or add an M3U playlist URL to load your channels.
+          <h3 className="text-base font-bold text-white tracking-tight">On-Demand Movies Catalog</h3>
+          <p className="text-xs text-zinc-400 max-w-sm mt-1.5 leading-relaxed font-medium">
+            {vodCategories && Object.keys(vodCategories).length > 0
+              ? `${Object.keys(vodCategories).length} movie categories are ready. Load your on-demand catalog cleanly without slowing down live channels.`
+              : 'Connect your Xtream Codes or M3U provider to stream full-length movies on demand.'}
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-3 mt-6">
+          {loadXtreamVod && (
+            <button
+              onClick={() => loadXtreamVod()}
+              disabled={isVodLoading}
+              className="mt-5 px-6 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-lg shadow-cyan-500/20 cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isVodLoading ? 'animate-spin' : ''}`} />
+              <span>{isVodLoading ? 'Loading Movie Library...' : 'Load Movies Catalog'}</span>
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* 4. On-Demand TV Series Catalog Trigger (Divided Loading) */}
+      {selectedStreamType === 'series' && activeCatalog.length === 0 && (
+        <div className="flex-1 min-h-[340px] flex flex-col items-center justify-center border border-dashed border-white/10 rounded-3xl bg-white/[0.01] p-8 text-center my-2">
+          <div className="w-14 h-14 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-400 mb-3 border border-purple-500/20 shadow-lg shadow-purple-500/10">
+            <Clapperboard className="w-7 h-7" />
+          </div>
+          <h3 className="text-base font-bold text-white tracking-tight">TV Shows & Series Catalog</h3>
+          <p className="text-xs text-zinc-400 max-w-sm mt-1.5 leading-relaxed font-medium">
+            {seriesCategories && Object.keys(seriesCategories).length > 0
+              ? `${Object.keys(seriesCategories).length} television genres are ready. Load seasons and episodes on demand.`
+              : 'Connect your Xtream Codes or M3U provider to browse multi-season television shows.'}
+          </p>
+          {loadXtreamSeries && (
+            <button
+              onClick={() => loadXtreamSeries()}
+              disabled={isSeriesLoading}
+              className="mt-5 px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-lg shadow-purple-500/20 cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isSeriesLoading ? 'animate-spin' : ''}`} />
+              <span>{isSeriesLoading ? 'Loading TV Series Library...' : 'Load TV Series Catalog'}</span>
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* 5. Zero Channels / Not Connected Empty State */}
+      {channels.length === 0 && !isLoading && activeCatalog.length === 0 ? (
+        <div className="flex-1 min-h-[340px] flex flex-col items-center justify-center border border-dashed border-white/10 rounded-3xl bg-white/[0.01] p-8 text-center my-2">
+          <div className="w-14 h-14 rounded-2xl bg-cyan-500/10 flex items-center justify-center text-cyan-400 mb-3 border border-cyan-500/20 shadow-lg shadow-cyan-500/10">
+            <Tv className="w-7 h-7" />
+          </div>
+          <h3 className="text-base font-bold text-white tracking-tight">No Playlist or Feeds Connected</h3>
+          <p className="text-xs text-zinc-400 max-w-sm mt-1.5 leading-relaxed font-medium">
+            Connect your Xtream Codes API account or add an M3U playlist URL to stream live channels.
+          </p>
+          <div className="flex flex-wrap items-center justify-center gap-3 mt-5">
             <button
               onClick={() => onNavigateTab ? onNavigateTab('xtream') : null}
-              className="px-5 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-lg shadow-cyan-500/20 cursor-pointer active:scale-95"
+              className="px-5 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-lg shadow-cyan-500/20 cursor-pointer"
             >
-              <Radio className="w-4 h-4" />
+              <Server className="w-3.5 h-3.5" />
               <span>Connect Xtream Codes</span>
             </button>
             <button
               onClick={() => onNavigateTab ? onNavigateTab('upload') : null}
-              className="px-5 py-2.5 bg-zinc-900 hover:bg-zinc-800 text-white border border-white/10 hover:border-white/20 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer active:scale-95"
+              className="px-5 py-2.5 bg-zinc-900 hover:bg-zinc-800 text-white border border-white/10 hover:border-white/20 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer"
             >
-              <Upload className="w-4 h-4 text-cyan-400" />
               <span>Add M3U Playlist</span>
             </button>
           </div>
         </div>
-      ) : isLoading && channels.length === 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="p-4 rounded-2xl bg-[#16161a] border border-white/5 flex items-center justify-between">
-              <div className="flex items-center gap-3 w-3/4">
-                <div className="w-12 h-12 rounded-xl skeleton-box flex-shrink-0" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-3 w-3/4 skeleton-box rounded" />
-                  <div className="h-2 w-1/2 skeleton-box rounded" />
-                </div>
-              </div>
-              <div className="w-8 h-8 rounded-xl skeleton-box" />
-            </div>
-          ))}
+      ) : filteredChannels.length === 0 && activeCatalog.length > 0 ? (
+        /* Empty Search Results State */
+        <div className="flex-1 min-h-[300px] flex flex-col items-center justify-center border border-dashed border-white/10 rounded-3xl bg-white/[0.01] p-8 text-center">
+          <p className="text-xs text-zinc-400">
+            No items matching your search or active category filter.
+          </p>
+          <button
+            onClick={handleResetFilters}
+            className="mt-3 px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>Reset Search & Filters</span>
+          </button>
         </div>
       ) : viewMode === 'country' ? (
         <div className="overflow-y-auto max-h-[600px] pr-2 scrollbar-thin">
@@ -978,60 +469,10 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
             onPlayInSimulator={handlePlayInSimulator}
           />
         </div>
-      ) : filteredChannels.length === 0 ? (
-        /* DESIGNED EMPTY STATE */
-        <div className="flex-1 min-h-[350px] flex flex-col items-center justify-center border border-dashed border-white/10 rounded-3xl bg-white/[0.01] p-8 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 flex items-center justify-center text-cyan-400 mb-4 border border-cyan-500/20">
-            {selectedStreamType === 'vod' ? (
-              <Film className="w-8 h-8" />
-            ) : selectedStreamType === 'series' ? (
-              <Clapperboard className="w-8 h-8" />
-            ) : (
-              <Tv className="w-8 h-8" />
-            )}
-          </div>
-          <h3 className="text-base font-bold text-white">
-            {channels.length === 0
-              ? 'No Channels or Playlist Connected'
-              : selectedStreamType === 'vod'
-              ? 'No VOD Movies Found'
-              : selectedStreamType === 'series'
-              ? 'No TV Series Found'
-              : 'No Channels Found'}
-          </h3>
-          <p className="text-xs text-zinc-400 max-w-sm mt-1.5 leading-relaxed">
-            {channels.length === 0
-              ? 'Connect your Xtream Codes portal, upload an M3U playlist, or attach a remote URL to start streaming.'
-              : searchQuery
-              ? `No channels matching "${searchQuery}" in ${selectedGroup || 'any category'}.`
-              : selectedStreamType !== 'all'
-              ? `No streams currently classified under ${selectedStreamType.toUpperCase()}. Try switching to "All Streams" or check your categories.`
-              : 'No channels currently loaded in this view.'}
-          </p>
-          <div className="flex items-center gap-2 mt-4">
-            {channels.length === 0 ? (
-              <button
-                onClick={() => onNavigateTab ? onNavigateTab('xtream') : undefined}
-                className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-cyan-500/20 cursor-pointer"
-              >
-                <Server className="w-3.5 h-3.5" />
-                Connect Xtream / Stalker
-              </button>
-            ) : (
-              <button
-                onClick={handleResetFilters}
-                className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-cyan-500/20 cursor-pointer"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-                Reset All Filters
-              </button>
-            )}
-          </div>
-        </div>
       ) : viewMode === 'grid' ? (
-        /* GRID VIEW */
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 overflow-y-auto max-h-[520px] pr-2 scrollbar-thin">
-          {filteredChannels.map((c) => {
+        /* 6. STREAMLINED GRID VIEW - Fast, Uncluttered, Modern */
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3.5 overflow-y-auto max-h-[560px] pr-2 scrollbar-thin">
+          {visibleChannels.map((c) => {
             const isFav = favorites.includes(c.id);
             const isLocked = isChannelLocked({ id: c.id, name: c.name, group: c.group });
             return (
@@ -1045,10 +486,11 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
                     handleOpenCinema(c);
                   }
                 }}
-                className="group relative bg-[#16161a] hover:bg-[#1c1c21] border border-white/5 hover:border-cyan-500/30 rounded-2xl p-4 flex items-center justify-between transition-all hover:-translate-y-0.5 shadow-sm cursor-pointer"
+                className="group relative bg-[#16161a] hover:bg-[#1c1c21] border border-white/5 hover:border-cyan-500/30 rounded-2xl p-3.5 flex items-center justify-between transition-all hover:-translate-y-0.5 shadow-sm cursor-pointer"
               >
-                <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="w-12 h-12 rounded-xl bg-black/60 border border-white/5 flex items-center justify-center p-2.5 overflow-hidden flex-shrink-0 relative">
+                {/* Channel / Movie Thumbnail & Info */}
+                <div className="flex items-center gap-3 min-w-0 flex-1" onClick={() => handleOpenCinema(c)}>
+                  <div className="w-11 h-11 rounded-xl bg-black/60 border border-white/5 flex items-center justify-center p-2 overflow-hidden flex-shrink-0 relative">
                     <img
                       src={c.logo || getChannelAvatarDataUri(c.name)}
                       alt={c.name}
@@ -1057,97 +499,32 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
                       }}
                       className="w-full h-full object-contain"
                     />
-                    <div className="absolute bottom-1 right-1 w-2.5 h-2.5 rounded-full border border-black/80"
-                      title={c.healthStatus === 'blocked' ? `Flagged in Blocklist: ${c.blockedReason || 'Policy restriction'}` : 'Verified Live Stream'}
-                    >
+                    <div className="absolute bottom-1 right-1 w-2 h-2 rounded-full border border-black/80">
                       <div className={`w-full h-full rounded-full ${
                         c.healthStatus === 'blocked' ? 'bg-amber-400' : 'bg-emerald-400 health-badge-live'
                       }`} />
                     </div>
                   </div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 pr-2">
                     <h4 className="text-xs font-bold text-white truncate leading-tight group-hover:text-cyan-400 transition-colors flex items-center gap-1.5">
-                      <span className="text-xs flex-shrink-0" title={`Country: ${c.countryName || c.countryCode || 'International'}`}>
-                        {c.countryFlag || getCountryFlag(c.countryCode)}
-                      </span>
                       <span className="truncate">{c.name}</span>
                     </h4>
-                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                    <div className="flex items-center gap-1.5 mt-1 text-[10px] text-zinc-400">
+                      <span className="truncate">{c.category || c.group}</span>
+                      {c.resolution && c.resolution.includes('★') && (
+                        <span className="text-amber-400 font-bold">{c.resolution}</span>
+                      )}
                       {isLocked && (
-                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold flex items-center gap-0.5" title="Locked by Parental Controls">
-                          <Lock className="w-2.5 h-2.5" /> LOCKED
+                        <span className="text-rose-400 flex items-center gap-0.5 font-semibold">
+                          <Lock className="w-2.5 h-2.5" /> Locked
                         </span>
                       )}
-                      <span className="inline-block text-[9px] px-2 py-0.5 bg-white/5 border border-white/10 rounded-full font-semibold text-zinc-400 uppercase tracking-wider">
-                        {c.category || c.group}
-                      </span>
-                      {c.countryCode && c.countryCode !== 'UN' && (
-                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-mono font-bold">
-                          {c.countryCode}
-                        </span>
-                      )}
-                      {(c.languageName || c.language) && (
-                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-white/5 text-zinc-400 border border-white/5 font-medium truncate max-w-[100px]" title={`Language: ${c.languageName || getLanguageName(c.language)}`}>
-                          {c.languageName || getLanguageName(c.language)}
-                        </span>
-                      )}
-                      {c.healthStatus === 'blocked' && (
-                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 font-mono font-bold" title={c.blockedReason}>
-                          {c.blockedReason ? c.blockedReason.toUpperCase() : 'FLAGGED'}
-                        </span>
-                      )}
-                      {c.corsProxyRecommended && (
-                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20 font-mono text-[8px]" title="CORS & Mixed-Content Protected via Gateway">
-                          PROXY
-                        </span>
-                      )}
-                      {c.alternateUrls && c.alternateUrls.length > 0 && (
-                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 font-mono font-bold text-[8px]" title={`${c.alternateUrls.length + 1} broadcast feeds available`}>
-                          {c.alternateUrls.length + 1} FEEDS
-                        </span>
-                      )}
-                      {customTags[c.id]?.map((tag) => (
-                        <span key={tag} className="text-[9px] px-1.5 py-0.2 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-semibold" title={`Custom tag: #${tag}`}>
-                          #{tag}
-                        </span>
-                      ))}
                     </div>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => {
-                      if (!parentalControls.pinHash) {
-                        setShowParentalModal(true);
-                      } else {
-                        toggleChannelLock(c.id);
-                      }
-                    }}
-                    className={`p-2 rounded-xl border transition-all cursor-pointer ${
-                      isLocked
-                        ? 'bg-rose-500/10 text-rose-400 border-rose-500/30 hover:bg-rose-500/20'
-                        : 'bg-white/5 text-zinc-400 border-transparent hover:bg-white/10 hover:text-white'
-                    }`}
-                    title={isLocked ? "Unlock Channel with PIN" : "Lock Channel with PIN"}
-                    aria-label="Parental Lock"
-                  >
-                    {isLocked ? <Lock className="w-3.5 h-3.5 text-rose-400" /> : <Unlock className="w-3.5 h-3.5" />}
-                  </button>
-
-                  <button
-                    onClick={() => setTaggingChannel(c)}
-                    className={`p-2 rounded-xl border transition-all cursor-pointer ${
-                      customTags[c.id]?.length > 0
-                        ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30 hover:bg-cyan-500/20'
-                        : 'bg-white/5 text-zinc-400 border-transparent hover:bg-white/10 hover:text-white'
-                    }`}
-                    title={customTags[c.id]?.length > 0 ? `Tags: ${customTags[c.id].join(', ')}` : "Manage Custom Tags"}
-                    aria-label="Manage Custom Tags"
-                  >
-                    <Tag className="w-3.5 h-3.5" />
-                  </button>
-
+                {/* Primary Actions: Watch, Favorite, and Secondary Menu */}
+                <div className="flex items-center gap-1.5 flex-shrink-0">
                   <button
                     onClick={() => toggleFavorite(c.id)}
                     className={`p-2 rounded-xl border transition-all cursor-pointer ${
@@ -1155,62 +532,130 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
                         ? 'bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/20'
                         : 'bg-white/5 text-zinc-400 border-transparent hover:bg-white/10 hover:text-white'
                     }`}
-                    title={isFav ? "Remove from Favorites" : "Add to Favorites"}
-                    aria-label={isFav ? "Remove from Favorites" : "Add to Favorites"}
+                    title={isFav ? "Remove Favorite" : "Favorite"}
                   >
                     <Heart className={`w-3.5 h-3.5 ${isFav ? 'fill-current' : ''}`} />
                   </button>
 
                   <button
                     onClick={() => handleOpenCinema(c)}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white shadow-md shadow-cyan-500/20 text-xs font-bold transition-all cursor-pointer"
-                    title="Watch in Full Web Cinema Player"
-                    aria-label="Watch stream"
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white shadow-md shadow-cyan-500/20 text-xs font-bold transition-all cursor-pointer"
+                    title="Watch"
                   >
                     <Play className="w-3.5 h-3.5 fill-current" />
                     <span>Watch</span>
                   </button>
 
-                  <button
-                    onClick={() => openPiP(c)}
-                    className="p-2 rounded-xl bg-white/5 hover:bg-cyan-500/20 text-zinc-400 hover:text-cyan-300 border border-white/10 transition-all cursor-pointer"
-                    title="Watch in Picture-in-Picture Mini-Player"
-                    aria-label="Picture-in-Picture"
-                  >
-                    <PictureInPicture className="w-3.5 h-3.5" />
-                  </button>
+                  {/* Secondary Options Menu */}
+                  <div className="relative">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenMenuChannelId(openMenuChannelId === c.id ? null : c.id);
+                      }}
+                      className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-transparent transition-all cursor-pointer"
+                      title="More options"
+                    >
+                      <MoreVertical className="w-3.5 h-3.5" />
+                    </button>
 
-                  <button
-                    onClick={() => handleAddToMultiScreen(c)}
-                    className="p-2 rounded-xl bg-white/5 hover:bg-cyan-500/20 text-zinc-400 hover:text-cyan-300 border border-white/10 transition-all cursor-pointer"
-                    title="Send to Multi-Screen Canvas"
-                    aria-label="Send to Multi-Screen"
-                  >
-                    <LayoutGrid className="w-3.5 h-3.5" />
-                  </button>
-
-                  <button
-                    onClick={() => handlePlayInSimulator(c)}
-                    className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/10 transition-all cursor-pointer"
-                    title="Preview in Mobile Phone Simulator"
-                    aria-label="Preview in simulator"
-                  >
-                    <Smartphone className="w-3.5 h-3.5" />
-                  </button>
+                    {openMenuChannelId === c.id && (
+                      <div 
+                        onClick={(e) => e.stopPropagation()}
+                        className="absolute right-0 top-full mt-1.5 w-44 bg-[#1a1a20] border border-white/15 rounded-xl shadow-2xl z-40 p-1 flex flex-col gap-0.5 text-xs text-zinc-300 animate-in fade-in duration-100"
+                      >
+                        <button
+                          onClick={() => {
+                            openPiP(c);
+                            setOpenMenuChannelId(null);
+                          }}
+                          className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-left cursor-pointer"
+                        >
+                          <PictureInPicture className="w-3.5 h-3.5 text-cyan-400" />
+                          <span>Picture-in-Picture</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            handleAddToMultiScreen(c);
+                            setOpenMenuChannelId(null);
+                          }}
+                          className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-left cursor-pointer"
+                        >
+                          <LayoutGrid className="w-3.5 h-3.5 text-cyan-400" />
+                          <span>Quad Screen</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setTaggingChannel(c);
+                            setOpenMenuChannelId(null);
+                          }}
+                          className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-left cursor-pointer"
+                        >
+                          <Tag className="w-3.5 h-3.5 text-cyan-400" />
+                          <span>Custom Tags</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (!parentalControls.pinHash) {
+                              setShowParentalModal(true);
+                            } else {
+                              toggleChannelLock(c.id);
+                            }
+                            setOpenMenuChannelId(null);
+                          }}
+                          className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-left cursor-pointer"
+                        >
+                          {isLocked ? <Unlock className="w-3.5 h-3.5 text-amber-400" /> : <Lock className="w-3.5 h-3.5 text-rose-400" />}
+                          <span>{isLocked ? 'Unlock Channel' : 'Lock with PIN'}</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            handlePlayInSimulator(c);
+                            setOpenMenuChannelId(null);
+                          }}
+                          className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-left cursor-pointer"
+                        >
+                          <Smartphone className="w-3.5 h-3.5 text-cyan-400" />
+                          <span>Phone Simulator</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             );
           })}
+
+          {/* Load More Card */}
+          {visibleChannels.length < filteredChannels.length && (
+            <div
+              data-tv-focus-id="load-more-grid"
+              data-tv-zone="channels"
+              tabIndex={0}
+              onClick={() => setDisplayLimit((prev) => prev + 60)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  setDisplayLimit((prev) => prev + 60);
+                }
+              }}
+              className="border border-dashed border-cyan-500/30 hover:border-cyan-500/60 bg-cyan-950/20 hover:bg-cyan-950/40 rounded-2xl p-4 flex flex-col items-center justify-center text-center transition-all cursor-pointer min-h-[96px] group"
+            >
+              <span className="text-xs font-bold text-cyan-400 group-hover:text-cyan-300">
+                + Load More ({filteredChannels.length - visibleChannels.length} remaining)
+              </span>
+              <span className="text-[10px] text-zinc-400 mt-1">Click to load next 60 titles</span>
+            </div>
+          )}
         </div>
       ) : (
-        /* LIST VIEW */
-        <div className="flex flex-col gap-1.5 overflow-y-auto max-h-[520px] pr-2 scrollbar-thin">
+        /* 7. STREAMLINED LIST VIEW */
+        <div className="flex flex-col gap-1.5 overflow-y-auto max-h-[560px] pr-2 scrollbar-thin">
           <div className="grid grid-cols-12 gap-4 px-4 py-2 text-[10px] font-bold text-zinc-500 uppercase tracking-widest border-b border-white/5">
-            <span className="col-span-6 md:col-span-8">Channel Info</span>
-            <span className="col-span-3 md:col-span-2">Group</span>
+            <span className="col-span-7 md:col-span-8">Channel Info</span>
+            <span className="col-span-2 md:col-span-2">Category</span>
             <span className="col-span-3 md:col-span-2 text-right">Actions</span>
           </div>
-          {filteredChannels.map((c) => {
+          {visibleChannels.map((c) => {
             const isFav = favorites.includes(c.id);
             const isLocked = isChannelLocked({ id: c.id, name: c.name, group: c.group });
             return (
@@ -1224,9 +669,9 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
                     handleOpenCinema(c);
                   }
                 }}
-                className="grid grid-cols-12 gap-4 items-center px-4 py-2.5 bg-[#16161a] hover:bg-[#1c1c21] border border-white/5 hover:border-white/10 rounded-xl transition-all cursor-pointer"
+                className="grid grid-cols-12 gap-4 items-center px-4 py-2 bg-[#16161a] hover:bg-[#1c1c21] border border-white/5 hover:border-white/10 rounded-xl transition-all cursor-pointer"
               >
-                <div className="col-span-6 md:col-span-8 flex items-center gap-3 min-w-0">
+                <div className="col-span-7 md:col-span-8 flex items-center gap-3 min-w-0" onClick={() => handleOpenCinema(c)}>
                   <div className="w-8 h-8 rounded-lg bg-black/60 border border-white/5 flex items-center justify-center p-1.5 overflow-hidden flex-shrink-0 relative">
                     <img
                       src={c.logo || getChannelAvatarDataUri(c.name, 64)}
@@ -1236,85 +681,19 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
                       }}
                       className="w-full h-full object-contain"
                     />
-                    <div className="absolute bottom-0.5 right-0.5 w-2 h-2 rounded-full border border-black/80"
-                      title={c.healthStatus === 'blocked' ? `Flagged: ${c.blockedReason}` : 'Online Live Stream'}
-                    >
-                      <div className={`w-full h-full rounded-full ${
-                        c.healthStatus === 'blocked' ? 'bg-amber-400' : 'bg-emerald-400 health-badge-live'
-                      }`} />
-                    </div>
                   </div>
-                  <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                    <span className="text-sm flex-shrink-0" title={c.countryName || c.countryCode || 'International'}>
-                      {c.countryFlag || getCountryFlag(c.countryCode)}
-                    </span>
+                  <div className="min-w-0">
                     <h4 className="text-xs font-bold text-white truncate">{c.name}</h4>
-                    {isLocked && (
-                      <span className="text-[8px] px-1 py-0.2 rounded bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold flex items-center gap-0.5">
-                        <Lock className="w-2.5 h-2.5" /> LOCKED
-                      </span>
-                    )}
-                    {c.healthStatus === 'blocked' && (
-                      <span className="text-[8px] px-1 py-0.2 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 font-mono font-bold">
-                        {c.blockedReason ? c.blockedReason.toUpperCase() : 'FLAGGED'}
-                      </span>
-                    )}
-                    {c.corsProxyRecommended && (
-                      <span className="text-[8px] px-1 py-0.2 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20 font-mono">
-                        PROXY
-                      </span>
-                    )}
-                    {c.alternateUrls && c.alternateUrls.length > 0 && (
-                      <span className="text-[8px] px-1 py-0.2 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 font-mono font-bold">
-                        {c.alternateUrls.length + 1} FEEDS
-                      </span>
-                    )}
                   </div>
                 </div>
 
-                <div className="col-span-3 md:col-span-2 min-w-0 flex items-center gap-2">
+                <div className="col-span-2 md:col-span-2 min-w-0">
                   <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block truncate">
                     {c.category || c.group}
                   </span>
-                  {(c.languageName || c.language) && (
-                    <span className="text-[9px] px-1.5 py-0.2 rounded bg-white/5 text-zinc-400 border border-white/5 font-medium hidden sm:inline-block truncate" title={`Language: ${c.languageName || getLanguageName(c.language)}`}>
-                      {c.languageName || getLanguageName(c.language)}
-                    </span>
-                  )}
                 </div>
 
                 <div className="col-span-3 md:col-span-2 flex items-center justify-end gap-1.5">
-                  <button
-                    onClick={() => {
-                      if (!parentalControls.pinHash) {
-                        setShowParentalModal(true);
-                      } else {
-                        toggleChannelLock(c.id);
-                      }
-                    }}
-                    className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
-                      isLocked
-                        ? 'bg-rose-500/10 text-rose-400 border-rose-500/30 hover:bg-rose-500/20'
-                        : 'bg-white/5 text-zinc-400 border-transparent hover:bg-white/10 hover:text-white'
-                    }`}
-                    title={isLocked ? "Unlock Channel with PIN" : "Lock Channel with PIN"}
-                    aria-label="Parental Lock"
-                  >
-                    {isLocked ? <Lock className="w-3 h-3 text-rose-400" /> : <Unlock className="w-3 h-3" />}
-                  </button>
-
-                  <button
-                    onClick={() => setTaggingChannel(c)}
-                    className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
-                      customTags[c.id]?.length > 0
-                        ? 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30 hover:bg-cyan-500/20'
-                        : 'bg-white/5 text-zinc-400 border-transparent hover:bg-white/10 hover:text-white'
-                    }`}
-                    title={customTags[c.id]?.length > 0 ? `Tags: ${customTags[c.id].join(', ')}` : "Manage Custom Tags"}
-                  >
-                    <Tag className="w-3 h-3" />
-                  </button>
-
                   <button
                     onClick={() => toggleFavorite(c.id)}
                     className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
@@ -1322,55 +701,74 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
                         ? 'bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/20'
                         : 'bg-white/5 text-zinc-400 border-transparent hover:bg-white/10 hover:text-white'
                     }`}
-                    aria-label={isFav ? "Remove favorite" : "Add favorite"}
+                    title={isFav ? "Remove favorite" : "Favorite"}
                   >
                     <Heart className={`w-3.5 h-3.5 ${isFav ? 'fill-current' : ''}`} />
                   </button>
 
                   <button
                     onClick={() => handleOpenCinema(c)}
-                    className="px-2 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white shadow-md text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer"
-                    title="Watch in Web Cinema Player"
-                    aria-label="Watch stream"
+                    className="px-2.5 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white shadow-md text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
+                    title="Watch"
                   >
                     <Play className="w-3 h-3 fill-current" />
                     <span>Watch</span>
-                  </button>
-
-                  <button
-                    onClick={() => openPiP(c)}
-                    className="p-1 rounded-lg bg-white/5 hover:bg-cyan-500/20 text-zinc-400 hover:text-cyan-300 border border-white/10 transition-all cursor-pointer"
-                    title="Watch in Picture-in-Picture Mini-Player"
-                    aria-label="Picture-in-Picture"
-                  >
-                    <PictureInPicture className="w-3.5 h-3.5" />
-                  </button>
-
-                  <button
-                    onClick={() => handleAddToMultiScreen(c)}
-                    className="p-1 rounded-lg bg-white/5 hover:bg-cyan-500/20 text-zinc-400 hover:text-cyan-300 border border-white/10 transition-all cursor-pointer"
-                    title="Send to Multi-Screen Canvas"
-                    aria-label="Send to Multi-Screen"
-                  >
-                    <LayoutGrid className="w-3.5 h-3.5" />
-                  </button>
-
-                  <button
-                    onClick={() => handlePlayInSimulator(c)}
-                    className="p-1 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/10 transition-all cursor-pointer"
-                    title="Play in Phone Simulator"
-                    aria-label="Play in simulator"
-                  >
-                    <Smartphone className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </div>
             );
           })}
+          {visibleChannels.length < filteredChannels.length && (
+            <div
+              data-tv-focus-id="load-more-list"
+              data-tv-zone="channels"
+              tabIndex={0}
+              onClick={() => setDisplayLimit((prev) => prev + 60)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  setDisplayLimit((prev) => prev + 60);
+                }
+              }}
+              className="p-3 border border-dashed border-cyan-500/30 hover:border-cyan-500/60 bg-cyan-950/20 hover:bg-cyan-950/40 rounded-xl flex items-center justify-center transition-all cursor-pointer text-xs font-bold text-cyan-400 hover:text-cyan-300"
+            >
+              + Load Next 60 Titles ({filteredChannels.length - visibleChannels.length} remaining)
+            </div>
+          )}
         </div>
       )}
 
-      {/* Web Cinema / TV Mode Fullscreen Overlay */}
+      {/* 8. Pagination & Windowing Toolbar */}
+      {visibleChannels.length < filteredChannels.length && (
+        <div className="p-3 rounded-2xl bg-[#16161a] border border-white/5 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-sm">
+          <p className="text-xs text-zinc-400">
+            Displaying <span className="text-white font-bold">{visibleChannels.length}</span> of <span className="text-white font-bold">{filteredChannels.length}</span> titles
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setDisplayLimit((prev) => prev + 60)}
+              className="px-4 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-cyan-500/20 cursor-pointer flex items-center gap-1.5"
+            >
+              Load More (+60)
+            </button>
+            {filteredChannels.length - visibleChannels.length > 60 && (
+              <button
+                onClick={() => setDisplayLimit((prev) => prev + 300)}
+                className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white border border-white/10 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+              >
+                Load +300
+              </button>
+            )}
+            <button
+              onClick={() => setDisplayLimit(filteredChannels.length)}
+              className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-white/5 rounded-xl text-xs font-semibold transition-all cursor-pointer"
+            >
+              Show All
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen Video Cinema Overlay */}
       {cinemaChannel && (
         <WebCinemaPlayer
           initialChannel={cinemaChannel}
@@ -1388,18 +786,18 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
         />
       )}
 
+      {/* VOD Detail Modal */}
       {vodDetailChannel && (
         <VODDetailModal
           channel={vodDetailChannel}
           onClose={() => setVodDetailChannel(null)}
           onPlay={(c) => {
-            // After clicking "Play" inside the modal, send it directly to the cinema player
             setCinemaChannel(c);
           }}
         />
       )}
 
-      {/* Series Detail & Season / Episode Browser Modal */}
+      {/* Series Detail & Episode Modal */}
       {seriesDetailChannel && (
         <SeriesDetailModal
           channel={seriesDetailChannel}
@@ -1410,7 +808,7 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
         />
       )}
 
-      {/* Parental Controls & PIN Management Modal */}
+      {/* Parental Controls PIN Modal */}
       <ParentalPinModal
         isOpen={showParentalModal}
         onClose={() => setShowParentalModal(false)}

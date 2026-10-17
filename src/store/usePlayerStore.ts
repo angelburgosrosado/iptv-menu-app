@@ -12,7 +12,18 @@ import { DEFAULT_DSP_CONFIG, DSP_PRESETS, audioDspEngine } from '../utils/audioD
 import { hashPin, verifyPin, DEFAULT_LOCKED_CATEGORIES } from '../utils/parentalSecurity';
 import { formatBytes } from '../utils/streamRecorderEngine';
 import { DEFAULT_SUBTITLE_CONFIG, SUBTITLE_PRESETS, clampSyncOffset, applySubtitleStylesToDom } from '../utils/subtitleEngine';
-import { parseXtreamUrl } from '../utils/xtreamClient';
+import { 
+  parseXtreamUrl,
+  fetchXtreamCategories,
+  fetchXtreamStreams,
+  generateXtreamChannelList,
+  fetchXtreamVodCategories,
+  fetchXtreamVodStreams,
+  generateXtreamVodChannelList,
+  fetchXtreamSeriesCategories,
+  fetchXtreamSeries,
+  generateXtreamSeriesChannelList
+} from '../utils/xtreamClient';
 
 export const DEFAULT_MATRIX_CONFIG: MultiScreenMatrixConfig = {
   layout: 'quad',
@@ -130,6 +141,12 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   // Clean empty state on first launch: content only loads when added by user
   channels: [],
   groups: [],
+  vodChannels: [],
+  seriesChannels: [],
+  vodCategories: {},
+  seriesCategories: {},
+  isVodLoading: false,
+  isSeriesLoading: false,
   favorites: readArrayFromStorage('favorites'),
   history: readArrayFromStorage('history'),
   dvrRecordings: readJsonFromStorage<DvrRecording[]>('iptv_dvr_recordings', []),
@@ -434,6 +451,68 @@ export const usePlayerStore = create<AppState>((set, get) => ({
     }
   },
 
+  loadXtreamVod: async (categoryId?: string) => {
+    try {
+      const raw = typeof window !== 'undefined' ? localStorage.getItem('iptv_xtream_accounts') : null;
+      if (!raw) return;
+      const accounts = JSON.parse(raw);
+      if (!Array.isArray(accounts) || accounts.length === 0) return;
+      const account = accounts[0];
+      if (!account || !account.serverUrl || !account.username || !account.password) return;
+
+      set({ isVodLoading: true });
+      const [vodCatMap, vodStreams] = await Promise.all([
+        Object.keys(get().vodCategories || {}).length > 0 
+          ? Promise.resolve(get().vodCategories || {}) 
+          : fetchXtreamVodCategories(account),
+        fetchXtreamVodStreams(account, categoryId)
+      ]);
+
+      const vodChannelList = generateXtreamVodChannelList(account, vodStreams, vodCatMap);
+      set((state) => ({
+        vodCategories: vodCatMap,
+        vodChannels: categoryId 
+          ? [...(state.vodChannels || []).filter(c => !vodChannelList.some(v => v.id === c.id)), ...vodChannelList]
+          : vodChannelList,
+        isVodLoading: false
+      }));
+    } catch (e) {
+      console.warn('Loading Xtream VOD failed', e);
+      set({ isVodLoading: false });
+    }
+  },
+
+  loadXtreamSeries: async (categoryId?: string) => {
+    try {
+      const raw = typeof window !== 'undefined' ? localStorage.getItem('iptv_xtream_accounts') : null;
+      if (!raw) return;
+      const accounts = JSON.parse(raw);
+      if (!Array.isArray(accounts) || accounts.length === 0) return;
+      const account = accounts[0];
+      if (!account || !account.serverUrl || !account.username || !account.password) return;
+
+      set({ isSeriesLoading: true });
+      const [seriesCatMap, seriesItems] = await Promise.all([
+        Object.keys(get().seriesCategories || {}).length > 0 
+          ? Promise.resolve(get().seriesCategories || {}) 
+          : fetchXtreamSeriesCategories(account),
+        fetchXtreamSeries(account, categoryId)
+      ]);
+
+      const seriesChannelList = generateXtreamSeriesChannelList(account, seriesItems, seriesCatMap);
+      set((state) => ({
+        seriesCategories: seriesCatMap,
+        seriesChannels: categoryId
+          ? [...(state.seriesChannels || []).filter(c => !seriesChannelList.some(s => s.id === c.id)), ...seriesChannelList]
+          : seriesChannelList,
+        isSeriesLoading: false
+      }));
+    } catch (e) {
+      console.warn('Loading Xtream Series failed', e);
+      set({ isSeriesLoading: false });
+    }
+  },
+
   hydrateSavedXtreamSession: async () => {
     if (get().channels.length > 0) return;
     try {
@@ -444,6 +523,38 @@ export const usePlayerStore = create<AppState>((set, get) => ({
       const account = accounts[0];
       if (account && account.serverUrl && account.username && account.password) {
         set({ isLoading: true });
+        // Segregated Fast Ingestion: First fetch live categories and live streams for instant UI readiness
+        try {
+          const [catMap, liveStreams] = await Promise.all([
+            fetchXtreamCategories(account),
+            fetchXtreamStreams(account)
+          ]);
+          if (liveStreams && liveStreams.length > 0) {
+            const liveChannels = generateXtreamChannelList(account, liveStreams, catMap);
+            const uniqueGroups = Array.from(new Set(liveChannels.map((c) => c.group))).sort();
+            set({
+              channels: liveChannels,
+              groups: uniqueGroups,
+              countrySections: buildCountrySections(liveChannels),
+              isLoading: false,
+              parseProgress: 100,
+            });
+            // Fetch VOD and Series category maps in background without blocking Live TV
+            Promise.allSettled([
+              fetchXtreamVodCategories(account),
+              fetchXtreamSeriesCategories(account)
+            ]).then(([vRes, sRes]) => {
+              set({
+                vodCategories: vRes.status === 'fulfilled' ? vRes.value : {},
+                seriesCategories: sRes.status === 'fulfilled' ? sRes.value : {}
+              });
+            });
+            return;
+          }
+        } catch (fastErr) {
+          console.warn('Fast live stream hydration failed, falling back to M3U endpoint', fastErr);
+        }
+
         const canonicalM3u = `${account.serverUrl.replace(/\/+$/, '')}/get.php?username=${encodeURIComponent(account.username)}&password=${encodeURIComponent(account.password)}&type=m3u_plus&output=m3u8`;
         await get().loadPlaylist(canonicalM3u);
       }

@@ -256,6 +256,16 @@ export interface AppState {
   playlistUrl: string;
   activePlaylistId: string | null;
 
+  // Segregated On-Demand Catalogs (Divided Loading)
+  vodChannels?: Channel[];
+  seriesChannels?: Channel[];
+  vodCategories?: Record<string, string>;
+  seriesCategories?: Record<string, string>;
+  isVodLoading?: boolean;
+  isSeriesLoading?: boolean;
+  loadXtreamVod?: (categoryId?: string) => Promise<void>;
+  loadXtreamSeries?: (categoryId?: string) => Promise<void>;
+
   // DVR & Bookmark Systems
   dvrRecordings: DvrRecording[];
   bookmarks: Bookmark[];
