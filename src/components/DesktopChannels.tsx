@@ -107,12 +107,14 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
   // Helpers to identify media types across providers
   const isSeriesChannel = React.useCallback((c: Channel) => {
     if (c.streamType === 'series') return true;
+    if (c.streamType === 'live' || c.streamType === 'vod') return false;
     const term = (c.category || c.group || c.name || '').toLowerCase();
     return term.includes('series') || term.includes('season') || term.includes('episode');
   }, []);
 
   const isVodMovieChannel = React.useCallback((c: Channel) => {
     if (c.streamType === 'vod') return true;
+    if (c.streamType === 'live' || c.streamType === 'series') return false;
     if (isSeriesChannel(c)) return false;
     const term = (c.category || c.group || c.name || '').toLowerCase();
     return term.includes('movie') || term.includes('vod') || term.includes('film');
@@ -210,11 +212,17 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
   };
 
   const handleOpenCinema = (channel: Channel) => {
-    if (isSeriesChannel(channel)) {
+    if (parentalControls.isEnabled && !parentalControls.isSessionUnlocked) {
+      if (isChannelLocked({ id: channel.id, name: channel.name, group: channel.group })) {
+        setShowParentalModal(true);
+        return;
+      }
+    }
+    // If it's a TV series catalog item without a single stream, open series episode selector
+    if (selectedStreamType === 'series' || isSeriesChannel(channel)) {
       setSeriesDetailChannel(channel);
-    } else if (isVodMovieChannel(channel)) {
-      setVodDetailChannel(channel);
     } else {
+      // Live channels and Movies play directly in the cinema player
       setCinemaChannel(channel);
     }
   };
@@ -227,29 +235,75 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
 
   return (
     <div className="flex flex-col h-full gap-5">
-      {/* 1. Sleek, Uncluttered Page Header */}
+      {/* 1. Sleek, Uncluttered Page Header with Stream Type Switcher */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-white/5">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2.5">
-            {selectedStreamType === 'vod' ? (
-              <Film className="w-6 h-6 text-cyan-400" />
-            ) : selectedStreamType === 'series' ? (
-              <Clapperboard className="w-6 h-6 text-purple-400" />
-            ) : (
-              <Tv className="w-6 h-6 text-cyan-400" />
-            )}
-            <span>
-              {selectedStreamType === 'vod'
-                ? 'Movies & VOD'
-                : selectedStreamType === 'series'
-                ? 'TV Series'
-                : 'Live Channels'}
-            </span>
-          </h1>
-          <p className="text-xs text-zinc-400 mt-0.5">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="inline-flex items-center p-1 bg-[#16161a] border border-white/10 rounded-2xl shadow-inner">
+            <button
+              onClick={() => {
+                setSelectedStreamType('live');
+                setSelectedGroup(null);
+              }}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                selectedStreamType === 'live'
+                  ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-md shadow-cyan-500/20'
+                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Tv className="w-3.5 h-3.5" />
+              <span>Live Channels</span>
+              <span className="text-[10px] px-1.5 py-0.5 bg-black/40 rounded-full font-mono">
+                {channels.filter((c) => c.streamType === 'live' || (!c.streamType && !isVodMovieChannel(c) && !isSeriesChannel(c))).length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => {
+                setSelectedStreamType('vod');
+                setSelectedGroup(null);
+                if ((!vodChannels || vodChannels.length === 0) && loadXtreamVod) {
+                  loadXtreamVod();
+                }
+              }}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                selectedStreamType === 'vod'
+                  ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-md shadow-cyan-500/20'
+                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Film className="w-3.5 h-3.5" />
+              <span>Movies & VOD</span>
+              <span className="text-[10px] px-1.5 py-0.5 bg-black/40 rounded-full font-mono">
+                {vodChannels && vodChannels.length > 0 ? vodChannels.length : channels.filter(isVodMovieChannel).length}
+              </span>
+            </button>
+
+            <button
+              onClick={() => {
+                setSelectedStreamType('series');
+                setSelectedGroup(null);
+                if ((!seriesChannels || seriesChannels.length === 0) && loadXtreamSeries) {
+                  loadXtreamSeries();
+                }
+              }}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                selectedStreamType === 'series'
+                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-500/20'
+                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Clapperboard className="w-3.5 h-3.5" />
+              <span>TV Series</span>
+              <span className="text-[10px] px-1.5 py-0.5 bg-black/40 rounded-full font-mono">
+                {seriesChannels && seriesChannels.length > 0 ? seriesChannels.length : channels.filter(isSeriesChannel).length}
+              </span>
+            </button>
+          </div>
+
+          <p className="text-xs text-zinc-400 hidden xl:block">
             {visibleChannels.length < filteredChannels.length
-              ? `Showing ${visibleChannels.length} of ${filteredChannels.length} ${selectedStreamType === 'vod' ? 'movies' : selectedStreamType === 'series' ? 'series' : 'channels'}`
-              : `${filteredChannels.length} ${selectedStreamType === 'vod' ? 'movies' : selectedStreamType === 'series' ? 'series' : 'channels'} available`}
+              ? `Showing ${visibleChannels.length} of ${filteredChannels.length} titles`
+              : `${filteredChannels.length} titles available`}
           </p>
         </div>
 

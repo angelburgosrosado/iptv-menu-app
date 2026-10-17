@@ -62,7 +62,7 @@ services:
   - type: web
     name: iptv-menu-web
     runtime: static
-    buildCommand: npm install && npm run build:web
+    buildCommand: npm install --include=dev && npm run build:web
     staticPublishPath: dist
     routes:
       - type: rewrite
@@ -72,8 +72,5 @@ services:
       - key: NODE_VERSION
         value: 20.11.0
       - key: VITE_API_URL
-        fromService:
-          type: web
-          name: iptv-api
-          property: host
+        sync: false
 

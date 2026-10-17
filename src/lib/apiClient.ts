@@ -2,11 +2,15 @@ import { auth } from './firebase';
 import { authStore } from '../authStore';
 
 const getBaseUrl = () => {
-  const url = import.meta.env.VITE_API_URL || "__VITE_API_URL__";
-  if (url.startsWith('__')) {
+  const rawUrl = import.meta.env.VITE_API_URL || "__VITE_API_URL__";
+  if (!rawUrl || rawUrl.startsWith('__')) {
     return '';
   }
-  return url;
+  let cleanUrl = rawUrl.trim();
+  if (cleanUrl && !cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
+    cleanUrl = `https://${cleanUrl}`;
+  }
+  return cleanUrl.replace(/\/+$/, '');
 };
 
 export const fetchWithAuth = async (endpoint: string, options: RequestInit = {}) => {

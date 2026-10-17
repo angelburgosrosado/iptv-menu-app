@@ -123,6 +123,27 @@ const readJsonFromStorage = <T>(key: string, fallback: T): T => {
   }
 };
 
+const getStoredXtreamAccount = () => {
+  if (typeof window === 'undefined') return null;
+  const raw = localStorage.getItem('iptv_xtream_accounts');
+  if (raw) {
+    try {
+      const accounts = JSON.parse(raw);
+      if (Array.isArray(accounts) && accounts.length > 0) {
+        const acc = accounts[0];
+        if (acc && acc.serverUrl && acc.username && acc.password) return acc;
+      }
+    } catch {}
+  }
+  const serverUrl = localStorage.getItem('iptv_xtream_server_url');
+  const username = localStorage.getItem('iptv_xtream_username');
+  const password = localStorage.getItem('iptv_xtream_password');
+  if (serverUrl && username && password) {
+    return { serverUrl, username, password };
+  }
+  return null;
+};
+
 const writeJsonToStorage = (key: string, data: any): void => {
   storage.set(key, JSON.stringify(data));
 };
@@ -453,11 +474,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
 
   loadXtreamVod: async (categoryId?: string) => {
     try {
-      const raw = typeof window !== 'undefined' ? localStorage.getItem('iptv_xtream_accounts') : null;
-      if (!raw) return;
-      const accounts = JSON.parse(raw);
-      if (!Array.isArray(accounts) || accounts.length === 0) return;
-      const account = accounts[0];
+      const account = getStoredXtreamAccount();
       if (!account || !account.serverUrl || !account.username || !account.password) return;
 
       set({ isVodLoading: true });
@@ -484,11 +501,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
 
   loadXtreamSeries: async (categoryId?: string) => {
     try {
-      const raw = typeof window !== 'undefined' ? localStorage.getItem('iptv_xtream_accounts') : null;
-      if (!raw) return;
-      const accounts = JSON.parse(raw);
-      if (!Array.isArray(accounts) || accounts.length === 0) return;
-      const account = accounts[0];
+      const account = getStoredXtreamAccount();
       if (!account || !account.serverUrl || !account.username || !account.password) return;
 
       set({ isSeriesLoading: true });
@@ -516,11 +529,7 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   hydrateSavedXtreamSession: async () => {
     if (get().channels.length > 0) return;
     try {
-      const raw = typeof window !== 'undefined' ? localStorage.getItem('iptv_xtream_accounts') : null;
-      if (!raw) return;
-      const accounts = JSON.parse(raw);
-      if (!Array.isArray(accounts) || accounts.length === 0) return;
-      const account = accounts[0];
+      const account = getStoredXtreamAccount();
       if (account && account.serverUrl && account.username && account.password) {
         set({ isLoading: true });
         // Segregated Fast Ingestion: First fetch live categories and live streams for instant UI readiness
