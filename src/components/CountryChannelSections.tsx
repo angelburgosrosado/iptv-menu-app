@@ -17,9 +17,10 @@ import {
   getChannelAvatarDataUri
 } from '../utils/channelEnrichment';
 import { foldSearchText } from '../utils/searchQueryParser';
-import { Play, Heart, Smartphone, Globe, Search, Tv, MapPin } from 'lucide-react';
+import { Play, Heart, Smartphone, Globe, Search, Tv, MapPin, Radio } from 'lucide-react';
 import { ScrollView as RNScrollView, Text as RNText, View as RNView, Image as RNImage } from 'react-native';
 import { ChannelCard } from './ChannelCard';
+import { StreamResolutionBadge, StreamBitrateBadge, StreamLiveIndicator } from './StreamInfoBadge';
 
 interface CountryChannelSectionsProps {
   onOpenCinema?: (channel: Channel) => void;
@@ -239,20 +240,31 @@ export function DesktopCountryChannelSections({
                           />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <h4 className="text-xs font-bold text-white truncate group-hover:text-blue-400 transition-colors flex items-center gap-1.5">
-                            <span className="text-xs flex-shrink-0">{flag}</span>
-                            <span className="truncate">{channel.name}</span>
-                          </h4>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-[10px] text-zinc-400 truncate">
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-xs font-bold text-white truncate group-hover:text-blue-400 transition-colors flex items-center gap-1.5">
+                              <span className="text-xs flex-shrink-0">{flag}</span>
+                              <span className="truncate">{channel.name}</span>
+                            </h4>
+                            <StreamResolutionBadge resolution={channel.resolution || '1080p FHD'} />
+                            {channel.bitrate && <StreamBitrateBadge bitrate={channel.bitrate} fps={channel.fps} />}
+                          </div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <StreamLiveIndicator streamType="live" healthStatus={channel.healthStatus} />
+                            <span className="text-[10px] text-zinc-300 font-medium truncate">
                               {displayCat}
                             </span>
                             {channel.language && (
-                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-white/5 text-zinc-500 font-mono">
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-white/5 text-zinc-400 font-mono">
                                 {channel.language}
                               </span>
                             )}
                           </div>
+                          {channel.currentProgram && (
+                            <div className="flex items-center gap-1.5 mt-1 text-[10px] text-emerald-300 font-medium truncate">
+                              <Radio className="w-2.5 h-2.5 text-emerald-400 shrink-0 animate-pulse" />
+                              <span className="truncate">{channel.currentProgram}</span>
+                            </div>
+                          )}
                         </div>
                       </div>
 

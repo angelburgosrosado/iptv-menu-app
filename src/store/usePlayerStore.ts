@@ -531,11 +531,13 @@ export const usePlayerStore = create<AppState>((set, get) => ({
   loadDemoChannels: () => {
     const live = DEMO_FAST_CHANNELS.filter((c) => c.streamType === 'live');
     const vod = DEMO_FAST_CHANNELS.filter((c) => c.streamType === 'vod');
+    const series = DEMO_FAST_CHANNELS.filter((c) => c.streamType === 'series');
     const uniqueGroups = Array.from(new Set(DEMO_FAST_CHANNELS.map((c) => c.group))).sort();
     const sections = buildCountrySections(DEMO_FAST_CHANNELS);
     set({
       channels: DEMO_FAST_CHANNELS,
       vodChannels: vod,
+      seriesChannels: series,
       groups: uniqueGroups,
       countrySections: sections,
       selectedStreamType: 'all',

@@ -29,11 +29,23 @@ import {
   Server,
   RefreshCw,
   MoreVertical,
-  ChevronDown
+  ChevronDown,
+  Sparkles,
+  Radio,
+  Activity,
+  Wifi,
+  Zap
 } from 'lucide-react';
 import { Channel } from '../types/iptv';
 import WebCinemaPlayer from './WebCinemaPlayer';
 import CountryChannelSections from './CountryChannelSections';
+import { 
+  StreamResolutionBadge, 
+  StreamBitrateBadge, 
+  StreamCountryBadge, 
+  StreamLiveIndicator, 
+  StreamTechRibbon 
+} from './StreamInfoBadge';
 import { downloadM3UFile } from '../utils/m3uParser';
 import { ChannelTagModal } from './ChannelTagModal';
 import { ParentalPinModal } from './ParentalPinModal';
@@ -534,17 +546,40 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
         </div>
       )}
 
-      {/* 5. Zero Channels / Not Connected Empty State */}
-      {channels.length === 0 && !isLoading && activeCatalog.length === 0 ? (
+      {/* 5. Zero Channels / Empty Catalog State */}
+      {activeCatalog.length === 0 && !isLoading ? (
         <div className="flex-1 min-h-[340px] flex flex-col items-center justify-center border border-dashed border-white/10 rounded-3xl bg-white/[0.01] p-8 text-center my-2">
           <div className="w-14 h-14 rounded-2xl bg-cyan-500/10 flex items-center justify-center text-cyan-400 mb-3 border border-cyan-500/20 shadow-lg shadow-cyan-500/10">
-            <Tv className="w-7 h-7" />
+            {selectedStreamType === 'vod' ? (
+              <Film className="w-7 h-7" />
+            ) : selectedStreamType === 'series' ? (
+              <Clapperboard className="w-7 h-7" />
+            ) : (
+              <Tv className="w-7 h-7" />
+            )}
           </div>
-          <h3 className="text-base font-bold text-white tracking-tight">No Playlist or Feeds Connected</h3>
+          <h3 className="text-base font-bold text-white tracking-tight">
+            {selectedStreamType === 'vod' 
+              ? 'No Video-on-Demand (Movies) in Current Catalog' 
+              : selectedStreamType === 'series'
+              ? 'No TV Series in Current Catalog'
+              : 'No Channels or Feeds Connected'}
+          </h3>
           <p className="text-xs text-zinc-400 max-w-sm mt-1.5 leading-relaxed font-medium">
-            Load our free FAST channels pack to stream instantly, or connect your Xtream Codes account or M3U playlist.
+            {selectedStreamType === 'vod' || selectedStreamType === 'series'
+              ? `Your current active playlist contains ${channels.length} channels, but no ${selectedStreamType === 'vod' ? 'movies' : 'series'}. You can switch to Live TV or load our demo collection.`
+              : 'Load our free FAST channels pack to stream instantly, or connect your Xtream Codes account or M3U playlist.'}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3 mt-5">
+            {selectedStreamType !== 'all' && (
+              <button
+                onClick={() => setSelectedStreamType('all')}
+                className="px-5 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-lg shadow-cyan-500/20 cursor-pointer"
+              >
+                <Tv className="w-3.5 h-3.5" />
+                <span>Switch to Live TV</span>
+              </button>
+            )}
             {loadDemoChannels && (
               <button
                 onClick={() => loadDemoChannels()}
@@ -556,7 +591,7 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
             )}
             <button
               onClick={() => onNavigateTab ? onNavigateTab('xtream') : null}
-              className="px-5 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-lg shadow-cyan-500/20 cursor-pointer"
+              className="px-5 py-2.5 bg-zinc-900 hover:bg-zinc-800 text-white border border-white/10 hover:border-white/20 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer"
             >
               <Server className="w-3.5 h-3.5" />
               <span>Connect Xtream Codes</span>
@@ -632,15 +667,30 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
 
                     {/* Top Badges */}
                     <div className="absolute top-2 left-2 right-2 flex items-center justify-between gap-1 pointer-events-none">
-                      <span className="px-1.5 py-0.5 rounded-md bg-black/75 backdrop-blur-md text-[9px] font-black tracking-wider text-amber-300 border border-white/10 uppercase">
-                        {c.resolution || (selectedStreamType === 'series' ? 'SERIES' : 'HD')}
-                      </span>
-                      {isLocked && (
-                        <span className="px-1.5 py-0.5 rounded-md bg-rose-600/90 backdrop-blur-md text-[9px] font-bold text-white flex items-center gap-1 shadow-sm">
-                          <Lock className="w-2.5 h-2.5" />
-                        </span>
-                      )}
+                      <StreamResolutionBadge resolution={c.resolution || (selectedStreamType === 'series' ? '1080p' : '4K UHD')} />
+                      <div className="flex items-center gap-1">
+                        <StreamLiveIndicator streamType={selectedStreamType as any} healthStatus={c.healthStatus} />
+                        {isLocked && (
+                          <span className="px-1.5 py-0.5 rounded-md bg-rose-600/90 backdrop-blur-md text-[9px] font-bold text-white flex items-center gap-1 shadow-sm">
+                            <Lock className="w-2.5 h-2.5" />
+                          </span>
+                        )}
+                      </div>
                     </div>
+
+                    {/* Bottom Tech Spec Pill over Poster */}
+                    {(c.bitrate || c.codec) && (
+                      <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between pointer-events-none">
+                        {c.bitrate ? (
+                          <StreamBitrateBadge bitrate={c.bitrate} fps={c.fps} />
+                        ) : <span />}
+                        {c.codec && (
+                          <span className="px-1.5 py-0.5 rounded-md bg-black/80 backdrop-blur-md border border-white/10 text-[9px] font-mono font-bold text-purple-300 uppercase">
+                            {c.codec}
+                          </span>
+                        )}
+                      </div>
+                    )}
 
                     {/* Hover Play Button Overlay */}
                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 backdrop-blur-[1px]">
@@ -656,11 +706,14 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
                       <h4 className="text-xs font-bold text-white group-hover:text-cyan-400 transition-colors line-clamp-1 leading-snug">
                         {c.name}
                       </h4>
-                      <p className="text-[10px] text-zinc-400 truncate mt-0.5 font-medium">
-                        {c.category || c.group || (selectedStreamType === 'series' ? 'TV Series' : 'Movie')}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                        <span className="px-1.5 py-0.5 rounded-md bg-white/[0.04] text-[9px] font-semibold text-zinc-300 border border-white/5 truncate max-w-[110px]">
+                          {c.category || c.group || (selectedStreamType === 'series' ? 'TV Series' : 'Movie')}
+                        </span>
+                        <StreamCountryBadge countryCode={c.countryCode} countryName={c.countryName} countryFlag={c.countryFlag} />
+                      </div>
                       {(c.epgDescription || c.currentProgram) && (
-                        <p className="text-[9px] text-zinc-400 line-clamp-2 mt-1 leading-relaxed">
+                        <p className="text-[9px] text-zinc-400 line-clamp-2 mt-2 leading-relaxed bg-white/[0.02] p-1.5 rounded-lg border border-white/5">
                           {c.epgDescription || c.currentProgram}
                         </p>
                       )}
@@ -782,30 +835,42 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
                       </div>
                     </div>
                     <div className="min-w-0 pr-2 flex-1">
-                      <h4 className="text-xs font-bold text-white truncate leading-tight group-hover:text-cyan-400 transition-colors flex items-center gap-1.5">
-                        <span className="truncate">{c.name}</span>
-                      </h4>
-                      <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-zinc-400">
-                        <span className="truncate">{c.category || c.group}</span>
-                        {c.countryName && (
-                          <>
-                            <span>•</span>
-                            <span className="truncate">{c.countryName}</span>
-                          </>
-                        )}
-                        {c.resolution && (
-                          <span className="text-cyan-400 font-mono font-bold text-[9px] px-1 py-0.2 rounded bg-cyan-500/10 border border-cyan-500/20">{c.resolution}</span>
-                        )}
+                      {/* Line 1: Channel Name + Resolution + Bitrate + Lock */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-xs font-bold text-white truncate leading-tight group-hover:text-cyan-400 transition-colors">
+                          {c.name}
+                        </h4>
+                        <StreamResolutionBadge resolution={c.resolution || '1080p FHD'} />
+                        {c.bitrate && <StreamBitrateBadge bitrate={c.bitrate} fps={c.fps} />}
                         {isLocked && (
-                          <span className="text-rose-400 flex items-center gap-0.5 font-semibold">
+                          <span className="text-rose-400 flex items-center gap-0.5 font-semibold text-[10px] bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20">
                             <Lock className="w-2.5 h-2.5" /> Locked
                           </span>
                         )}
                       </div>
+
+                      {/* Line 2: Stream Metadata Ribbon (Live Status, Category, Country, Source) */}
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1.5 text-[10px]">
+                        <StreamLiveIndicator streamType="live" healthStatus={c.healthStatus} />
+                        <span className="px-1.5 py-0.5 rounded-md bg-white/[0.04] text-[9px] font-semibold text-zinc-300 border border-white/5 truncate max-w-[100px]">
+                          {c.category || c.group}
+                        </span>
+                        <StreamCountryBadge countryCode={c.countryCode} countryName={c.countryName} countryFlag={c.countryFlag} />
+                        {c.directSource && (
+                          <span className="px-1.5 py-0.5 rounded-md bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-[9px] font-mono font-bold uppercase">
+                            {c.directSource === 'xtream' ? 'XTREAM' : c.directSource === 'stalker' ? 'STALKER' : 'HLS'}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Line 3: EPG Now Playing Broadcast Row */}
                       {(c.currentProgram || c.epgDescription) && (
-                        <div className="flex items-center gap-1.5 mt-1 text-[10px] text-emerald-300 font-medium truncate">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 animate-pulse" />
-                          <span className="truncate">{c.currentProgram || c.epgDescription}</span>
+                        <div className="flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-lg bg-emerald-500/[0.08] border border-emerald-500/20 text-[10px] text-emerald-300 font-medium">
+                          <Radio className="w-3 h-3 text-emerald-400 shrink-0 animate-pulse" />
+                          <span className="font-bold text-white truncate">{c.currentProgram || c.epgDescription}</span>
+                          {c.currentProgram && c.epgDescription && (
+                            <span className="text-zinc-400 truncate hidden md:inline">— {c.epgDescription}</span>
+                          )}
                         </div>
                       )}
                     </div>
@@ -982,15 +1047,26 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
                       className="w-full h-full object-contain"
                     />
                   </div>
-                  <div className="min-w-0">
-                    <h4 className="text-xs font-bold text-white truncate">{c.name}</h4>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-xs font-bold text-white truncate">{c.name}</h4>
+                      <StreamResolutionBadge resolution={c.resolution || '1080p FHD'} />
+                      {c.bitrate && <StreamBitrateBadge bitrate={c.bitrate} fps={c.fps} />}
+                      <StreamLiveIndicator streamType={c.streamType} healthStatus={c.healthStatus} />
+                    </div>
+                    {c.currentProgram && (
+                      <p className="text-[10px] text-emerald-400 font-medium truncate mt-0.5">
+                        ▶ {c.currentProgram}
+                      </p>
+                    )}
                   </div>
                 </div>
 
-                <div className="col-span-2 md:col-span-2 min-w-0">
-                  <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block truncate">
+                <div className="col-span-2 md:col-span-2 min-w-0 flex items-center gap-1.5">
+                  <span className="text-[10px] font-bold text-zinc-300 uppercase tracking-wider block truncate">
                     {c.category || c.group}
                   </span>
+                  <StreamCountryBadge countryCode={c.countryCode} countryName={c.countryName} countryFlag={c.countryFlag} />
                 </div>
 
                 <div className="col-span-3 md:col-span-2 flex items-center justify-end gap-1.5">

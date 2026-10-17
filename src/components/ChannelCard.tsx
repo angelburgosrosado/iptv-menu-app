@@ -6,9 +6,10 @@
 import * as React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
-import { Heart, Play, Share2, Tv } from 'lucide-react';
+import { Heart, Play, Share2, Tv, Radio } from 'lucide-react';
 import { Channel } from '../types/iptv';
 import { usePlayerStore } from '../store/usePlayerStore';
+import { StreamResolutionBadge, StreamBitrateBadge, StreamCountryBadge } from './StreamInfoBadge';
 
 interface ChannelCardProps {
   channel: Channel;
@@ -274,21 +275,18 @@ export const ChannelCard = React.memo(({
 
           {/* Details Area */}
           <View style={styles.details}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
               <Text numberOfLines={1} style={styles.channelName}>
                 {channel.name}
               </Text>
-              <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-blue-500/20 text-blue-400 border border-blue-500/30">
-                {channel.resolution || '1080p'}
-              </span>
+              <StreamResolutionBadge resolution={channel.resolution || '1080p'} />
+              {channel.bitrate && <StreamBitrateBadge bitrate={channel.bitrate} fps={channel.fps} />}
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}>
               <Text numberOfLines={1} style={styles.groupName}>
-                {channel.group || 'General'} • {channel.countryName || channel.countryCode || 'Global'}
+                {channel.group || 'General'}
               </Text>
-              <Text style={{ color: '#56d6c2', fontSize: 10, fontWeight: '600' }}>
-                {channel.metadataSource === 'iptv-org' ? 'iptv-org metadata' : 'playlist metadata'}
-              </Text>
+              <StreamCountryBadge countryCode={channel.countryCode} countryName={channel.countryName} countryFlag={channel.countryFlag} />
             </View>
             {currentProgram?.title && (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}>
