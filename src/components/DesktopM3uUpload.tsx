@@ -515,18 +515,23 @@ export default function DesktopM3uUpload() {
 
   return (
     <div className="flex flex-col h-full gap-6">
-      {/* Protocol Architecture Header */}
-      <PageProtocolHeader
-        title="M3U Playlist Manager & Auto-Cleaner"
-        description="Conforming lexical analyzer for RFC 8216 extended M3U/M3U8 playlists. Supports up to 10 active playlists, 5 hosted remote URLs, automated dead stream link pruning (20 daily automated runs on Pro), and local cleaned playlist export."
-        protocol="RFC 8216 Section 4.3.2.1"
-        schema="Extended M3U8 Playlist Specification (UTF-8)"
-        rfcOrStandard="RFC 8216 • IETF Pantos HLS Spec"
-        layer="Lexical Ingestion & Manifest Health Layer"
-        supportedTags={['#EXTM3U', '#EXTINF', 'tvg-id', 'tvg-name', 'tvg-country', 'group-title', 'Auto-Cleaner', 'Local Export']}
-        icon={UploadCloud}
-        badgeColor="emerald"
-      />
+      {/* Sleek, Content-First M3U Playlist Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-white/5">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-lg font-black tracking-tight text-white flex items-center gap-2">
+              <UploadCloud className="w-5 h-5 text-emerald-400" />
+              <span>M3U Playlist Manager</span>
+            </h2>
+            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              Active Feeds
+            </span>
+          </div>
+          <p className="text-xs text-zinc-400 mt-0.5">
+            Upload custom playlists, manage remote subscriptions, and run automated health checks
+          </p>
+        </div>
+      </div>
 
       {/* Rate limit warning if daily runs reached */}
       <RateLimitBanner

@@ -349,20 +349,27 @@ export default function DesktopEpg() {
 
   return (
     <div className="flex flex-col h-full gap-5">
-      {/* EPG Protocol Header */}
-      <PageProtocolHeader
-        title="Electronic Program Guide (EPG)"
-        description="XMLTV auto-feed integration and time-grid EPG display. Schedules are cross-referenced with channel tvg-id tags according to XMLTV DTD and RFC 5545 specifications, delivering live Now/Next broadcast information."
-        protocol="XMLTV DTD & RFC 5545 (iCalendar)"
-        schema="XMLTV Schema v0.6 & DVB-SI Event Information"
-        rfcOrStandard="XMLTV DTD 0.6 • DVB-SI EN 300 468"
-        layer="Metadata & Schedule Synchronization Layer"
-        supportedTags={['<tv>', '<channel id="">', '<programme start="" stop="">', '<title>', '<desc>', '<category>', 'tvg-id', 'Now/Next']}
-        icon={CalendarRange}
-        badgeColor="cyan"
-      >
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-zinc-300 transition-all">
+      {/* Sleek, Content-First EPG Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-white/5">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-lg font-black tracking-tight text-white flex items-center gap-2">
+              <CalendarRange className="w-5 h-5 text-cyan-400" />
+              <span>TV Guide & Broadcast Schedules</span>
+            </h2>
+            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+              Live EPG
+            </span>
+          </div>
+          <p className="text-xs text-zinc-400 mt-0.5">
+            Real-time broadcast schedule, now playing timelines, and catch-up telecasts
+          </p>
+        </div>
+
+        {/* Clean Action Controls */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Timezone picker */}
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#16161a] border border-white/10 text-xs text-zinc-300">
             <Globe className="w-3.5 h-3.5 text-cyan-400 flex-shrink-0" />
             <select
               value={selectedTimezone || 'local'}
@@ -371,50 +378,47 @@ export default function DesktopEpg() {
               aria-label="EPG Broadcast Timezone"
             >
               <option value="local" className="bg-zinc-900 text-white">Local Time ({Intl.DateTimeFormat().resolvedOptions().timeZone})</option>
+              <option value="America/New_York" className="bg-zinc-900 text-white">US Eastern</option>
+              <option value="America/Chicago" className="bg-zinc-900 text-white">US Central</option>
+              <option value="America/Denver" className="bg-zinc-900 text-white">US Mountain</option>
+              <option value="America/Los_Angeles" className="bg-zinc-900 text-white">US Pacific</option>
               <option value="UTC" className="bg-zinc-900 text-white">UTC (+00:00)</option>
-              <option value="America/New_York" className="bg-zinc-900 text-white">US Eastern (America/New_York)</option>
-              <option value="America/Chicago" className="bg-zinc-900 text-white">US Central (America/Chicago)</option>
-              <option value="America/Denver" className="bg-zinc-900 text-white">US Mountain (America/Denver)</option>
-              <option value="America/Los_Angeles" className="bg-zinc-900 text-white">US Pacific (America/Los_Angeles)</option>
-              <option value="America/Puerto_Rico" className="bg-zinc-900 text-white">Puerto Rico (America/Puerto_Rico)</option>
-              <option value="America/Santo_Domingo" className="bg-zinc-900 text-white">Dominican Rep (America/Santo_Domingo)</option>
-              <option value="America/Mexico_City" className="bg-zinc-900 text-white">Mexico City (America/Mexico_City)</option>
-              <option value="Europe/London" className="bg-zinc-900 text-white">London (Europe/London)</option>
-              <option value="Europe/Madrid" className="bg-zinc-900 text-white">Madrid (Europe/Madrid)</option>
-              <option value="Europe/Paris" className="bg-zinc-900 text-white">Paris (Europe/Paris)</option>
-              <option value="Asia/Tokyo" className="bg-zinc-900 text-white">Tokyo (Asia/Tokyo)</option>
+              <option value="Europe/London" className="bg-zinc-900 text-white">London</option>
+              <option value="Europe/Madrid" className="bg-zinc-900 text-white">Madrid</option>
+              <option value="Europe/Paris" className="bg-zinc-900 text-white">Paris</option>
+              <option value="America/Puerto_Rico" className="bg-zinc-900 text-white">Puerto Rico</option>
             </select>
           </div>
 
           <button
-            onClick={() => setShowAttachEpgModal(true)}
-            className="px-3.5 py-2 rounded-xl bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-200 text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-lg shadow-blue-500/10"
-            aria-label="Attach EPG Source"
+            onClick={handleRefreshXmltvFeed}
+            disabled={isSyncing}
+            className="px-3.5 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-cyan-500/20 cursor-pointer"
+            title="Refresh XMLTV Feed"
           >
-            <Link2 className="w-3.5 h-3.5 text-blue-400" />
-            <span>Attach EPG</span>
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+            <span>Sync Guide</span>
           </button>
 
           <button
-            onClick={handleRefreshXmltvFeed}
-            disabled={isSyncing}
-            className="px-3.5 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-2 transition-all shadow-lg shadow-cyan-500/20 cursor-pointer"
-            aria-label="Refresh XMLTV Feed"
+            onClick={() => setShowAttachEpgModal(true)}
+            className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white border border-white/10 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+            title="Attach Custom XMLTV EPG Feed URL"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-            <span>Sync XMLTV Feed</span>
+            <Link2 className="w-3.5 h-3.5 text-blue-400" />
+            <span className="hidden sm:inline">Source</span>
           </button>
 
           <button
             onClick={() => setShowDvrModal(true)}
-            className="px-3.5 py-2 rounded-xl bg-purple-600/20 hover:bg-purple-600/30 border border-purple-500/30 text-purple-200 text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-lg shadow-purple-500/10"
-            aria-label="Open DVR & Bookmarks Library"
+            className="px-3 py-1.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/20 text-purple-300 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+            title="Open DVR Recordings & Bookmarks"
           >
             <Film className="w-3.5 h-3.5 text-purple-400" />
-            <span>DVR & Bookmarks ({dvrRecordings.length + bookmarks.length})</span>
+            <span>DVR ({dvrRecordings.length + bookmarks.length})</span>
           </button>
         </div>
-      </PageProtocolHeader>
+      </div>
 
       {syncToast && (
         <div className="p-3 bg-cyan-500/10 border border-cyan-500/30 rounded-xl text-xs text-cyan-300 font-medium flex items-center gap-2 shadow-lg">

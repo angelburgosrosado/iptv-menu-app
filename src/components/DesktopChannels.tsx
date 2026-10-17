@@ -235,24 +235,47 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
     <div className="flex flex-col h-full gap-5">
       {/* 1. Sleek, Uncluttered Page Header with Stream Type Switcher */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-white/5">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="inline-flex items-center p-1 bg-[#16161a] border border-white/10 rounded-2xl shadow-inner">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-black tracking-tight text-white flex items-center gap-2">
+                {selectedStreamType === 'vod' ? (
+                  <>
+                    <Film className="w-5 h-5 text-cyan-400" />
+                    <span>On-Demand Movies</span>
+                  </>
+                ) : selectedStreamType === 'series' ? (
+                  <>
+                    <Clapperboard className="w-5 h-5 text-purple-400" />
+                    <span>TV Series & Shows</span>
+                  </>
+                ) : (
+                  <>
+                    <Tv className="w-5 h-5 text-blue-400" />
+                    <span>Live Television</span>
+                  </>
+                )}
+              </h2>
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/5 text-zinc-300 border border-white/10 font-mono">
+                {filteredChannels.length} titles
+              </span>
+            </div>
+          </div>
+
+          <div className="inline-flex items-center p-1 bg-[#16161a] border border-white/10 rounded-2xl shadow-inner sm:ml-2">
             <button
               onClick={() => {
                 setSelectedStreamType('live');
                 setSelectedGroup(null);
               }}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 selectedStreamType === 'live'
                   ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-md shadow-cyan-500/20'
                   : 'text-zinc-400 hover:text-white hover:bg-white/5'
               }`}
             >
-              <Tv className="w-3.5 h-3.5" />
-              <span>Live Channels</span>
-              <span className="text-[10px] px-1.5 py-0.5 bg-black/40 rounded-full font-mono">
-                {channels.filter((c) => c.streamType === 'live' || (!c.streamType && !isVodMovieChannel(c) && !isSeriesChannel(c))).length}
-              </span>
+              <Tv className="w-3 h-3" />
+              <span>Live</span>
             </button>
 
             <button
@@ -263,17 +286,14 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
                   loadXtreamVod();
                 }
               }}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 selectedStreamType === 'vod'
                   ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white shadow-md shadow-cyan-500/20'
                   : 'text-zinc-400 hover:text-white hover:bg-white/5'
               }`}
             >
-              <Film className="w-3.5 h-3.5" />
-              <span>Movies & VOD</span>
-              <span className="text-[10px] px-1.5 py-0.5 bg-black/40 rounded-full font-mono">
-                {vodChannels && vodChannels.length > 0 ? vodChannels.length : channels.filter(isVodMovieChannel).length}
-              </span>
+              <Film className="w-3 h-3" />
+              <span>Movies</span>
             </button>
 
             <button
@@ -284,25 +304,16 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
                   loadXtreamSeries();
                 }
               }}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 selectedStreamType === 'series'
                   ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-500/20'
                   : 'text-zinc-400 hover:text-white hover:bg-white/5'
               }`}
             >
-              <Clapperboard className="w-3.5 h-3.5" />
-              <span>TV Series</span>
-              <span className="text-[10px] px-1.5 py-0.5 bg-black/40 rounded-full font-mono">
-                {seriesChannels && seriesChannels.length > 0 ? seriesChannels.length : channels.filter(isSeriesChannel).length}
-              </span>
+              <Clapperboard className="w-3 h-3" />
+              <span>Series</span>
             </button>
           </div>
-
-          <p className="text-xs text-zinc-400 hidden xl:block">
-            {visibleChannels.length < filteredChannels.length
-              ? `Showing ${visibleChannels.length} of ${filteredChannels.length} titles`
-              : `${filteredChannels.length} titles available`}
-          </p>
         </div>
 
         {/* Quick Search, Sort & View Controls */}

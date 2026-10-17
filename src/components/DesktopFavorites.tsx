@@ -52,24 +52,29 @@ export default function DesktopFavorites() {
 
   return (
     <div className="flex flex-col h-full gap-6">
-      {/* Protocol Architecture Header */}
-      <PageProtocolHeader
-        title="Favorites & Playback History Ledger"
-        description="Personalized stream curation and chronological playback tracker. Caches favorite bookmarks and recently watched channels with zero-latency lookups, session persistence, and history pruning."
-        protocol="Client Personalization & Storage Protocol"
-        schema="User Favorites & History Schema"
-        rfcOrStandard="W3C Storage • MMKV Binary Store"
-        layer="Client Presentation & Personalization Layer"
-        supportedTags={['user_favorites', 'playback_history', 'tvg-id indexing', 'MMKV Cache', 'Zero-latency Dispatch']}
-        icon={Heart}
-        badgeColor="purple"
-      >
+      {/* Sleek, Content-First Library Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-white/5">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-lg font-black tracking-tight text-white flex items-center gap-2">
+              <Heart className="w-5 h-5 text-purple-400 fill-purple-400/20" />
+              <span>My Library</span>
+            </h2>
+            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20">
+              Personal Vault
+            </span>
+          </div>
+          <p className="text-xs text-zinc-400 mt-0.5">
+            Bookmarked favorite channels, on-demand movies, and chronological watch history
+          </p>
+        </div>
+
         <div className="flex items-center gap-2">
           {/* Subtab segmented control */}
-          <div className="flex bg-black/40 p-1 border border-white/10 rounded-xl">
+          <div className="flex bg-[#16161a] p-1 border border-white/10 rounded-2xl">
             <button
               onClick={() => setActiveTab('favorites')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                 activeTab === 'favorites'
                   ? 'bg-purple-600 text-white shadow-md shadow-purple-500/20'
                   : 'text-zinc-400 hover:text-white'
@@ -77,12 +82,12 @@ export default function DesktopFavorites() {
               aria-label="Favorites Tab"
             >
               <Heart className={`w-3.5 h-3.5 ${activeTab === 'favorites' ? 'fill-current' : ''}`} />
-              Favorites ({favorites.length})
+              <span>Favorites ({favorites.length})</span>
             </button>
 
             <button
               onClick={() => setActiveTab('history')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                 activeTab === 'history'
                   ? 'bg-cyan-600 text-white shadow-md shadow-cyan-500/20'
                   : 'text-zinc-400 hover:text-white'
@@ -90,7 +95,7 @@ export default function DesktopFavorites() {
               aria-label="Recently Watched History Tab"
             >
               <History className="w-3.5 h-3.5" />
-              History ({history.length})
+              <span>History ({history.length})</span>
             </button>
           </div>
 
@@ -101,11 +106,11 @@ export default function DesktopFavorites() {
               aria-label="Clear all watch history"
             >
               <Trash2 className="w-3.5 h-3.5" />
-              Clear History
+              <span className="hidden sm:inline">Clear</span>
             </button>
           )}
         </div>
-      </PageProtocolHeader>
+      </div>
 
       {/* Confirmation modal for clearing history */}
       {showClearConfirm && (

@@ -347,33 +347,38 @@ export default function XtreamConnector({ onNavigateTab }: XtreamConnectorProps 
 
   return (
     <div className="flex flex-col h-full gap-6">
-      {/* Protocol Architecture Header */}
-      <PageProtocolHeader
-        title="Xtream Codes & Stalker Protocol Connector"
-        description="Direct gateway for Xtream Codes API v2 and Stalker Middleware portal endpoints. Connect with standard server credentials or portal MAC address to auto-load live categories, streams, and EPG channels into your active workspace."
-        protocol="Xtream Codes REST API v2 & Stalker Middleware"
-        schema="player_api.php Action Schema & Stalker Load API"
-        rfcOrStandard="Xtream API Spec • Stalker Portal v5.x"
-        layer="Authentication & Middleware Bridge Layer"
-        supportedTags={['player_api.php', 'Stalker Portal', 'MAC Binding', 'Live Streams', 'VOD Cat', 'Direct Ingestion']}
-        icon={Server}
-        badgeColor="cyan"
-      >
-        <div className="flex items-center gap-1 bg-black/40 p-1 border border-white/10 rounded-xl">
+      {/* Sleek, Content-First Xtream Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-white/5">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-lg font-black tracking-tight text-white flex items-center gap-2">
+              <Server className="w-5 h-5 text-cyan-400" />
+              <span>IPTV Server Connections</span>
+            </h2>
+            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+              Provider Gateway
+            </span>
+          </div>
+          <p className="text-xs text-zinc-400 mt-0.5">
+            Connect your Xtream Codes API account or Stalker Middleware portal to load live streams, VOD, and series
+          </p>
+        </div>
+
+        <div className="flex items-center gap-1 bg-[#16161a] p-1 border border-white/10 rounded-2xl">
           <button
             onClick={() => setProtocolType('xtream')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               protocolType === 'xtream'
                 ? 'bg-cyan-600 text-white shadow-md shadow-cyan-500/20'
                 : 'text-zinc-400 hover:text-white'
             }`}
             aria-label="Xtream Codes API Protocol"
           >
-            Xtream Codes API
+            Xtream Codes
           </button>
           <button
             onClick={() => setProtocolType('stalker')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               protocolType === 'stalker'
                 ? 'bg-cyan-600 text-white shadow-md shadow-cyan-500/20'
                 : 'text-zinc-400 hover:text-white'
@@ -383,7 +388,7 @@ export default function XtreamConnector({ onNavigateTab }: XtreamConnectorProps 
             Stalker Portal
           </button>
         </div>
-      </PageProtocolHeader>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Credentials Form Box (7 cols) */}

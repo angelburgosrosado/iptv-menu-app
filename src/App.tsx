@@ -157,29 +157,26 @@ export default function App() {
     }
   }, []);
 
-  // Streamlined sidebar items for Watch TV mode
+  // Streamlined sidebar items with media & system grouping
   const SIDEBAR_ITEMS = [
-    { id: 'channels', label: 'Live Channels', icon: Tv },
-    { id: 'vod', label: 'VOD Movies', icon: Film },
-    { id: 'series', label: 'TV Series', icon: Clapperboard },
-    { id: 'epg', label: 'EPG Program Guide', icon: CalendarRange },
-    { id: 'multiscreen', label: 'Quad Multi-Screen', icon: LayoutGrid },
-    { id: 'favorites', label: 'Favorites & History', icon: Heart },
-    { id: 'upload', label: 'Feeds, Proxies & Upload', icon: UploadCloud },
-    { id: 'xtream', label: 'Xtream / Stalker', icon: Server },
-    { id: 'premium', label: 'Plans & Billing', icon: Crown },
-    { id: 'settings', label: 'Settings', icon: Settings },
+    { id: 'channels', label: 'Live TV', icon: Tv, section: 'watch' },
+    { id: 'vod', label: 'Movies', icon: Film, section: 'watch' },
+    { id: 'series', label: 'TV Series', icon: Clapperboard, section: 'watch' },
+    { id: 'epg', label: 'TV Guide', icon: CalendarRange, section: 'watch' },
+    { id: 'multiscreen', label: 'MultiScreen', icon: LayoutGrid, section: 'watch' },
+    { id: 'favorites', label: 'My Library', icon: Heart, section: 'library' },
+    { id: 'xtream', label: 'Xtream / Stalker', icon: Server, section: 'sources' },
+    { id: 'upload', label: 'M3U Playlists', icon: UploadCloud, section: 'sources' },
+    { id: 'settings', label: 'Settings', icon: Settings, section: 'manage' },
   ];
 
   const MOBILE_TAB_ITEMS = [
     { id: 'channels', label: 'Live', icon: Tv },
-    { id: 'vod', label: 'VOD', icon: Film },
+    { id: 'vod', label: 'Movies', icon: Film },
     { id: 'series', label: 'Series', icon: Clapperboard },
+    { id: 'epg', label: 'Guide', icon: CalendarRange },
     { id: 'multiscreen', label: 'Quad', icon: LayoutGrid },
-    { id: 'epg', label: 'EPG', icon: CalendarRange },
-    { id: 'favorites', label: 'Saved', icon: Heart },
-    { id: 'upload', label: 'M3U', icon: UploadCloud },
-    { id: 'premium', label: 'Billing', icon: Crown },
+    { id: 'favorites', label: 'Library', icon: Heart },
   ];
 
   const renderActiveSection = () => {
@@ -219,7 +216,7 @@ export default function App() {
 
       {/* 1. Global Navigation Navbar */}
       <header className="border-b border-white/10 bg-black/50 backdrop-blur-xl sticky top-0 z-50 px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
-        {/* Brand & Mode Switcher */}
+        {/* Brand Logo & Title */}
         <div className="flex items-center gap-4 flex-wrap">
           <button
             onClick={() => navigate('/')}
@@ -239,57 +236,15 @@ export default function App() {
             </div>
           </button>
 
-          {/* Primary View Switcher Navigation */}
-          <nav className="flex items-center gap-1 bg-zinc-950/80 p-1 rounded-2xl border border-white/10 shadow-inner">
+          {currentRoute !== 'watch' && (
             <button
               onClick={() => navigate('/')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                currentRoute === 'watch'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25'
-                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
-              }`}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 text-white text-xs font-bold shadow-md shadow-blue-500/25 hover:bg-blue-500 transition-all cursor-pointer"
             >
               <Tv className="w-3.5 h-3.5" />
-              <span>Watch TV</span>
+              <span>Return to Watch TV</span>
             </button>
-
-            <button
-              onClick={() => navigate('/builder')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                currentRoute === 'builder'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25'
-                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-400 fill-current" />
-              <span>App Studio</span>
-            </button>
-
-            <button
-              onClick={() => navigate('/pricing')}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                currentRoute === 'pricing'
-                  ? 'bg-blue-600 text-white shadow-md shadow-blue-500/25'
-                  : 'text-zinc-400 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <Crown className="w-3.5 h-3.5 text-yellow-400" />
-              <span>Pricing</span>
-            </button>
-
-            {auth.role === 'admin' && (
-              <button
-                onClick={() => navigate('/admin')}
-                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  currentRoute === 'admin'
-                    ? 'bg-amber-600 text-white shadow-md shadow-amber-500/25'
-                    : 'text-amber-400/80 hover:text-amber-300 hover:bg-amber-500/10'
-                }`}
-              >
-                <span>Admin</span>
-              </button>
-            )}
-          </nav>
+          )}
 
           {auth.isLoggedIn && (
             <div className="hidden lg:block">
@@ -298,18 +253,45 @@ export default function App() {
           )}
         </div>
 
-        {/* Quick TV Device Pairing Button */}
-        <button
-          onClick={() => setIsTvPairingOpen(true)}
-          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-300 hover:text-white text-xs font-semibold transition-all hover:scale-105 active:scale-95 cursor-pointer"
-          title="Pair Apple TV, Android TV, or Fire TV"
-        >
-          <Tv className="w-3.5 h-3.5 text-sky-400" />
-          <span>Pair TV</span>
-        </button>
+        {/* Right Toolbar: Studio, TV Pairing, and User Auth */}
+        <div className="flex items-center gap-2.5 text-xs">
+          {/* App Studio Quick Link */}
+          <button
+            onClick={() => navigate(currentRoute === 'builder' ? '/' : '/builder')}
+            className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all hover:scale-105 active:scale-95 cursor-pointer ${
+              currentRoute === 'builder'
+                ? 'bg-amber-500/20 border-amber-500/40 text-amber-300'
+                : 'bg-white/5 hover:bg-white/10 border-white/10 text-zinc-300 hover:text-white'
+            }`}
+            title="Open React Native App Studio & APK Compiler"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-amber-400 fill-current" />
+            <span>App Studio</span>
+          </button>
 
-        {/* User Auth Status */}
-        <div className="flex items-center gap-3 text-xs">
+          {/* Quick TV Device Pairing Button */}
+          <button
+            onClick={() => setIsTvPairingOpen(true)}
+            className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-300 hover:text-white text-xs font-semibold transition-all hover:scale-105 active:scale-95 cursor-pointer"
+            title="Pair Apple TV, Android TV, or Fire TV"
+          >
+            <Tv className="w-3.5 h-3.5 text-sky-400" />
+            <span>Pair TV</span>
+          </button>
+
+          {/* Root Admin Shortcut */}
+          {auth.role === 'admin' && (
+            <button
+              onClick={() => navigate(currentRoute === 'admin' ? '/' : '/admin')}
+              className={`hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer ${
+                currentRoute === 'admin'
+                  ? 'bg-amber-600 text-white border-amber-500 shadow-md shadow-amber-500/25'
+                  : 'bg-amber-500/10 text-amber-400 border-amber-500/20 hover:bg-amber-500/20'
+              }`}
+            >
+              <span>Admin</span>
+            </button>
+          )}
           {auth.isLoggedIn ? (
             <div className="flex items-center gap-2.5 bg-zinc-900/90 border border-white/10 rounded-full pl-2 pr-3 py-1.5 shadow-lg shadow-black/40 backdrop-blur-md">
               <button
@@ -397,50 +379,62 @@ export default function App() {
               </div>
 
               {/* Navigation Items List */}
-              <nav className="flex flex-col gap-4 items-center w-full relative">
-                {SIDEBAR_ITEMS.map((item) => {
+              <nav className="flex flex-col gap-3 items-center w-full relative">
+                {SIDEBAR_ITEMS.map((item, idx) => {
                   const IconComponent = item.icon;
                   const isActive = activeMenu === item.id;
+                  const prevItem = SIDEBAR_ITEMS[idx - 1];
+                  const showDivider = prevItem && prevItem.section !== item.section;
                   
                   return (
-                    <div key={item.id} className="relative group flex items-center justify-center w-full">
-                      {isActive && (
-                        <div 
-                          className="absolute left-0 w-1.5 h-8 bg-blue-500 rounded-r-full shadow-[0_0_12px_#3b82f6]"
-                        />
+                    <React.Fragment key={item.id}>
+                      {showDivider && (
+                        <div className="w-8 h-[1px] bg-white/10 my-0.5" />
                       )}
+                      <div className="relative group flex items-center justify-center w-full">
+                        {isActive && (
+                          <div 
+                            className="absolute left-0 w-1.5 h-8 bg-blue-500 rounded-r-full shadow-[0_0_12px_#3b82f6]"
+                          />
+                        )}
 
-                      <button
-                        onClick={() => setActiveMenu(item.id)}
-                        tabIndex={0}
-                        aria-label={item.label}
-                        className={`p-3 rounded-2xl transition-all duration-200 relative flex items-center justify-center outline-none cursor-pointer border ${
-                          isActive
-                            ? 'text-white border-blue-500/50 bg-blue-500/15 shadow-[0_0_20px_rgba(59,130,246,0.3)]'
-                            : 'text-zinc-400 hover:text-white border-transparent bg-transparent hover:bg-white/5'
-                        }`}
-                      >
-                        <IconComponent className="w-5 h-5" />
-                      </button>
+                        <button
+                          onClick={() => setActiveMenu(item.id)}
+                          tabIndex={0}
+                          aria-label={item.label}
+                          className={`p-3 rounded-2xl transition-all duration-200 relative flex items-center justify-center outline-none cursor-pointer border ${
+                            isActive
+                              ? 'text-white border-blue-500/50 bg-blue-500/15 shadow-[0_0_20px_rgba(59,130,246,0.3)]'
+                              : 'text-zinc-400 hover:text-white border-transparent bg-transparent hover:bg-white/5'
+                          }`}
+                        >
+                          <IconComponent className="w-5 h-5" />
+                        </button>
 
-                      {/* Tooltip */}
-                      <div className="absolute left-full ml-4 px-3 py-1.5 bg-black/90 backdrop-blur-md text-[11px] font-bold text-white rounded-xl border border-white/10 opacity-0 translate-x-[-8px] pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 z-50 shadow-2xl whitespace-nowrap">
-                        {item.label}
+                        {/* Tooltip */}
+                        <div className="absolute left-full ml-4 px-3 py-1.5 bg-black/90 backdrop-blur-md text-[11px] font-bold text-white rounded-xl border border-white/10 opacity-0 translate-x-[-8px] pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 z-50 shadow-2xl whitespace-nowrap">
+                          {item.label}
+                        </div>
                       </div>
-                    </div>
+                    </React.Fragment>
                   );
                 })}
               </nav>
 
-              {/* Bottom Profile / Upgrade Button */}
+              {/* Bottom Pro Upgrade Button */}
               <div className="mt-auto relative group flex items-center justify-center w-full">
                 <button
-                  onClick={() => setIsProfileModalOpen(true)}
-                  className="p-2.5 rounded-2xl text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 transition-all outline-none cursor-pointer border border-white/10"
-                  aria-label="User Profile"
+                  onClick={() => navigate('/pricing')}
+                  className="p-2.5 rounded-2xl text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 transition-all outline-none cursor-pointer border border-amber-500/20"
+                  title="IPTV Pro Plans & Billing"
+                  aria-label="IPTV Pro Plans & Billing"
                 >
-                  <User className="w-4 h-4 text-zinc-300" />
+                  <Crown className="w-4 h-4" />
                 </button>
+                {/* Tooltip */}
+                <div className="absolute left-full ml-4 px-3 py-1.5 bg-black/90 backdrop-blur-md text-[11px] font-bold text-amber-300 rounded-xl border border-amber-500/20 opacity-0 translate-x-[-8px] pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 z-50 shadow-2xl whitespace-nowrap">
+                  Pro Membership & Billing
+                </div>
               </div>
             </aside>
 

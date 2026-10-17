@@ -590,18 +590,23 @@ export default function MultiScreenMatrix() {
 
   return (
     <div className="flex flex-col gap-6 h-full">
-      {/* Protocol Architecture Header */}
-      <PageProtocolHeader
-        title="Multi-Stream Split-Screen & Quad Matrix Engine"
-        description="Concurrent multi-feed media orchestration canvas running parallel HLS demuxing pipelines with hardware-accelerated decoding, audio solo focus arbiter, and dynamic broadcast layouts."
-        protocol="SMPTE ST 2022-7 & RFC 8216 HLS"
-        schema="Multi-Program Transport Stream (MPTS) & W3C MSE"
-        rfcOrStandard="SMPTE ST 2022-7 • W3C Media Source Extensions"
-        layer="Demuxing & Concurrent Rendering Layer"
-        supportedTags={['MSE', 'HLS.js Demuxer', 'Audio Solo Arbiter', 'Hero 1+3 Layout', 'Hotkeys 1-4']}
-        icon={LayoutGrid}
-        badgeColor="cyan"
-      >
+      {/* Sleek, Content-First MultiScreen Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-white/5">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-lg font-black tracking-tight text-white flex items-center gap-2">
+              <LayoutGrid className="w-5 h-5 text-cyan-400" />
+              <span>MultiScreen Quad Matrix</span>
+            </h2>
+            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+              Live Sports & News Wall
+            </span>
+          </div>
+          <p className="text-xs text-zinc-400 mt-0.5">
+            Concurrent multi-feed broadcast canvas with audio solo switching and dynamic multi-screen layouts
+          </p>
+        </div>
+
         <div className="flex items-center gap-2 flex-wrap">
           {/* Master Mute All / Solo Audio Toggle */}
           <button
@@ -619,7 +624,7 @@ export default function MultiScreenMatrix() {
           </button>
 
           {/* Layout Selector Chips */}
-          <div className="flex items-center bg-white/5 border border-white/10 rounded-xl p-0.5">
+          <div className="flex items-center bg-[#16161a] border border-white/10 rounded-xl p-1">
             <button
               onClick={() => setMatrixLayout('dual')}
               className={`px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer ${
@@ -666,7 +671,7 @@ export default function MultiScreenMatrix() {
             </button>
           </div>
         </div>
-      </PageProtocolHeader>
+      </div>
 
       {/* Swapping Active Alert Notification */}
       {swapSourceSlotIdx !== null && (

@@ -91,18 +91,23 @@ export default function DesktopSettings() {
 
   return (
     <div className="flex flex-col h-full gap-6">
-      {/* Settings Protocol Architecture Header */}
-      <PageProtocolHeader
-        title="Settings & Stream Pipeline Preferences"
-        description="Client configuration and pipeline diagnostic panel. Controls player buffer latency parameters, theme preferences, default playlist ingestion URL, cache lifecycle, and account deletion."
-        protocol="W3C Web Storage & React Native MMKV Protocol"
-        schema="Client Key-Value Storage Schema & HLS Player Diagnostics"
-        rfcOrStandard="W3C Web Storage • RFC 8216 LL-HLS"
-        layer="Configuration & Local Persistence Layer"
-        supportedTags={['Buffer Size (1.5s/3s/6s)', 'Theme Toggle', 'Default Playlist URL', 'Cache Pruning', 'Account Deletion']}
-        icon={Settings}
-        badgeColor="cyan"
-      />
+      {/* Sleek, Content-First Settings Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-white/5">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-lg font-black tracking-tight text-white flex items-center gap-2">
+              <Settings className="w-5 h-5 text-cyan-400" />
+              <span>Application Settings</span>
+            </h2>
+            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+              Preferences & Audio DSP
+            </span>
+          </div>
+          <p className="text-xs text-zinc-400 mt-0.5">
+            Configure stream buffer latency, storage cache, audio equalizer profiles, and playlist parameters
+          </p>
+        </div>
+      </div>
 
       {statusMessage && (
         <div className="p-3.5 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs font-bold flex items-center gap-2">
