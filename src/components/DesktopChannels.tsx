@@ -74,6 +74,7 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
     isSeriesLoading,
     loadXtreamVod,
     loadXtreamSeries,
+    loadDemoChannels,
     isLoading
   } = usePlayerStore();
 
@@ -484,7 +485,7 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
       )}
 
       {/* 3. On-Demand VOD Catalog Trigger (Divided Loading) */}
-      {selectedStreamType === 'vod' && activeCatalog.length === 0 && (
+      {selectedStreamType === 'vod' && activeCatalog.length === 0 && channels.length > 0 && (
         <div className="flex-1 min-h-[340px] flex flex-col items-center justify-center border border-dashed border-white/10 rounded-3xl bg-white/[0.01] p-8 text-center my-2">
           <div className="w-14 h-14 rounded-2xl bg-cyan-500/10 flex items-center justify-center text-cyan-400 mb-3 border border-cyan-500/20 shadow-lg shadow-cyan-500/10">
             <Film className="w-7 h-7" />
@@ -509,7 +510,7 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
       )}
 
       {/* 4. On-Demand TV Series Catalog Trigger (Divided Loading) */}
-      {selectedStreamType === 'series' && activeCatalog.length === 0 && (
+      {selectedStreamType === 'series' && activeCatalog.length === 0 && channels.length > 0 && (
         <div className="flex-1 min-h-[340px] flex flex-col items-center justify-center border border-dashed border-white/10 rounded-3xl bg-white/[0.01] p-8 text-center my-2">
           <div className="w-14 h-14 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-400 mb-3 border border-purple-500/20 shadow-lg shadow-purple-500/10">
             <Clapperboard className="w-7 h-7" />
@@ -541,9 +542,18 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
           </div>
           <h3 className="text-base font-bold text-white tracking-tight">No Playlist or Feeds Connected</h3>
           <p className="text-xs text-zinc-400 max-w-sm mt-1.5 leading-relaxed font-medium">
-            Connect your Xtream Codes API account or add an M3U playlist URL to stream live channels.
+            Load our free FAST channels pack to stream instantly, or connect your Xtream Codes account or M3U playlist.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-3 mt-5">
+            {loadDemoChannels && (
+              <button
+                onClick={() => loadDemoChannels()}
+                className="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-lg shadow-emerald-500/20 cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Load Demo FAST Channels</span>
+              </button>
+            )}
             <button
               onClick={() => onNavigateTab ? onNavigateTab('xtream') : null}
               className="px-5 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-all shadow-lg shadow-cyan-500/20 cursor-pointer"
@@ -608,7 +618,11 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
                       src={c.logo || getChannelAvatarDataUri(c.name)}
                       alt={c.name}
                       onError={(e) => {
-                        (e.target as HTMLImageElement).src = getChannelAvatarDataUri(c.name);
+                        const target = e.currentTarget;
+                        if (!target.dataset.fallback) {
+                          target.dataset.fallback = 'true';
+                          target.src = getChannelAvatarDataUri(c.name);
+                        }
                       }}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       loading="lazy"
@@ -645,6 +659,11 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
                       <p className="text-[10px] text-zinc-400 truncate mt-0.5 font-medium">
                         {c.category || c.group || (selectedStreamType === 'series' ? 'TV Series' : 'Movie')}
                       </p>
+                      {(c.epgDescription || c.currentProgram) && (
+                        <p className="text-[9px] text-zinc-400 line-clamp-2 mt-1 leading-relaxed">
+                          {c.epgDescription || c.currentProgram}
+                        </p>
+                      )}
                     </div>
 
                     {/* Bottom Action Row */}
@@ -747,7 +766,11 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
                         src={c.logo || getChannelAvatarDataUri(c.name)}
                         alt={c.name}
                         onError={(e) => {
-                          (e.target as HTMLImageElement).src = getChannelAvatarDataUri(c.name);
+                          const target = e.currentTarget;
+                          if (!target.dataset.fallback) {
+                            target.dataset.fallback = 'true';
+                            target.src = getChannelAvatarDataUri(c.name);
+                          }
                         }}
                         className="w-full h-full object-contain"
                         loading="lazy"
@@ -758,14 +781,20 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
                         }`} />
                       </div>
                     </div>
-                    <div className="min-w-0 pr-2">
+                    <div className="min-w-0 pr-2 flex-1">
                       <h4 className="text-xs font-bold text-white truncate leading-tight group-hover:text-cyan-400 transition-colors flex items-center gap-1.5">
                         <span className="truncate">{c.name}</span>
                       </h4>
-                      <div className="flex items-center gap-1.5 mt-1 text-[10px] text-zinc-400">
+                      <div className="flex items-center gap-1.5 mt-0.5 text-[10px] text-zinc-400">
                         <span className="truncate">{c.category || c.group}</span>
-                        {c.resolution && c.resolution.includes('★') && (
-                          <span className="text-amber-400 font-bold">{c.resolution}</span>
+                        {c.countryName && (
+                          <>
+                            <span>•</span>
+                            <span className="truncate">{c.countryName}</span>
+                          </>
+                        )}
+                        {c.resolution && (
+                          <span className="text-cyan-400 font-mono font-bold text-[9px] px-1 py-0.2 rounded bg-cyan-500/10 border border-cyan-500/20">{c.resolution}</span>
                         )}
                         {isLocked && (
                           <span className="text-rose-400 flex items-center gap-0.5 font-semibold">
@@ -773,6 +802,12 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
                           </span>
                         )}
                       </div>
+                      {(c.currentProgram || c.epgDescription) && (
+                        <div className="flex items-center gap-1.5 mt-1 text-[10px] text-emerald-300 font-medium truncate">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 animate-pulse" />
+                          <span className="truncate">{c.currentProgram || c.epgDescription}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -938,7 +973,11 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
                       src={c.logo || getChannelAvatarDataUri(c.name, 64)}
                       alt={c.name}
                       onError={(e) => {
-                        (e.target as HTMLImageElement).src = getChannelAvatarDataUri(c.name, 64);
+                        const target = e.currentTarget;
+                        if (!target.dataset.fallback) {
+                          target.dataset.fallback = 'true';
+                          target.src = getChannelAvatarDataUri(c.name, 64);
+                        }
                       }}
                       className="w-full h-full object-contain"
                     />

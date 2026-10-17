@@ -25,6 +25,7 @@ import {
   generateXtreamSeriesChannelList
 } from '../utils/xtreamClient';
 import { buildStreamProxyUrl } from '../lib/apiClient';
+import { DEMO_FAST_CHANNELS } from '../data/demoChannels';
 
 export const DEFAULT_MATRIX_CONFIG: MultiScreenMatrixConfig = {
   layout: 'quad',
@@ -525,6 +526,21 @@ export const usePlayerStore = create<AppState>((set, get) => ({
       console.warn('Loading Xtream Series failed', e);
       set({ isSeriesLoading: false });
     }
+  },
+
+  loadDemoChannels: () => {
+    const live = DEMO_FAST_CHANNELS.filter((c) => c.streamType === 'live');
+    const vod = DEMO_FAST_CHANNELS.filter((c) => c.streamType === 'vod');
+    const uniqueGroups = Array.from(new Set(DEMO_FAST_CHANNELS.map((c) => c.group))).sort();
+    const sections = buildCountrySections(DEMO_FAST_CHANNELS);
+    set({
+      channels: DEMO_FAST_CHANNELS,
+      vodChannels: vod,
+      groups: uniqueGroups,
+      countrySections: sections,
+      selectedStreamType: 'all',
+      error: null
+    });
   },
 
   hydrateSavedXtreamSession: async () => {

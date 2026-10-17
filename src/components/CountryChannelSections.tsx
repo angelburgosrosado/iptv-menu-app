@@ -230,7 +230,11 @@ export function DesktopCountryChannelSections({
                             loading="lazy"
                             className="w-full h-full object-contain"
                             onError={(e) => {
-                              (e.target as HTMLImageElement).src = getChannelAvatarDataUri(channel.name, 80);
+                              const target = e.currentTarget;
+                              if (!target.dataset.fallback) {
+                                target.dataset.fallback = 'true';
+                                target.src = getChannelAvatarDataUri(channel.name, 80);
+                              }
                             }}
                           />
                         </div>

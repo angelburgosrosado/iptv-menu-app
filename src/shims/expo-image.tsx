@@ -29,16 +29,20 @@ export const Image = React.forwardRef<HTMLImageElement, any>(({
         referrerPolicy="no-referrer"
         onLoad={() => setLoaded(true)}
         onError={(e) => {
-          setFailed(true);
-          // Fallback image source if original URL is dead or hotlink-protected (very common on IPTV)
-          (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=120&auto=format&fit=crop&q=60';
-          if (onError) onError();
+          const target = e.currentTarget as HTMLImageElement;
+          if (!target.dataset.fallback) {
+            target.dataset.fallback = 'true';
+            setFailed(true);
+            setLoaded(true);
+            target.src = 'data:image/svg+xml;charset=utf-8,%3Csvg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120"%3E%3Crect width="120" height="120" rx="16" fill="%2327272a"/%3E%3Ctext x="50%25" y="52%25" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="28" fill="%2371717a"%3ETV%3C/text%3E%3C/svg%3E';
+            if (onError) onError();
+          }
         }}
         style={{
           width: '100%',
           height: '100%',
           objectFit: objectFit as any,
-          opacity: loaded ? 1 : 0,
+          opacity: loaded || failed ? 1 : 0,
           transition: `opacity ${transition}ms ease-in-out`,
         }}
         {...props}

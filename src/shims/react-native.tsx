@@ -252,8 +252,11 @@ export const Image = React.forwardRef<HTMLImageElement, any>(({ style, source, c
         ...resolvedStyle,
       }}
       onError={(e) => {
-        // Fallback for broken/invalid URLs in M3U lists
-        (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=120&auto=format&fit=crop&q=60';
+        const target = e.currentTarget as HTMLImageElement;
+        if (!target.dataset.fallback) {
+          target.dataset.fallback = 'true';
+          target.src = 'data:image/svg+xml;charset=utf-8,%3Csvg xmlns="http://www.w3.org/2000/svg" width="120" height="120" viewBox="0 0 120 120"%3E%3Crect width="120" height="120" rx="16" fill="%2327272a"/%3E%3Ctext x="50%25" y="52%25" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="28" fill="%2371717a"%3ETV%3C/text%3E%3C/svg%3E';
+        }
       }}
       {...props}
     />

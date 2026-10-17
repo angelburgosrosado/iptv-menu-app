@@ -1,41 +1,19 @@
 import * as React from 'react';
 
-// IntersectionObserver wrapper to virtualize list items in the Web simulator
+// High-performance native virtualization using CSS content-visibility
 const VirtualizedItem = React.memo(({ children, estimatedItemSize }: { children: React.ReactNode; estimatedItemSize: number }) => {
-  const [isVisible, setIsVisible] = React.useState(false);
-  const containerRef = React.useRef<HTMLDivElement>(null);
-
-  React.useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        setIsVisible(entry.isIntersecting);
-      },
-      {
-        rootMargin: '350px 0px 350px 0px', // Buffer to render ahead of scroll
-        threshold: 0,
-      }
-    );
-
-    observer.observe(el);
-    return () => {
-      observer.unobserve(el);
-    };
-  }, []);
-
   return (
     <div
-      ref={containerRef}
       style={{
         minHeight: `${estimatedItemSize}px`,
         width: '100%',
         display: 'flex',
         flexDirection: 'column',
+        contentVisibility: 'auto',
+        containIntrinsicSize: `0 ${estimatedItemSize}px`,
       }}
     >
-      {isVisible ? children : <div style={{ height: `${estimatedItemSize}px` }} />}
+      {children}
     </div>
   );
 });

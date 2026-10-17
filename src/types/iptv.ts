@@ -265,6 +265,7 @@ export interface AppState {
   isSeriesLoading?: boolean;
   loadXtreamVod?: (categoryId?: string) => Promise<void>;
   loadXtreamSeries?: (categoryId?: string) => Promise<void>;
+  loadDemoChannels?: () => void;
 
   // DVR & Bookmark Systems
   dvrRecordings: DvrRecording[];
