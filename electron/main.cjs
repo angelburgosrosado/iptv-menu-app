@@ -75,24 +75,70 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
+    mainWindow.focus();
+    if (process.platform === 'darwin' && app.dock) {
+      app.dock.show();
+      app.focus({ steal: true });
+    }
   });
 
-  // Load Vite Dev Server if running, otherwise load production build
+  // Fallback to guarantee window visibility even if ready-to-show event is missed
+  setTimeout(() => {
+    if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.isVisible()) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  }, 1500);
+
+  // Diagnostic logging for webContents load failures
+  mainWindow.webContents.on('did-fail-load', (_, errorCode, errorDescription, validatedURL) => {
+    console.error(`[Electron] Failed to load ${validatedURL}: ${errorDescription} (${errorCode})`);
+  });
+
+  // Load Vite Dev Server if active, otherwise load production build
   const devServerUrl = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
   const prodPath = path.join(__dirname, '../dist/index.html');
 
-  if (process.env.NODE_ENV === 'development' || !fs.existsSync(prodPath)) {
-    mainWindow.loadURL(devServerUrl).catch(() => {
-      // If dev server isn't ready yet, fallback or retry
-      if (fs.existsSync(prodPath)) {
+  const http = require('node:http');
+  function tryLoad() {
+    let hasResponded = false;
+    const req = http.get(devServerUrl, (res) => {
+      hasResponded = true;
+      if (res.statusCode === 200) {
+        console.log('[Electron] Connected to active Vite dev server at', devServerUrl);
+        mainWindow.loadURL(devServerUrl);
+      } else if (fs.existsSync(prodPath)) {
+        console.log('[Electron] Dev server returned ' + res.statusCode + '. Loading production build:', prodPath);
         mainWindow.loadFile(prodPath);
-      } else {
-        setTimeout(() => mainWindow.loadURL(devServerUrl), 1500);
       }
     });
-  } else {
-    mainWindow.loadFile(prodPath);
+
+    req.on('error', () => {
+      if (!hasResponded) {
+        hasResponded = true;
+        if (fs.existsSync(prodPath)) {
+          console.log('[Electron] No active Vite dev server on port 5173. Loading production bundle:', prodPath);
+          mainWindow.loadFile(prodPath);
+        } else {
+          console.log('[Electron] Neither dev server nor dist/index.html ready. Retrying in 1.5s...');
+          setTimeout(tryLoad, 1500);
+        }
+      }
+    });
+
+    req.setTimeout(800, () => {
+      if (!hasResponded) {
+        hasResponded = true;
+        req.destroy();
+        if (fs.existsSync(prodPath)) {
+          console.log('[Electron] Dev server probe timed out. Loading production bundle:', prodPath);
+          mainWindow.loadFile(prodPath);
+        }
+      }
+    });
   }
+
+  tryLoad();
 
   // Handle external links safely
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
