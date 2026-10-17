@@ -28,7 +28,8 @@ import {
   Clapperboard,
   Server,
   RefreshCw,
-  MoreVertical
+  MoreVertical,
+  ChevronDown
 } from 'lucide-react';
 import { Channel } from '../types/iptv';
 import WebCinemaPlayer from './WebCinemaPlayer';
@@ -133,14 +134,24 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
     return channels.filter((c) => c.streamType === 'live' || (!c.streamType && !isVodMovieChannel(c) && !isSeriesChannel(c)));
   }, [selectedStreamType, channels, vodChannels, seriesChannels, isVodMovieChannel, isSeriesChannel]);
 
-  // Available Categories derived cleanly from active catalog only
-  const availableCategories = React.useMemo(() => {
-    const cats = new Set<string>();
+  // Available Categories derived cleanly from active catalog only, with top categories prioritized
+  const { availableCategories, topCategories, overflowCategories, categoryCounts } = React.useMemo(() => {
+    const counts = new Map<string, number>();
     for (const ch of activeCatalog) {
       const norm = ch.category || normalizeCategory(ch.group);
-      if (norm) cats.add(norm);
+      if (norm) {
+        counts.set(norm, (counts.get(norm) || 0) + 1);
+      }
     }
-    return Array.from(cats).sort();
+    const all = Array.from(counts.keys()).sort((a, b) => (counts.get(b) || 0) - (counts.get(a) || 0));
+    const top = all.slice(0, 8);
+    const overflow = all.slice(8);
+    return { 
+      availableCategories: all, 
+      topCategories: top, 
+      overflowCategories: overflow, 
+      categoryCounts: counts 
+    };
   }, [activeCatalog]);
 
   const parsedSearch = React.useMemo(() => parseSearchQuery(searchQuery), [searchQuery]);
@@ -403,9 +414,9 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
         </div>
       </div>
 
-      {/* 2. Single Category / Genre Horizontal Pill Bar */}
+      {/* 2. Curated Category / Genre Pill Bar with Overflow Dropdown */}
       {availableCategories.length > 0 && (
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-white/10 no-scrollbar">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none flex-wrap sm:flex-nowrap">
           <button
             onClick={() => setSelectedGroup(null)}
             className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all border cursor-pointer ${
@@ -416,8 +427,10 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
           >
             All ({activeCatalog.length})
           </button>
-          {availableCategories.map((g) => {
+
+          {topCategories.map((g) => {
             const isActive = selectedGroup === g;
+            const count = categoryCounts.get(g) || 0;
             return (
               <button
                 key={g}
@@ -428,10 +441,45 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
                     : 'bg-white/5 text-zinc-400 border-transparent hover:bg-white/10 hover:text-zinc-200'
                 }`}
               >
-                {g}
+                <span>{g}</span>
+                <span className="text-[10px] opacity-60 ml-1">({count})</span>
               </button>
             );
           })}
+
+          {/* Active indicator for selected overflow category */}
+          {selectedGroup && overflowCategories.includes(selectedGroup) && (
+            <button
+              onClick={() => setSelectedGroup(null)}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all border bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-sm cursor-pointer flex items-center gap-1.5"
+            >
+              <span>{selectedGroup}</span>
+              <span className="text-[10px] opacity-75">({categoryCounts.get(selectedGroup) || 0})</span>
+              <X className="w-3 h-3 text-cyan-300 ml-0.5" />
+            </button>
+          )}
+
+          {/* Clean Overflow Dropdown */}
+          {overflowCategories.length > 0 && (
+            <div className="relative">
+              <select
+                value={overflowCategories.includes(selectedGroup || '') ? selectedGroup || '' : ''}
+                onChange={(e) => setSelectedGroup(e.target.value ? e.target.value : null)}
+                className="px-3 py-1.5 rounded-xl text-xs font-medium bg-[#16161a] hover:bg-white/10 text-zinc-300 border border-white/10 hover:border-white/20 outline-none cursor-pointer transition-all appearance-none pr-7 font-sans"
+                aria-label="More genres"
+              >
+                <option value="" className="bg-zinc-900 text-zinc-400">
+                  More Genres ({overflowCategories.length})...
+                </option>
+                {overflowCategories.map((cat) => (
+                  <option key={cat} value={cat} className="bg-zinc-900 text-white">
+                    {cat} ({categoryCounts.get(cat) || 0})
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-zinc-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+          )}
         </div>
       )}
 
@@ -533,202 +581,332 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
           />
         </div>
       ) : viewMode === 'grid' ? (
-        /* 6. STREAMLINED GRID VIEW - Fast, Uncluttered, Modern */
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3.5 overflow-y-auto max-h-[560px] pr-2 scrollbar-thin">
-          {visibleChannels.map((c) => {
-            const isFav = favorites.includes(c.id);
-            const isLocked = isChannelLocked({ id: c.id, name: c.name, group: c.group });
-            return (
-              <div
-                key={c.id}
-                data-tv-focus-id={`ch-${c.id}`}
-                data-tv-zone="channels"
-                tabIndex={0}
-                onClick={() => handleOpenCinema(c)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    handleOpenCinema(c);
-                  }
-                }}
-                className="group relative bg-[#16161a] hover:bg-[#1c1c21] border border-white/5 hover:border-cyan-500/30 rounded-2xl p-3.5 flex items-center justify-between transition-all hover:-translate-y-0.5 shadow-sm cursor-pointer"
-              >
-                {/* Channel / Movie Thumbnail & Info */}
-                <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <div className="w-11 h-11 rounded-xl bg-black/60 border border-white/5 flex items-center justify-center p-2 overflow-hidden flex-shrink-0 relative">
+        /* 6. STREAMLINED GRID VIEW - Poster Grid for Movies/Series, Channel Strips for Live TV */
+        selectedStreamType === 'vod' || selectedStreamType === 'series' ? (
+          /* Movie & TV Series Poster Grid (2:3 Aspect Ratio) */
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 overflow-y-auto max-h-[620px] pr-2 scrollbar-thin">
+            {visibleChannels.map((c) => {
+              const isFav = favorites.includes(c.id);
+              const isLocked = isChannelLocked({ id: c.id, name: c.name, group: c.group });
+              return (
+                <div
+                  key={c.id}
+                  data-tv-focus-id={`ch-${c.id}`}
+                  data-tv-zone="channels"
+                  tabIndex={0}
+                  onClick={() => handleOpenCinema(c)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      handleOpenCinema(c);
+                    }
+                  }}
+                  className="group relative bg-[#16161a] hover:bg-[#1c1c23] border border-white/5 hover:border-cyan-500/40 rounded-2xl overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-cyan-500/10 cursor-pointer flex flex-col justify-between"
+                >
+                  {/* 2:3 Poster Container */}
+                  <div className="relative aspect-[2/3] w-full bg-zinc-950 overflow-hidden">
                     <img
                       src={c.logo || getChannelAvatarDataUri(c.name)}
                       alt={c.name}
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = getChannelAvatarDataUri(c.name);
                       }}
-                      className="w-full h-full object-contain"
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      loading="lazy"
                     />
-                    <div className="absolute bottom-1 right-1 w-2 h-2 rounded-full border border-black/80">
-                      <div className={`w-full h-full rounded-full ${
-                        c.healthStatus === 'blocked' ? 'bg-amber-400' : 'bg-emerald-400 health-badge-live'
-                      }`} />
-                    </div>
-                  </div>
-                  <div className="min-w-0 pr-2">
-                    <h4 className="text-xs font-bold text-white truncate leading-tight group-hover:text-cyan-400 transition-colors flex items-center gap-1.5">
-                      <span className="truncate">{c.name}</span>
-                    </h4>
-                    <div className="flex items-center gap-1.5 mt-1 text-[10px] text-zinc-400">
-                      <span className="truncate">{c.category || c.group}</span>
-                      {c.resolution && c.resolution.includes('★') && (
-                        <span className="text-amber-400 font-bold">{c.resolution}</span>
-                      )}
+                    {/* Vignette Overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#16161a] via-black/20 to-transparent opacity-85 group-hover:opacity-60 transition-opacity" />
+
+                    {/* Top Badges */}
+                    <div className="absolute top-2 left-2 right-2 flex items-center justify-between gap-1 pointer-events-none">
+                      <span className="px-1.5 py-0.5 rounded-md bg-black/75 backdrop-blur-md text-[9px] font-black tracking-wider text-amber-300 border border-white/10 uppercase">
+                        {c.resolution || (selectedStreamType === 'series' ? 'SERIES' : 'HD')}
+                      </span>
                       {isLocked && (
-                        <span className="text-rose-400 flex items-center gap-0.5 font-semibold">
-                          <Lock className="w-2.5 h-2.5" /> Locked
+                        <span className="px-1.5 py-0.5 rounded-md bg-rose-600/90 backdrop-blur-md text-[9px] font-bold text-white flex items-center gap-1 shadow-sm">
+                          <Lock className="w-2.5 h-2.5" />
                         </span>
                       )}
                     </div>
+
+                    {/* Hover Play Button Overlay */}
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 backdrop-blur-[1px]">
+                      <div className="w-11 h-11 rounded-full bg-gradient-to-r from-cyan-500 to-blue-600 text-white flex items-center justify-center shadow-lg shadow-cyan-500/40 transform scale-90 group-hover:scale-100 transition-transform">
+                        <Play className="w-4 h-4 fill-current ml-0.5" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Caption & Metadata */}
+                  <div className="p-3 flex flex-col justify-between flex-1 gap-2">
+                    <div>
+                      <h4 className="text-xs font-bold text-white group-hover:text-cyan-400 transition-colors line-clamp-1 leading-snug">
+                        {c.name}
+                      </h4>
+                      <p className="text-[10px] text-zinc-400 truncate mt-0.5 font-medium">
+                        {c.category || c.group || (selectedStreamType === 'series' ? 'TV Series' : 'Movie')}
+                      </p>
+                    </div>
+
+                    {/* Bottom Action Row */}
+                    <div className="flex items-center justify-between pt-2 border-t border-white/5" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => toggleFavorite(c.id)}
+                        className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                          isFav
+                            ? 'bg-red-500/10 text-red-500 border-red-500/20'
+                            : 'bg-white/5 text-zinc-400 border-transparent hover:bg-white/10 hover:text-white'
+                        }`}
+                        title={isFav ? "Remove Favorite" : "Favorite"}
+                      >
+                        <Heart className={`w-3 h-3 ${isFav ? 'fill-current' : ''}`} />
+                      </button>
+
+                      <div className="flex items-center gap-1">
+                        {selectedStreamType === 'vod' && (
+                          <button
+                            onClick={() => setVodDetailChannel(c)}
+                            className="px-2 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-[10px] font-bold text-cyan-300 flex items-center gap-1 transition-all cursor-pointer border border-cyan-500/20"
+                            title="Movie Synopsis"
+                          >
+                            <Film className="w-3 h-3" />
+                            <span>Info</span>
+                          </button>
+                        )}
+
+                        {selectedStreamType === 'series' && (
+                          <button
+                            onClick={() => setSeriesDetailChannel(c)}
+                            className="px-2 py-1 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 text-[10px] font-bold text-purple-300 flex items-center gap-1 transition-all cursor-pointer border border-purple-500/20"
+                            title="Series Episodes"
+                          >
+                            <Clapperboard className="w-3 h-3" />
+                            <span>Episodes</span>
+                          </button>
+                        )}
+
+                        <button
+                          onClick={() => handleOpenCinema(c)}
+                          className="px-2 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white text-[10px] font-bold flex items-center gap-1 shadow-md shadow-cyan-500/20 transition-all cursor-pointer"
+                          title="Watch Now"
+                        >
+                          <Play className="w-2.5 h-2.5 fill-current" />
+                          <span>Play</span>
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
+              );
+            })}
 
-                {/* Primary Actions: Watch, Favorite, and Secondary Menu */}
-                <div className="flex items-center gap-1.5 flex-shrink-0">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleFavorite(c.id);
-                    }}
-                    className={`p-2 rounded-xl border transition-all cursor-pointer ${
-                      isFav
-                        ? 'bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/20'
-                        : 'bg-white/5 text-zinc-400 border-transparent hover:bg-white/10 hover:text-white'
-                    }`}
-                    title={isFav ? "Remove Favorite" : "Favorite"}
-                  >
-                    <Heart className={`w-3.5 h-3.5 ${isFav ? 'fill-current' : ''}`} />
-                  </button>
-
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
+            {/* Load More Poster Placeholder */}
+            {visibleChannels.length < filteredChannels.length && (
+              <div
+                data-tv-focus-id="load-more-grid"
+                data-tv-zone="channels"
+                tabIndex={0}
+                onClick={() => setDisplayLimit((prev) => prev + 60)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    setDisplayLimit((prev) => prev + 60);
+                  }
+                }}
+                className="aspect-[2/3] border border-dashed border-cyan-500/30 hover:border-cyan-500/60 bg-cyan-950/20 hover:bg-cyan-950/40 rounded-2xl p-4 flex flex-col items-center justify-center text-center transition-all cursor-pointer group"
+              >
+                <span className="text-xs font-bold text-cyan-400 group-hover:text-cyan-300">
+                  + Load More ({filteredChannels.length - visibleChannels.length})
+                </span>
+                <span className="text-[10px] text-zinc-400 mt-1">Next 60 titles</span>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Live TV Horizontal Strip Cards */
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3.5 overflow-y-auto max-h-[580px] pr-2 scrollbar-thin">
+            {visibleChannels.map((c) => {
+              const isFav = favorites.includes(c.id);
+              const isLocked = isChannelLocked({ id: c.id, name: c.name, group: c.group });
+              return (
+                <div
+                  key={c.id}
+                  data-tv-focus-id={`ch-${c.id}`}
+                  data-tv-zone="channels"
+                  tabIndex={0}
+                  onClick={() => handleOpenCinema(c)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
                       handleOpenCinema(c);
-                    }}
-                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white shadow-md shadow-cyan-500/20 text-xs font-bold transition-all cursor-pointer"
-                    title="Watch"
-                  >
-                    <Play className="w-3.5 h-3.5 fill-current" />
-                    <span>Watch</span>
-                  </button>
+                    }
+                  }}
+                  className="group relative bg-[#16161a] hover:bg-[#1c1c21] border border-white/5 hover:border-cyan-500/30 rounded-2xl p-3.5 flex items-center justify-between transition-all hover:-translate-y-0.5 shadow-sm cursor-pointer"
+                >
+                  {/* Channel Thumbnail & Info */}
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="w-11 h-11 rounded-xl bg-black/60 border border-white/5 flex items-center justify-center p-2 overflow-hidden flex-shrink-0 relative">
+                      <img
+                        src={c.logo || getChannelAvatarDataUri(c.name)}
+                        alt={c.name}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = getChannelAvatarDataUri(c.name);
+                        }}
+                        className="w-full h-full object-contain"
+                        loading="lazy"
+                      />
+                      <div className="absolute bottom-1 right-1 w-2 h-2 rounded-full border border-black/80">
+                        <div className={`w-full h-full rounded-full ${
+                          c.healthStatus === 'blocked' ? 'bg-amber-400' : 'bg-emerald-400 health-badge-live'
+                        }`} />
+                      </div>
+                    </div>
+                    <div className="min-w-0 pr-2">
+                      <h4 className="text-xs font-bold text-white truncate leading-tight group-hover:text-cyan-400 transition-colors flex items-center gap-1.5">
+                        <span className="truncate">{c.name}</span>
+                      </h4>
+                      <div className="flex items-center gap-1.5 mt-1 text-[10px] text-zinc-400">
+                        <span className="truncate">{c.category || c.group}</span>
+                        {c.resolution && c.resolution.includes('★') && (
+                          <span className="text-amber-400 font-bold">{c.resolution}</span>
+                        )}
+                        {isLocked && (
+                          <span className="text-rose-400 flex items-center gap-0.5 font-semibold">
+                            <Lock className="w-2.5 h-2.5" /> Locked
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
 
-                  {/* Secondary Options Menu */}
-                  <div className="relative">
+                  {/* Primary Actions: Watch, Favorite, and Secondary Menu */}
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        setOpenMenuChannelId(openMenuChannelId === c.id ? null : c.id);
+                        toggleFavorite(c.id);
                       }}
-                      className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-transparent transition-all cursor-pointer"
-                      title="More options"
+                      className={`p-2 rounded-xl border transition-all cursor-pointer ${
+                        isFav
+                          ? 'bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/20'
+                          : 'bg-white/5 text-zinc-400 border-transparent hover:bg-white/10 hover:text-white'
+                      }`}
+                      title={isFav ? "Remove Favorite" : "Favorite"}
                     >
-                      <MoreVertical className="w-3.5 h-3.5" />
+                      <Heart className={`w-3.5 h-3.5 ${isFav ? 'fill-current' : ''}`} />
                     </button>
 
-                    {openMenuChannelId === c.id && (
-                      <div 
-                        onClick={(e) => e.stopPropagation()}
-                        className="absolute right-0 top-full mt-1.5 w-44 bg-[#1a1a20] border border-white/15 rounded-xl shadow-2xl z-40 p-1 flex flex-col gap-0.5 text-xs text-zinc-300 animate-in fade-in duration-100"
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenCinema(c);
+                      }}
+                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white shadow-md shadow-cyan-500/20 text-xs font-bold transition-all cursor-pointer"
+                      title="Watch"
+                    >
+                      <Play className="w-3.5 h-3.5 fill-current" />
+                      <span>Watch</span>
+                    </button>
+
+                    {/* Secondary Options Menu */}
+                    <div className="relative">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenMenuChannelId(openMenuChannelId === c.id ? null : c.id);
+                        }}
+                        className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-transparent transition-all cursor-pointer"
+                        title="More options"
                       >
-                        {(isVodMovieChannel(c) || selectedStreamType === 'vod') && (
+                        <MoreVertical className="w-3.5 h-3.5" />
+                      </button>
+
+                      {openMenuChannelId === c.id && (
+                        <div 
+                          onClick={(e) => e.stopPropagation()}
+                          className="absolute right-0 top-full mt-1.5 w-44 bg-[#1a1a20] border border-white/15 rounded-xl shadow-2xl z-40 p-1 flex flex-col gap-0.5 text-xs text-zinc-300 animate-in fade-in duration-100"
+                        >
                           <button
                             onClick={() => {
-                              setVodDetailChannel(c);
+                              openPiP(c);
                               setOpenMenuChannelId(null);
                             }}
-                            className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-left cursor-pointer text-cyan-300"
+                            className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-left cursor-pointer"
                           >
-                            <Film className="w-3.5 h-3.5 text-cyan-400" />
-                            <span>Movie Synopsis</span>
+                            <PictureInPicture className="w-3.5 h-3.5 text-cyan-400" />
+                            <span>Picture-in-Picture</span>
                           </button>
-                        )}
-                        <button
-                          onClick={() => {
-                            openPiP(c);
-                            setOpenMenuChannelId(null);
-                          }}
-                          className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-left cursor-pointer"
-                        >
-                          <PictureInPicture className="w-3.5 h-3.5 text-cyan-400" />
-                          <span>Picture-in-Picture</span>
-                        </button>
-                        <button
-                          onClick={() => {
-                            handleAddToMultiScreen(c);
-                            setOpenMenuChannelId(null);
-                          }}
-                          className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-left cursor-pointer"
-                        >
-                          <LayoutGrid className="w-3.5 h-3.5 text-cyan-400" />
-                          <span>Quad Screen</span>
-                        </button>
-                        <button
-                          onClick={() => {
-                            setTaggingChannel(c);
-                            setOpenMenuChannelId(null);
-                          }}
-                          className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-left cursor-pointer"
-                        >
-                          <Tag className="w-3.5 h-3.5 text-cyan-400" />
-                          <span>Custom Tags</span>
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (!parentalControls.pinHash) {
-                              setShowParentalModal(true);
-                            } else {
-                              toggleChannelLock(c.id);
-                            }
-                            setOpenMenuChannelId(null);
-                          }}
-                          className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-left cursor-pointer"
-                        >
-                          {isLocked ? <Unlock className="w-3.5 h-3.5 text-amber-400" /> : <Lock className="w-3.5 h-3.5 text-rose-400" />}
-                          <span>{isLocked ? 'Unlock Channel' : 'Lock with PIN'}</span>
-                        </button>
-                        <button
-                          onClick={() => {
-                            handlePlayInSimulator(c);
-                            setOpenMenuChannelId(null);
-                          }}
-                          className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-left cursor-pointer"
-                        >
-                          <Smartphone className="w-3.5 h-3.5 text-cyan-400" />
-                          <span>Phone Simulator</span>
-                        </button>
-                      </div>
-                    )}
+                          <button
+                            onClick={() => {
+                              handleAddToMultiScreen(c);
+                              setOpenMenuChannelId(null);
+                            }}
+                            className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-left cursor-pointer"
+                          >
+                            <LayoutGrid className="w-3.5 h-3.5 text-cyan-400" />
+                            <span>Quad Screen</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              setTaggingChannel(c);
+                              setOpenMenuChannelId(null);
+                            }}
+                            className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-left cursor-pointer"
+                          >
+                            <Tag className="w-3.5 h-3.5 text-cyan-400" />
+                            <span>Custom Tags</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (!parentalControls.pinHash) {
+                                setShowParentalModal(true);
+                              } else {
+                                toggleChannelLock(c.id);
+                              }
+                              setOpenMenuChannelId(null);
+                            }}
+                            className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-left cursor-pointer"
+                          >
+                            {isLocked ? <Unlock className="w-3.5 h-3.5 text-amber-400" /> : <Lock className="w-3.5 h-3.5 text-rose-400" />}
+                            <span>{isLocked ? 'Unlock Channel' : 'Lock with PIN'}</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              handlePlayInSimulator(c);
+                              setOpenMenuChannelId(null);
+                            }}
+                            className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-left cursor-pointer"
+                          >
+                            <Smartphone className="w-3.5 h-3.5 text-cyan-400" />
+                            <span>Phone Simulator</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
 
-          {/* Load More Card */}
-          {visibleChannels.length < filteredChannels.length && (
-            <div
-              data-tv-focus-id="load-more-grid"
-              data-tv-zone="channels"
-              tabIndex={0}
-              onClick={() => setDisplayLimit((prev) => prev + 60)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  setDisplayLimit((prev) => prev + 60);
-                }
-              }}
-              className="border border-dashed border-cyan-500/30 hover:border-cyan-500/60 bg-cyan-950/20 hover:bg-cyan-950/40 rounded-2xl p-4 flex flex-col items-center justify-center text-center transition-all cursor-pointer min-h-[96px] group"
-            >
-              <span className="text-xs font-bold text-cyan-400 group-hover:text-cyan-300">
-                + Load More ({filteredChannels.length - visibleChannels.length} remaining)
-              </span>
-              <span className="text-[10px] text-zinc-400 mt-1">Click to load next 60 titles</span>
-            </div>
-          )}
-        </div>
+            {/* Load More Strip Card */}
+            {visibleChannels.length < filteredChannels.length && (
+              <div
+                data-tv-focus-id="load-more-grid"
+                data-tv-zone="channels"
+                tabIndex={0}
+                onClick={() => setDisplayLimit((prev) => prev + 60)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    setDisplayLimit((prev) => prev + 60);
+                  }
+                }}
+                className="border border-dashed border-cyan-500/30 hover:border-cyan-500/60 bg-cyan-950/20 hover:bg-cyan-950/40 rounded-2xl p-4 flex flex-col items-center justify-center text-center transition-all cursor-pointer min-h-[80px] group"
+              >
+                <span className="text-xs font-bold text-cyan-400 group-hover:text-cyan-300">
+                  + Load More ({filteredChannels.length - visibleChannels.length} channels remaining)
+                </span>
+                <span className="text-[10px] text-zinc-400 mt-1">Click to load next 60 channels</span>
+              </div>
+            )}
+          </div>
+        )
       ) : (
         /* 7. STREAMLINED LIST VIEW */
         <div className="flex flex-col gap-1.5 overflow-y-auto max-h-[560px] pr-2 scrollbar-thin">

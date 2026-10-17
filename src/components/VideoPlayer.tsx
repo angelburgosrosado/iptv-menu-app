@@ -154,6 +154,7 @@ export function VideoPlayer({
   const [showSubtitleSettings, setShowSubtitleSettings] = React.useState(false);
   const [showAiPanel, setShowAiPanel] = React.useState(false);
   const [showExternalSubtitleModal, setShowExternalSubtitleModal] = React.useState(false);
+  const [showSettingsFlyout, setShowSettingsFlyout] = React.useState(false);
 
   const handleSelectExternalSubtitle = React.useCallback((track: ExternalSubtitleTrack) => {
     if (typeof document === 'undefined') return;
@@ -1023,7 +1024,7 @@ export function VideoPlayer({
             )}
           </View>
 
-          {/* Bottom Control Bar */}
+          {/* Bottom Control Bar - Streamlined, Uncluttered, Premium */}
           <View style={styles.bottomBar}>
             <TouchableOpacity onPress={togglePlayPause} style={styles.hudIconBtn} title="Play/Pause (Space)">
               {isPlaying ? <Pause size={20} color="#ffffff" /> : <Play size={20} color="#ffffff" />}
@@ -1044,24 +1045,6 @@ export function VideoPlayer({
                 <Text style={styles.hudFeedBadgeText}>Feed {activeCandidateIndex + 1}/{streamCandidates.length}</Text>
               </TouchableOpacity>
             )}
-
-            {/* Gateway Proxy Toggle Button */}
-            <TouchableOpacity 
-              onPress={() => switchCandidate(activeCandidateIndex, !isUsingProxyRelay)} 
-              style={[
-                styles.hudIconBtn, 
-                isUsingProxyRelay ? styles.hudProxyBadgeActive : styles.hudProxyBadgeInactive
-              ]} 
-              title={isUsingProxyRelay ? "Relayed via Proxy Gateway (Click to use direct stream)" : "Direct Stream (Click to route via Proxy Gateway)"}
-            >
-              <Server size={14} color={isUsingProxyRelay ? "#c084fc" : "#94a3b8"} />
-              <Text style={[
-                styles.hudProxyBadgeText,
-                isUsingProxyRelay ? { color: "#c084fc" } : { color: "#94a3b8" }
-              ]}>
-                {isUsingProxyRelay ? "PROXY" : "DIRECT"}
-              </Text>
-            </TouchableOpacity>
 
             {/* Audio Track Selector Button */}
             {player.audioTracks && player.audioTracks.length > 1 && (
@@ -1106,156 +1089,26 @@ export function VideoPlayer({
               </TouchableOpacity>
             )}
 
-            {/* Live Stream Recording Engine Toggle Button */}
-            <TouchableOpacity
-              onPress={handleToggleRecording}
-              style={[
-                styles.hudIconBtn, 
-                activeRecording.isRecording 
-                  ? { backgroundColor: 'rgba(239, 68, 68, 0.25)', borderWidth: 1, borderColor: '#ef4444' }
-                  : { backgroundColor: 'rgba(168, 85, 247, 0.15)', borderWidth: 1, borderColor: 'rgba(168, 85, 247, 0.3)' }
-              ]}
-              title={activeRecording.isRecording ? "Stop and Export Live Stream Recording (R)" : "Record Live Stream to Local DVR (R)"}
-            >
-              {activeRecording.isRecording ? (
-                <>
-                  <Square size={14} color="#f43f5e" fill="#f43f5e" />
-                  <Text style={[styles.hudTrackBadgeText, { color: '#f43f5e', fontWeight: '700' }]}>
-                    {formatDuration(activeRecording.elapsedSeconds)}
-                  </Text>
-                </>
-              ) : (
-                <>
-                  <Film size={14} color="#c084fc" />
-                  <Text style={[styles.hudTrackBadgeText, { color: '#c084fc' }]}>REC</Text>
-                </>
-              )}
-            </TouchableOpacity>
-
-            {/* Bookmark Toggle Button */}
-            <TouchableOpacity
-              onPress={() => {
-                resetControlsTimer();
-                const chanId = channelName.toLowerCase().replace(/[^a-z0-9]/g, '-');
-                if (isBookmarked) {
-                  removeBookmark(chanId);
-                  removeBookmark(channelName);
-                  triggerChannelHud('Removed from Bookmarks');
-                } else {
-                  addBookmark({
-                    channelId: chanId,
-                    channelName: channelName,
-                    streamUrl: activeEffectiveUrl,
-                    note: groupTitle || 'Live Stream'
-                  });
-                  triggerChannelHud(`Bookmarked ${channelName}`);
-                }
-              }}
-              style={[
-                styles.hudIconBtn, 
-                isBookmarked 
-                  ? { backgroundColor: 'rgba(245, 158, 11, 0.2)', borderWidth: 1, borderColor: 'rgba(245, 158, 11, 0.4)' }
-                  : { backgroundColor: 'rgba(255, 255, 255, 0.05)' }
-              ]}
-              title={isBookmarked ? "Remove Bookmark" : "Bookmark Channel"}
-            >
-              <BookmarkIcon size={14} color={isBookmarked ? "#fbbf24" : "#94a3b8"} fill={isBookmarked ? "#fbbf24" : "none"} />
-            </TouchableOpacity>
-
-            {/* Stream Telemetry & Diagnostics HUD Toggle Button */}
-            <TouchableOpacity
-              onPress={() => {
-                resetControlsTimer();
-                setShowDiagnostics((prev) => !prev);
-              }}
-              style={[
-                styles.hudIconBtn, 
-                showDiagnostics 
-                  ? { backgroundColor: 'rgba(6, 182, 212, 0.2)', borderWidth: 1, borderColor: 'rgba(6, 182, 212, 0.4)' }
-                  : { backgroundColor: 'rgba(255, 255, 255, 0.05)' }
-              ]}
-              title="Stream Telemetry & Diagnostics HUD (D)"
-            >
-              <Activity size={14} color={showDiagnostics ? "#22d3ee" : "#94a3b8"} />
-              <Text style={[styles.hudTrackBadgeText, showDiagnostics ? { color: '#22d3ee' } : {}]}>HUD</Text>
-            </TouchableOpacity>
-
-            {/* Sleep Timer Automation Button */}
-            <TouchableOpacity
-              onPress={() => {
-                resetControlsTimer();
-                setShowSleepTimer((prev) => !prev);
-              }}
-              style={[
-                styles.hudIconBtn,
-                sleepTimer.isActive
-                  ? { backgroundColor: 'rgba(99, 102, 241, 0.2)', borderWidth: 1, borderColor: 'rgba(99, 102, 241, 0.4)' }
-                  : { backgroundColor: 'rgba(255, 255, 255, 0.05)' }
-              ]}
-              title="Sleep Timer (Z)"
-            >
-              <Moon size={14} color={sleepTimer.isActive ? "#a5b4fc" : "#94a3b8"} />
-              {sleepTimer.isActive && (
-                <Text style={[styles.hudTrackBadgeText, { color: '#a5b4fc' }]}>
-                  {Math.ceil(sleepTimer.remainingSeconds / 60)}m
-                </Text>
-              )}
-            </TouchableOpacity>
-
-            {/* Audio Equalizer & DSP Button */}
-            <TouchableOpacity
-              onPress={() => {
-                resetControlsTimer();
-                setShowEqualizer((prev) => !prev);
-              }}
-              style={[
-                styles.hudIconBtn,
-                audioDsp.enabled
-                  ? { backgroundColor: 'rgba(16, 185, 129, 0.2)', borderWidth: 1, borderColor: 'rgba(16, 185, 129, 0.4)' }
-                  : { backgroundColor: 'rgba(255, 255, 255, 0.05)' }
-              ]}
-              title="Audio Equalizer & Sound Normalization DSP (Q)"
-            >
-              <Sliders size={14} color={audioDsp.enabled ? "#34d399" : "#94a3b8"} />
-              <Text style={[styles.hudTrackBadgeText, audioDsp.enabled ? { color: '#34d399' } : {}]}>EQ</Text>
-            </TouchableOpacity>
-
-            {/* Parental Controls Lock Button */}
-            <TouchableOpacity
-              onPress={() => {
-                resetControlsTimer();
-                if (!parentalControls.pinHash || isLocked) {
-                  setShowParentalModal(true);
-                } else {
-                  toggleChannelLock(channelName);
-                }
-              }}
-              style={[
-                styles.hudIconBtn,
-                isLocked
-                  ? { backgroundColor: 'rgba(244, 63, 94, 0.2)', borderWidth: 1, borderColor: 'rgba(244, 63, 94, 0.4)' }
-                  : { backgroundColor: 'rgba(255, 255, 255, 0.05)' }
-              ]}
-              title={isLocked ? "Unlock Channel with PIN (L)" : "Lock Channel with PIN (L)"}
-            >
-              {isLocked ? <Lock size={14} color="#f43f5e" /> : <Unlock size={14} color="#94a3b8" />}
-              <Text style={[styles.hudTrackBadgeText, isLocked ? { color: '#f43f5e' } : {}]}>
-                {isLocked ? 'LOCK' : 'PIN'}
-              </Text>
-            </TouchableOpacity>
-
             <View style={styles.spacer} />
 
-            {/* Live AI Insights Program Context Button */}
+            {/* Quick Tools & Playback Settings Flyout Toggle */}
             <TouchableOpacity 
-              onPress={() => setShowAiPanel(true)} 
+              onPress={() => {
+                resetControlsTimer();
+                setShowSettingsFlyout((prev) => !prev);
+              }}
               style={[
-                styles.hudIconBtn, 
-                { backgroundColor: 'rgba(6, 182, 212, 0.15)', borderWidth: 1, borderColor: 'rgba(6, 182, 212, 0.35)' }
-              ]} 
-              title="✨ Live AI Insights & Program Context"
+                styles.hudIconBtn,
+                showSettingsFlyout || audioDsp.enabled || sleepTimer.isActive || activeRecording.isRecording || showDiagnostics
+                  ? styles.hudSettingsActive
+                  : styles.hudSettingsInactive
+              ]}
+              title="Playback Tools & Settings (Sliders, Sleep Timer, EQ, DVR, HUD)"
             >
-              <Sparkles size={16} color="#38bdf8" />
+              <Sliders size={16} color={showSettingsFlyout ? "#38bdf8" : (audioDsp.enabled || sleepTimer.isActive || activeRecording.isRecording || showDiagnostics ? "#22d3ee" : "#cbd5e1")} />
+              {(audioDsp.enabled || sleepTimer.isActive || activeRecording.isRecording || showDiagnostics) && (
+                <View style={styles.activeDotIndicator} />
+              )}
             </TouchableOpacity>
 
             {/* Picture-in-Picture Button */}
@@ -1270,6 +1123,191 @@ export function VideoPlayer({
 
             <Text style={styles.liveIndicator}>● LIVE</Text>
           </View>
+
+          {/* Quick Playback Tools & Settings Popover Menu */}
+          {showSettingsFlyout && (
+            <View style={styles.settingsFlyoutModal}>
+              <View style={styles.trackFlyoutHeader}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Sliders size={14} color="#38bdf8" />
+                  <Text style={styles.trackFlyoutTitle}>Playback Tools & Settings</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setShowSettingsFlyout(false)}
+                  style={styles.trackFlyoutClose}
+                >
+                  <Text style={{ color: '#94a3b8', fontSize: 11, fontWeight: '700' }}>✕</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.settingsGrid}>
+                {/* 1. Equalizer & DSP */}
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowEqualizer(true);
+                    setShowSettingsFlyout(false);
+                  }}
+                  style={[styles.settingsTile, audioDsp.enabled && styles.settingsTileActive]}
+                >
+                  <Sliders size={15} color={audioDsp.enabled ? "#34d399" : "#94a3b8"} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.settingsTileLabel}>Audio Equalizer</Text>
+                    <Text style={styles.settingsTileSub}>{audioDsp.enabled ? 'DSP Active' : 'Normal sound'}</Text>
+                  </View>
+                  <Text style={[styles.settingsTileBadge, audioDsp.enabled ? { color: '#34d399' } : {}]}>
+                    {audioDsp.enabled ? 'ON' : 'OFF'}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* 2. Sleep Timer */}
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowSleepTimer(true);
+                    setShowSettingsFlyout(false);
+                  }}
+                  style={[styles.settingsTile, sleepTimer.isActive && styles.settingsTileActive]}
+                >
+                  <Moon size={15} color={sleepTimer.isActive ? "#a5b4fc" : "#94a3b8"} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.settingsTileLabel}>Sleep Timer</Text>
+                    <Text style={styles.settingsTileSub}>
+                      {sleepTimer.isActive ? `${Math.ceil(sleepTimer.remainingSeconds / 60)}m left` : 'Auto-shutoff'}
+                    </Text>
+                  </View>
+                  <Text style={[styles.settingsTileBadge, sleepTimer.isActive ? { color: '#a5b4fc' } : {}]}>
+                    {sleepTimer.isActive ? `${Math.ceil(sleepTimer.remainingSeconds / 60)}m` : 'OFF'}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* 3. Stream Telemetry HUD */}
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowDiagnostics((prev) => !prev);
+                    setShowSettingsFlyout(false);
+                  }}
+                  style={[styles.settingsTile, showDiagnostics && styles.settingsTileActive]}
+                >
+                  <Activity size={15} color={showDiagnostics ? "#22d3ee" : "#94a3b8"} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.settingsTileLabel}>Telemetry HUD</Text>
+                    <Text style={styles.settingsTileSub}>Bitrate, FPS & stats</Text>
+                  </View>
+                  <Text style={[styles.settingsTileBadge, showDiagnostics ? { color: '#22d3ee' } : {}]}>
+                    {showDiagnostics ? 'ON' : 'OFF'}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* 4. Live Stream Recording (DVR) */}
+                <TouchableOpacity
+                  onPress={() => {
+                    handleToggleRecording();
+                    setShowSettingsFlyout(false);
+                  }}
+                  style={[styles.settingsTile, activeRecording.isRecording && styles.settingsTileRecording]}
+                >
+                  {activeRecording.isRecording ? (
+                    <Square size={15} color="#f43f5e" fill="#f43f5e" />
+                  ) : (
+                    <Film size={15} color="#c084fc" />
+                  )}
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.settingsTileLabel}>Stream DVR</Text>
+                    <Text style={styles.settingsTileSub}>
+                      {activeRecording.isRecording ? `${formatDuration(activeRecording.elapsedSeconds)} recorded` : 'Capture live feed'}
+                    </Text>
+                  </View>
+                  <Text style={[styles.settingsTileBadge, activeRecording.isRecording ? { color: '#f43f5e', fontWeight: '700' } : {}]}>
+                    {activeRecording.isRecording ? 'REC' : 'START'}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* 5. Stream Gateway Proxy */}
+                <TouchableOpacity
+                  onPress={() => {
+                    switchCandidate(activeCandidateIndex, !isUsingProxyRelay);
+                  }}
+                  style={[styles.settingsTile, isUsingProxyRelay && styles.settingsTileActive]}
+                >
+                  <Server size={15} color={isUsingProxyRelay ? "#c084fc" : "#94a3b8"} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.settingsTileLabel}>Stream Gateway</Text>
+                    <Text style={styles.settingsTileSub}>{isUsingProxyRelay ? 'Local relay proxy' : 'Direct connection'}</Text>
+                  </View>
+                  <Text style={[styles.settingsTileBadge, isUsingProxyRelay ? { color: '#c084fc' } : {}]}>
+                    {isUsingProxyRelay ? 'PROXY' : 'DIRECT'}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* 6. Bookmark Stream */}
+                <TouchableOpacity
+                  onPress={() => {
+                    const chanId = channelName.toLowerCase().replace(/[^a-z0-9]/g, '-');
+                    if (isBookmarked) {
+                      removeBookmark(chanId);
+                      removeBookmark(channelName);
+                      triggerChannelHud('Removed from Bookmarks');
+                    } else {
+                      addBookmark({
+                        channelId: chanId,
+                        channelName: channelName,
+                        streamUrl: activeEffectiveUrl,
+                        note: groupTitle || 'Live Stream'
+                      });
+                      triggerChannelHud(`Bookmarked ${channelName}`);
+                    }
+                  }}
+                  style={[styles.settingsTile, isBookmarked && styles.settingsTileActive]}
+                >
+                  <BookmarkIcon size={15} color={isBookmarked ? "#fbbf24" : "#94a3b8"} fill={isBookmarked ? "#fbbf24" : "none"} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.settingsTileLabel}>Bookmark</Text>
+                    <Text style={styles.settingsTileSub}>{isBookmarked ? 'Saved to library' : 'Save for quick access'}</Text>
+                  </View>
+                  <Text style={[styles.settingsTileBadge, isBookmarked ? { color: '#fbbf24' } : {}]}>
+                    {isBookmarked ? 'SAVED' : 'ADD'}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* 7. Parental Controls */}
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowSettingsFlyout(false);
+                    if (!parentalControls.pinHash || isLocked) {
+                      setShowParentalModal(true);
+                    } else {
+                      toggleChannelLock(channelName);
+                    }
+                  }}
+                  style={[styles.settingsTile, isLocked && styles.settingsTileLocked]}
+                >
+                  {isLocked ? <Lock size={15} color="#f43f5e" /> : <Unlock size={15} color="#94a3b8" />}
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.settingsTileLabel}>Parental Lock</Text>
+                    <Text style={styles.settingsTileSub}>{isLocked ? 'Restricted with PIN' : 'Unrestricted'}</Text>
+                  </View>
+                  <Text style={[styles.settingsTileBadge, isLocked ? { color: '#f43f5e' } : {}]}>
+                    {isLocked ? 'LOCKED' : 'PIN'}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* 8. AI Insights */}
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowAiPanel(true);
+                    setShowSettingsFlyout(false);
+                  }}
+                  style={styles.settingsTile}
+                >
+                  <Sparkles size={15} color="#38bdf8" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.settingsTileLabel}>AI Insights</Text>
+                    <Text style={styles.settingsTileSub}>Cast, context & facts</Text>
+                  </View>
+                  <Text style={[styles.settingsTileBadge, { color: '#38bdf8' }]}>AI</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
 
           {/* Audio & Subtitle Track Selector Flyout Popover */}
           {showTrackModal && (
@@ -1815,6 +1853,84 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '700',
     marginTop: 1,
+  },
+  hudSettingsActive: {
+    backgroundColor: 'rgba(56, 189, 248, 0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(56, 189, 248, 0.5)',
+    position: 'relative',
+  },
+  hudSettingsInactive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    position: 'relative',
+  },
+  activeDotIndicator: {
+    position: 'absolute',
+    top: 3,
+    right: 3,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#22d3ee',
+  },
+  settingsFlyoutModal: {
+    position: 'absolute',
+    bottom: 74,
+    right: 20,
+    width: 290,
+    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: 14,
+    padding: 12,
+    zIndex: 50,
+    shadowColor: '#000',
+    shadowOpacity: 0.6,
+    shadowRadius: 16,
+  },
+  settingsGrid: {
+    gap: 6,
+  },
+  settingsTile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  settingsTileActive: {
+    backgroundColor: 'rgba(56, 189, 248, 0.1)',
+    borderColor: 'rgba(56, 189, 248, 0.3)',
+  },
+  settingsTileRecording: {
+    backgroundColor: 'rgba(244, 63, 94, 0.15)',
+    borderColor: 'rgba(244, 63, 94, 0.4)',
+  },
+  settingsTileLocked: {
+    backgroundColor: 'rgba(244, 63, 94, 0.12)',
+    borderColor: 'rgba(244, 63, 94, 0.35)',
+  },
+  settingsTileLabel: {
+    color: '#f1f5f9',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  settingsTileSub: {
+    color: '#94a3b8',
+    fontSize: 9,
+    marginTop: 1,
+  },
+  settingsTileBadge: {
+    color: '#64748b',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   parentalLockOverlay: {
     position: 'absolute',
