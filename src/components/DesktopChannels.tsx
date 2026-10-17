@@ -535,6 +535,7 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
                 data-tv-focus-id={`ch-${c.id}`}
                 data-tv-zone="channels"
                 tabIndex={0}
+                onClick={() => handleOpenCinema(c)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     handleOpenCinema(c);
@@ -543,7 +544,7 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
                 className="group relative bg-[#16161a] hover:bg-[#1c1c21] border border-white/5 hover:border-cyan-500/30 rounded-2xl p-3.5 flex items-center justify-between transition-all hover:-translate-y-0.5 shadow-sm cursor-pointer"
               >
                 {/* Channel / Movie Thumbnail & Info */}
-                <div className="flex items-center gap-3 min-w-0 flex-1" onClick={() => handleOpenCinema(c)}>
+                <div className="flex items-center gap-3 min-w-0 flex-1">
                   <div className="w-11 h-11 rounded-xl bg-black/60 border border-white/5 flex items-center justify-center p-2 overflow-hidden flex-shrink-0 relative">
                     <img
                       src={c.logo || getChannelAvatarDataUri(c.name)}
@@ -580,7 +581,10 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
                 {/* Primary Actions: Watch, Favorite, and Secondary Menu */}
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   <button
-                    onClick={() => toggleFavorite(c.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFavorite(c.id);
+                    }}
                     className={`p-2 rounded-xl border transition-all cursor-pointer ${
                       isFav
                         ? 'bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/20'
@@ -592,7 +596,10 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
                   </button>
 
                   <button
-                    onClick={() => handleOpenCinema(c)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenCinema(c);
+                    }}
                     className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white shadow-md shadow-cyan-500/20 text-xs font-bold transition-all cursor-pointer"
                     title="Watch"
                   >
@@ -618,6 +625,18 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
                         onClick={(e) => e.stopPropagation()}
                         className="absolute right-0 top-full mt-1.5 w-44 bg-[#1a1a20] border border-white/15 rounded-xl shadow-2xl z-40 p-1 flex flex-col gap-0.5 text-xs text-zinc-300 animate-in fade-in duration-100"
                       >
+                        {(isVodMovieChannel(c) || selectedStreamType === 'vod') && (
+                          <button
+                            onClick={() => {
+                              setVodDetailChannel(c);
+                              setOpenMenuChannelId(null);
+                            }}
+                            className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-left cursor-pointer text-cyan-300"
+                          >
+                            <Film className="w-3.5 h-3.5 text-cyan-400" />
+                            <span>Movie Synopsis</span>
+                          </button>
+                        )}
                         <button
                           onClick={() => {
                             openPiP(c);
@@ -718,6 +737,7 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
                 data-tv-focus-id={`ch-${c.id}`}
                 data-tv-zone="channels"
                 tabIndex={0}
+                onClick={() => handleOpenCinema(c)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     handleOpenCinema(c);
@@ -725,7 +745,7 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
                 }}
                 className="grid grid-cols-12 gap-4 items-center px-4 py-2 bg-[#16161a] hover:bg-[#1c1c21] border border-white/5 hover:border-white/10 rounded-xl transition-all cursor-pointer"
               >
-                <div className="col-span-7 md:col-span-8 flex items-center gap-3 min-w-0" onClick={() => handleOpenCinema(c)}>
+                <div className="col-span-7 md:col-span-8 flex items-center gap-3 min-w-0">
                   <div className="w-8 h-8 rounded-lg bg-black/60 border border-white/5 flex items-center justify-center p-1.5 overflow-hidden flex-shrink-0 relative">
                     <img
                       src={c.logo || getChannelAvatarDataUri(c.name, 64)}
@@ -749,7 +769,10 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
 
                 <div className="col-span-3 md:col-span-2 flex items-center justify-end gap-1.5">
                   <button
-                    onClick={() => toggleFavorite(c.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleFavorite(c.id);
+                    }}
                     className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
                       isFav
                         ? 'bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/20'
@@ -761,7 +784,10 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
                   </button>
 
                   <button
-                    onClick={() => handleOpenCinema(c)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenCinema(c);
+                    }}
                     className="px-2.5 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white shadow-md text-xs font-bold transition-all flex items-center gap-1 cursor-pointer"
                     title="Watch"
                   >
