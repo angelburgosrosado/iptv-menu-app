@@ -1,3 +1,4 @@
+import http from 'http';
 import { pollNextPlaylistJob, pollNextBuildJob, pollNextEpgJob } from '@iptv-menu/jobs';
 import { PlaylistRepository, BuildRepository, EpgRepository } from '@iptv-menu/db';
 import { uploadToBucket, downloadFromBucket } from '@iptv-menu/storage';
@@ -12,14 +13,32 @@ const epgRepo = new EpgRepository();
 
 let isRunning = true;
 
+// Lightweight HTTP health check server for container orchestrators (Cloud Run / Render)
+const healthPort = process.env.PORT ? parseInt(process.env.PORT, 10) : 8080;
+const server = http.createServer((req, res) => {
+  if (req.url === '/healthz' || req.url === '/' || req.url === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok', worker: isRunning ? 'active' : 'stopping', uptime: process.uptime() }));
+  } else {
+    res.writeHead(404);
+    res.end();
+  }
+});
+
+server.listen(healthPort, () => {
+  logger.info(`Worker health server listening on port ${healthPort}`);
+});
+
 process.on('SIGTERM', () => {
   logger.info('SIGTERM received, finishing current task and terminating worker');
   isRunning = false;
+  server.close();
 });
 
 process.on('SIGINT', () => {
   logger.info('SIGINT received, finishing current task and terminating worker');
   isRunning = false;
+  server.close();
 });
 
 /**

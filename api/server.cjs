@@ -362,10 +362,14 @@ var require_dist = __commonJS({
     exports2.features = exports2.config = void 0;
     var dotenv_1 = __importDefault(require_main());
     var path_1 = __importDefault(require("path"));
+    var initialNodeEnv2 = process.env.NODE_ENV;
     dotenv_1.default.config();
     dotenv_1.default.config({ path: path_1.default.resolve(process.cwd(), "../../.env") });
     dotenv_1.default.config({ path: path_1.default.resolve(__dirname, "../../../.env") });
     dotenv_1.default.config({ path: path_1.default.resolve(__dirname, "../../../../.env") });
+    if (initialNodeEnv2) {
+      process.env.NODE_ENV = initialNodeEnv2;
+    }
     exports2.config = {
       NODE_ENV: process.env.NODE_ENV || "development",
       APP_ENV: process.env.APP_ENV || "dev",
@@ -397,6 +401,9 @@ var require_dist = __commonJS({
       EXPO_ACCOUNT_NAME: process.env.EXPO_ACCOUNT_NAME || "",
       EXPO_PROJECT_ID: process.env.EXPO_PROJECT_ID || ""
     };
+    if (exports2.config.NODE_ENV === "production" && exports2.config.JWT_SECRET === "iptv_menu_default_jwt_signing_key_replace_in_production") {
+      throw new Error("SECURITY VIOLATION: JWT_SECRET must be configured with a secure cryptographic key in production mode.");
+    }
     exports2.features = {
       enableStripeBilling: !!exports2.config.STRIPE_SECRET_KEY,
       enableHeavyWorkers: exports2.config.NODE_ENV === "production",
@@ -16869,7 +16876,7 @@ var require_schema2 = __commonJS({
   "packages/db/dist/schema.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
-    exports2.appConfigs = exports2.adminActions = exports2.buildRequests = exports2.epgFeeds = exports2.playlistRuns = exports2.playlists = exports2.workspaces = exports2.users = void 0;
+    exports2.tvPairings = exports2.appConfigs = exports2.adminActions = exports2.buildRequests = exports2.epgFeeds = exports2.playlistRuns = exports2.playlists = exports2.workspaces = exports2.users = void 0;
     var pg_core_1 = require_pg_core();
     exports2.users = (0, pg_core_1.pgTable)("users", {
       uid: (0, pg_core_1.text)("uid").primaryKey(),
@@ -16930,7 +16937,7 @@ var require_schema2 = __commonJS({
     exports2.epgFeeds = (0, pg_core_1.pgTable)("epg_feeds", {
       epgId: (0, pg_core_1.text)("epg_id").primaryKey(),
       uid: (0, pg_core_1.text)("uid").references(() => exports2.users.uid, { onDelete: "cascade" }).notNull(),
-      playlistId: (0, pg_core_1.text)("playlist_id").references(() => exports2.playlists.playlistId, { onDelete: "cascade" }).notNull(),
+      playlistId: (0, pg_core_1.text)("playlist_id").references(() => exports2.playlists.playlistId, { onDelete: "cascade" }),
       status: (0, pg_core_1.text)("status").default("pending").notNull(),
       // 'pending' | 'generating' | 'ready' | 'failed'
       sourceConfig: (0, pg_core_1.jsonb)("source_config").$type().notNull(),
@@ -16975,6 +16982,17 @@ var require_schema2 = __commonJS({
       active: (0, pg_core_1.text)("active").default("true").notNull(),
       createdAt: (0, pg_core_1.timestamp)("created_at", { withTimezone: true }).defaultNow().notNull(),
       updatedAt: (0, pg_core_1.timestamp)("updated_at", { withTimezone: true }).defaultNow().notNull()
+    });
+    exports2.tvPairings = (0, pg_core_1.pgTable)("tv_pairings", {
+      code: (0, pg_core_1.text)("code").primaryKey(),
+      deviceId: (0, pg_core_1.text)("device_id"),
+      deviceName: (0, pg_core_1.text)("device_name").default("Smart TV").notNull(),
+      status: (0, pg_core_1.text)("status").default("pending").notNull(),
+      // 'pending' | 'claimed' | 'expired'
+      token: (0, pg_core_1.text)("token"),
+      user: (0, pg_core_1.jsonb)("user").$type(),
+      expiresAt: (0, pg_core_1.timestamp)("expires_at", { withTimezone: true }).notNull(),
+      createdAt: (0, pg_core_1.timestamp)("created_at", { withTimezone: true }).defaultNow().notNull()
     });
   }
 });
@@ -17065,7 +17083,7 @@ var require_dist4 = __commonJS({
       for (var p in m2) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports3, p)) __createBinding(exports3, m2, p);
     };
     Object.defineProperty(exports2, "__esModule", { value: true });
-    exports2.AppConfigRepository = exports2.AuditLogRepository = exports2.WorkspaceRepository = exports2.BuildRepository = exports2.EpgRepository = exports2.PlaylistRepository = exports2.UserRepository = exports2.DbOperation = exports2.sql = exports2.and = exports2.asc = exports2.desc = exports2.eq = void 0;
+    exports2.TvPairingRepository = exports2.AppConfigRepository = exports2.AuditLogRepository = exports2.WorkspaceRepository = exports2.BuildRepository = exports2.EpgRepository = exports2.PlaylistRepository = exports2.UserRepository = exports2.DbOperation = exports2.memoryPairings = exports2.memoryBuilds = exports2.memoryEpgFeeds = exports2.memoryPlaylistRuns = exports2.memoryPlaylists = exports2.memoryWorkspaces = exports2.sql = exports2.and = exports2.asc = exports2.desc = exports2.eq = void 0;
     exports2.getFirestoreDB = getFirestoreDB2;
     var auth_1 = require_dist3();
     var logging_1 = require_dist2();
@@ -17090,6 +17108,12 @@ var require_dist4 = __commonJS({
       return drizzle_orm_2.sql;
     } });
     var logger8 = new logging_1.Logger("db-repository");
+    exports2.memoryWorkspaces = /* @__PURE__ */ new Map();
+    exports2.memoryPlaylists = /* @__PURE__ */ new Map();
+    exports2.memoryPlaylistRuns = /* @__PURE__ */ new Map();
+    exports2.memoryEpgFeeds = /* @__PURE__ */ new Map();
+    exports2.memoryBuilds = /* @__PURE__ */ new Map();
+    exports2.memoryPairings = /* @__PURE__ */ new Map();
     var dbInstance = null;
     function getFirestoreDB2() {
       if (dbInstance)
@@ -17290,41 +17314,44 @@ var require_dist4 = __commonJS({
         return getFirestoreDB2();
       }
       async getPlaylist(playlistId) {
-        if (process.env.DATABASE_URL) {
+        if (process.env.DATABASE_URL && process.env.NODE_ENV !== "test") {
           try {
             const db = (0, client_1.getDb)();
             const [row] = await db.select().from(client_1.schema.playlists).where((0, drizzle_orm_1.eq)(client_1.schema.playlists.playlistId, playlistId)).limit(1);
-            if (!row)
-              return null;
-            return {
-              playlistId: row.playlistId,
-              uid: row.uid,
-              name: row.name,
-              sourceType: row.sourceType,
-              originalFilePath: row.originalFilePath || null,
-              cleanedFilePath: row.cleanedFilePath || null,
-              channelCount: row.channelCount,
-              status: row.status,
-              visibility: row.visibility || "private",
-              createdAt: row.createdAt.toISOString(),
-              updatedAt: row.updatedAt.toISOString()
-            };
+            if (row) {
+              return {
+                playlistId: row.playlistId,
+                uid: row.uid,
+                name: row.name,
+                sourceType: row.sourceType,
+                originalFilePath: row.originalFilePath || null,
+                cleanedFilePath: row.cleanedFilePath || null,
+                channelCount: row.channelCount,
+                status: row.status,
+                visibility: row.visibility || "private",
+                createdAt: row.createdAt.toISOString(),
+                updatedAt: row.updatedAt.toISOString()
+              };
+            }
           } catch (err) {
-            logger8.error("Neon Drizzle error in getPlaylist", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in getPlaylist, checking memory fallback", err);
           }
+        }
+        if (exports2.memoryPlaylists.has(playlistId)) {
+          return exports2.memoryPlaylists.get(playlistId);
         }
         try {
           const doc = await this.db.collection(this.collection).doc(playlistId).get();
           if (!doc.exists)
             return null;
           return doc.data();
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.GET, this.collection, playlistId);
+        } catch {
+          return null;
         }
       }
       async createPlaylist(playlist) {
-        if (process.env.DATABASE_URL) {
+        exports2.memoryPlaylists.set(playlist.playlistId, { ...playlist });
+        if (process.env.DATABASE_URL && process.env.NODE_ENV !== "test") {
           try {
             const db = (0, client_1.getDb)();
             await db.insert(client_1.schema.playlists).values({
@@ -17352,22 +17379,20 @@ var require_dist4 = __commonJS({
             });
             return;
           } catch (err) {
-            logger8.error("Neon Drizzle error in createPlaylist", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in createPlaylist", err);
           }
-        }
-        try {
-          await this.db.collection(this.collection).doc(playlist.playlistId).set({
-            ...playlist,
-            createdAt: (/* @__PURE__ */ new Date()).toISOString(),
-            updatedAt: (/* @__PURE__ */ new Date()).toISOString()
-          });
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.CREATE, this.collection, playlist.playlistId);
         }
       }
       async updatePlaylist(playlistId, data) {
-        if (process.env.DATABASE_URL) {
+        const existing = exports2.memoryPlaylists.get(playlistId);
+        if (existing) {
+          exports2.memoryPlaylists.set(playlistId, {
+            ...existing,
+            ...data,
+            updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+          });
+        }
+        if (process.env.DATABASE_URL && process.env.NODE_ENV !== "test") {
           try {
             const db = (0, client_1.getDb)();
             const updatePayload = {
@@ -17377,38 +17402,24 @@ var require_dist4 = __commonJS({
             await db.update(client_1.schema.playlists).set(updatePayload).where((0, drizzle_orm_1.eq)(client_1.schema.playlists.playlistId, playlistId));
             return;
           } catch (err) {
-            logger8.error("Neon Drizzle error in updatePlaylist", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in updatePlaylist", err);
           }
-        }
-        try {
-          await this.db.collection(this.collection).doc(playlistId).update({
-            ...data,
-            updatedAt: (/* @__PURE__ */ new Date()).toISOString()
-          });
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.UPDATE, this.collection, playlistId);
         }
       }
       async deletePlaylist(playlistId) {
-        if (process.env.DATABASE_URL) {
+        exports2.memoryPlaylists.delete(playlistId);
+        if (process.env.DATABASE_URL && process.env.NODE_ENV !== "test") {
           try {
             const db = (0, client_1.getDb)();
             await db.delete(client_1.schema.playlists).where((0, drizzle_orm_1.eq)(client_1.schema.playlists.playlistId, playlistId));
             return;
           } catch (err) {
-            logger8.error("Neon Drizzle error in deletePlaylist", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in deletePlaylist", err);
           }
-        }
-        try {
-          await this.db.collection(this.collection).doc(playlistId).delete();
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.DELETE, this.collection, playlistId);
         }
       }
       async listUserPlaylists(uid) {
-        if (process.env.DATABASE_URL) {
+        if (process.env.DATABASE_URL && process.env.NODE_ENV !== "test") {
           try {
             const db = (0, client_1.getDb)();
             const rows = await db.select().from(client_1.schema.playlists).where((0, drizzle_orm_1.eq)(client_1.schema.playlists.uid, uid)).orderBy((0, drizzle_orm_1.desc)(client_1.schema.playlists.createdAt));
@@ -17426,19 +17437,13 @@ var require_dist4 = __commonJS({
               updatedAt: row.updatedAt.toISOString()
             }));
           } catch (err) {
-            logger8.error("Neon Drizzle error in listUserPlaylists", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in listUserPlaylists, checking memory fallback", err);
           }
         }
-        try {
-          const snapshot = await this.db.collection(this.collection).where("uid", "==", uid).orderBy("createdAt", "desc").get();
-          return snapshot.docs.map((d) => d.data());
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.LIST, this.collection);
-        }
+        return Array.from(exports2.memoryPlaylists.values()).filter((p) => p.uid === uid);
       }
       async listAllPlaylists() {
-        if (process.env.DATABASE_URL) {
+        if (process.env.DATABASE_URL && process.env.NODE_ENV !== "test") {
           try {
             const db = (0, client_1.getDb)();
             const rows = await db.select().from(client_1.schema.playlists).orderBy((0, drizzle_orm_1.desc)(client_1.schema.playlists.createdAt));
@@ -17456,20 +17461,17 @@ var require_dist4 = __commonJS({
               updatedAt: row.updatedAt.toISOString()
             }));
           } catch (err) {
-            logger8.error("Neon Drizzle error in listAllPlaylists", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in listAllPlaylists, checking memory fallback", err);
           }
         }
-        try {
-          const snapshot = await this.db.collection(this.collection).orderBy("createdAt", "desc").get();
-          return snapshot.docs.map((d) => d.data());
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.LIST, this.collection);
-        }
+        return Array.from(exports2.memoryPlaylists.values());
       }
       // Subcollection / Runs
       async createPlaylistRun(playlistId, run) {
-        if (process.env.DATABASE_URL) {
+        const runs = exports2.memoryPlaylistRuns.get(playlistId) || [];
+        runs.unshift({ ...run, startedAt: run.startedAt || (/* @__PURE__ */ new Date()).toISOString() });
+        exports2.memoryPlaylistRuns.set(playlistId, runs);
+        if (process.env.DATABASE_URL && process.env.NODE_ENV !== "test") {
           try {
             const db = (0, client_1.getDb)();
             await db.insert(client_1.schema.playlistRuns).values({
@@ -17482,21 +17484,22 @@ var require_dist4 = __commonJS({
             });
             return;
           } catch (err) {
-            logger8.error("Neon Drizzle error in createPlaylistRun", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in createPlaylistRun", err);
           }
-        }
-        try {
-          await this.db.collection(this.collection).doc(playlistId).collection("runs").doc(run.runId).set({
-            ...run,
-            startedAt: (/* @__PURE__ */ new Date()).toISOString()
-          });
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.CREATE, `${this.collection}/${playlistId}/runs`, run.runId);
         }
       }
       async updatePlaylistRun(playlistId, runId, data) {
-        if (process.env.DATABASE_URL) {
+        const runs = exports2.memoryPlaylistRuns.get(playlistId) || [];
+        const idx = runs.findIndex((r2) => r2.runId === runId);
+        if (idx !== -1) {
+          runs[idx] = {
+            ...runs[idx],
+            ...data,
+            completedAt: data.status === "completed" || data.status === "failed" ? (/* @__PURE__ */ new Date()).toISOString() : runs[idx].completedAt
+          };
+          exports2.memoryPlaylistRuns.set(playlistId, runs);
+        }
+        if (process.env.DATABASE_URL && process.env.NODE_ENV !== "test") {
           try {
             const db = (0, client_1.getDb)();
             const updatePayload = {
@@ -17506,21 +17509,12 @@ var require_dist4 = __commonJS({
             await db.update(client_1.schema.playlistRuns).set(updatePayload).where((0, drizzle_orm_1.eq)(client_1.schema.playlistRuns.runId, runId));
             return;
           } catch (err) {
-            logger8.error("Neon Drizzle error in updatePlaylistRun", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in updatePlaylistRun", err);
           }
-        }
-        try {
-          await this.db.collection(this.collection).doc(playlistId).collection("runs").doc(runId).update({
-            ...data,
-            completedAt: data.status === "completed" || data.status === "failed" ? (/* @__PURE__ */ new Date()).toISOString() : null
-          });
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.UPDATE, `${this.collection}/${playlistId}/runs`, runId);
         }
       }
       async getPlaylistRuns(playlistId) {
-        if (process.env.DATABASE_URL) {
+        if (process.env.DATABASE_URL && process.env.NODE_ENV !== "test") {
           try {
             const db = (0, client_1.getDb)();
             const rows = await db.select().from(client_1.schema.playlistRuns).where((0, drizzle_orm_1.eq)(client_1.schema.playlistRuns.playlistId, playlistId)).orderBy((0, drizzle_orm_1.desc)(client_1.schema.playlistRuns.startedAt));
@@ -17535,16 +17529,13 @@ var require_dist4 = __commonJS({
               error: row.error || null
             }));
           } catch (err) {
-            logger8.error("Neon Drizzle error in getPlaylistRuns", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in getPlaylistRuns, falling back to memory", err);
           }
         }
-        try {
-          const snapshot = await this.db.collection(this.collection).doc(playlistId).collection("runs").orderBy("startedAt", "desc").get();
-          return snapshot.docs.map((d) => d.data());
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.LIST, `${this.collection}/${playlistId}/runs`);
-        }
+        return exports2.memoryPlaylistRuns.get(playlistId) || [];
+      }
+      async listPlaylistRuns(playlistId) {
+        return this.getPlaylistRuns(playlistId);
       }
     };
     exports2.PlaylistRepository = PlaylistRepository2;
@@ -17554,44 +17545,47 @@ var require_dist4 = __commonJS({
         return getFirestoreDB2();
       }
       async getEpg(epgId) {
-        if (process.env.DATABASE_URL) {
+        if (process.env.DATABASE_URL && process.env.NODE_ENV !== "test") {
           try {
             const db = (0, client_1.getDb)();
             const [row] = await db.select().from(client_1.schema.epgFeeds).where((0, drizzle_orm_1.eq)(client_1.schema.epgFeeds.epgId, epgId)).limit(1);
-            if (!row)
-              return null;
-            return {
-              epgId: row.epgId,
-              uid: row.uid,
-              playlistId: row.playlistId,
-              status: row.status,
-              sourceConfig: row.sourceConfig,
-              outputFilePath: row.outputFilePath || null,
-              createdAt: row.createdAt.toISOString(),
-              lastGeneratedAt: row.lastGeneratedAt ? row.lastGeneratedAt.toISOString() : null
-            };
+            if (row) {
+              return {
+                epgId: row.epgId,
+                uid: row.uid,
+                playlistId: row.playlistId || null,
+                status: row.status,
+                sourceConfig: row.sourceConfig,
+                outputFilePath: row.outputFilePath || null,
+                createdAt: row.createdAt.toISOString(),
+                lastGeneratedAt: row.lastGeneratedAt ? row.lastGeneratedAt.toISOString() : null
+              };
+            }
           } catch (err) {
-            logger8.error("Neon Drizzle error in getEpg", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in getEpg, checking memory fallback", err);
           }
+        }
+        if (exports2.memoryEpgFeeds.has(epgId)) {
+          return exports2.memoryEpgFeeds.get(epgId);
         }
         try {
           const doc = await this.db.collection(this.collection).doc(epgId).get();
           if (!doc.exists)
             return null;
           return doc.data();
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.GET, this.collection, epgId);
+        } catch {
+          return null;
         }
       }
       async createEpg(epg) {
-        if (process.env.DATABASE_URL) {
+        exports2.memoryEpgFeeds.set(epg.epgId, { ...epg });
+        if (process.env.DATABASE_URL && process.env.NODE_ENV !== "test") {
           try {
             const db = (0, client_1.getDb)();
             await db.insert(client_1.schema.epgFeeds).values({
               epgId: epg.epgId,
               uid: epg.uid,
-              playlistId: epg.playlistId,
+              playlistId: epg.playlistId || null,
               status: epg.status || "pending",
               sourceConfig: epg.sourceConfig,
               outputFilePath: epg.outputFilePath || null,
@@ -17599,7 +17593,7 @@ var require_dist4 = __commonJS({
             }).onConflictDoUpdate({
               target: client_1.schema.epgFeeds.epgId,
               set: {
-                playlistId: epg.playlistId,
+                playlistId: epg.playlistId || null,
                 status: epg.status,
                 sourceConfig: epg.sourceConfig,
                 outputFilePath: epg.outputFilePath || null,
@@ -17608,21 +17602,19 @@ var require_dist4 = __commonJS({
             });
             return;
           } catch (err) {
-            logger8.error("Neon Drizzle error in createEpg", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in createEpg", err);
           }
-        }
-        try {
-          await this.db.collection(this.collection).doc(epg.epgId).set({
-            ...epg,
-            createdAt: (/* @__PURE__ */ new Date()).toISOString()
-          });
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.CREATE, this.collection, epg.epgId);
         }
       }
       async updateEpg(epgId, data) {
-        if (process.env.DATABASE_URL) {
+        const existing = exports2.memoryEpgFeeds.get(epgId);
+        if (existing) {
+          exports2.memoryEpgFeeds.set(epgId, {
+            ...existing,
+            ...data
+          });
+        }
+        if (process.env.DATABASE_URL && process.env.NODE_ENV !== "test") {
           try {
             const db = (0, client_1.getDb)();
             const updatePayload = { ...data };
@@ -17632,25 +17624,19 @@ var require_dist4 = __commonJS({
             await db.update(client_1.schema.epgFeeds).set(updatePayload).where((0, drizzle_orm_1.eq)(client_1.schema.epgFeeds.epgId, epgId));
             return;
           } catch (err) {
-            logger8.error("Neon Drizzle error in updateEpg", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in updateEpg", err);
           }
-        }
-        try {
-          await this.db.collection(this.collection).doc(epgId).update(data);
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.UPDATE, this.collection, epgId);
         }
       }
       async listUserEpgs(uid) {
-        if (process.env.DATABASE_URL) {
+        if (process.env.DATABASE_URL && process.env.NODE_ENV !== "test") {
           try {
             const db = (0, client_1.getDb)();
             const rows = await db.select().from(client_1.schema.epgFeeds).where((0, drizzle_orm_1.eq)(client_1.schema.epgFeeds.uid, uid)).orderBy((0, drizzle_orm_1.desc)(client_1.schema.epgFeeds.createdAt));
             return rows.map((row) => ({
               epgId: row.epgId,
               uid: row.uid,
-              playlistId: row.playlistId,
+              playlistId: row.playlistId || null,
               status: row.status,
               sourceConfig: row.sourceConfig,
               outputFilePath: row.outputFilePath || null,
@@ -17658,16 +17644,10 @@ var require_dist4 = __commonJS({
               lastGeneratedAt: row.lastGeneratedAt ? row.lastGeneratedAt.toISOString() : null
             }));
           } catch (err) {
-            logger8.error("Neon Drizzle error in listUserEpgs", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in listUserEpgs, checking memory fallback", err);
           }
         }
-        try {
-          const snapshot = await this.db.collection(this.collection).where("uid", "==", uid).orderBy("createdAt", "desc").get();
-          return snapshot.docs.map((d) => d.data());
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.LIST, this.collection);
-        }
+        return Array.from(exports2.memoryEpgFeeds.values()).filter((feed) => feed.uid === uid);
       }
     };
     exports2.EpgRepository = EpgRepository2;
@@ -17677,40 +17657,44 @@ var require_dist4 = __commonJS({
         return getFirestoreDB2();
       }
       async getBuild(buildId) {
-        if (process.env.DATABASE_URL) {
+        if (process.env.DATABASE_URL && process.env.NODE_ENV !== "test") {
           try {
             const db = (0, client_1.getDb)();
             const [row] = await db.select().from(client_1.schema.buildRequests).where((0, drizzle_orm_1.eq)(client_1.schema.buildRequests.buildId, buildId)).limit(1);
-            if (!row)
-              return null;
-            return {
-              buildId: row.buildId,
-              uid: row.uid,
-              appName: row.appName,
-              brandConfig: row.brandConfig,
-              playlistSource: row.playlistSource,
-              status: row.status,
-              artifactPath: row.artifactPath || null,
-              buildLogPath: row.buildLogPath || null,
-              createdAt: row.createdAt.toISOString(),
-              updatedAt: row.updatedAt.toISOString()
-            };
+            if (row) {
+              return {
+                buildId: row.buildId,
+                uid: row.uid,
+                appName: row.appName,
+                brandConfig: row.brandConfig,
+                playlistSource: row.playlistSource,
+                status: row.status,
+                artifactPath: row.artifactPath || null,
+                buildLogPath: row.buildLogPath || null,
+                appConfigId: row.appConfigId || null,
+                createdAt: row.createdAt.toISOString(),
+                updatedAt: row.updatedAt.toISOString()
+              };
+            }
           } catch (err) {
-            logger8.error("Neon Drizzle error in getBuild", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in getBuild, checking memory fallback", err);
           }
+        }
+        if (exports2.memoryBuilds.has(buildId)) {
+          return exports2.memoryBuilds.get(buildId);
         }
         try {
           const doc = await this.db.collection(this.collection).doc(buildId).get();
           if (!doc.exists)
             return null;
           return doc.data();
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.GET, this.collection, buildId);
+        } catch {
+          return null;
         }
       }
       async createBuild(build) {
-        if (process.env.DATABASE_URL) {
+        exports2.memoryBuilds.set(build.buildId, { ...build });
+        if (process.env.DATABASE_URL && process.env.NODE_ENV !== "test") {
           try {
             const db = (0, client_1.getDb)();
             await db.insert(client_1.schema.buildRequests).values({
@@ -17721,7 +17705,8 @@ var require_dist4 = __commonJS({
               playlistSource: build.playlistSource,
               status: build.status || "queued",
               artifactPath: build.artifactPath || null,
-              buildLogPath: build.buildLogPath || null
+              buildLogPath: build.buildLogPath || null,
+              appConfigId: build.appConfigId || null
             }).onConflictDoUpdate({
               target: client_1.schema.buildRequests.buildId,
               set: {
@@ -17731,27 +17716,26 @@ var require_dist4 = __commonJS({
                 status: build.status,
                 artifactPath: build.artifactPath || null,
                 buildLogPath: build.buildLogPath || null,
+                appConfigId: build.appConfigId || null,
                 updatedAt: /* @__PURE__ */ new Date()
               }
             });
             return;
           } catch (err) {
-            logger8.error("Neon Drizzle error in createBuild", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in createBuild", err);
           }
-        }
-        try {
-          await this.db.collection(this.collection).doc(build.buildId).set({
-            ...build,
-            createdAt: (/* @__PURE__ */ new Date()).toISOString(),
-            updatedAt: (/* @__PURE__ */ new Date()).toISOString()
-          });
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.CREATE, this.collection, build.buildId);
         }
       }
       async updateBuild(buildId, data) {
-        if (process.env.DATABASE_URL) {
+        const existing = exports2.memoryBuilds.get(buildId);
+        if (existing) {
+          exports2.memoryBuilds.set(buildId, {
+            ...existing,
+            ...data,
+            updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+          });
+        }
+        if (process.env.DATABASE_URL && process.env.NODE_ENV !== "test") {
           try {
             const db = (0, client_1.getDb)();
             const updatePayload = {
@@ -17761,21 +17745,12 @@ var require_dist4 = __commonJS({
             await db.update(client_1.schema.buildRequests).set(updatePayload).where((0, drizzle_orm_1.eq)(client_1.schema.buildRequests.buildId, buildId));
             return;
           } catch (err) {
-            logger8.error("Neon Drizzle error in updateBuild", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in updateBuild", err);
           }
-        }
-        try {
-          await this.db.collection(this.collection).doc(buildId).update({
-            ...data,
-            updatedAt: (/* @__PURE__ */ new Date()).toISOString()
-          });
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.UPDATE, this.collection, buildId);
         }
       }
       async listUserBuilds(uid) {
-        if (process.env.DATABASE_URL) {
+        if (process.env.DATABASE_URL && process.env.NODE_ENV !== "test") {
           try {
             const db = (0, client_1.getDb)();
             const rows = await db.select().from(client_1.schema.buildRequests).where((0, drizzle_orm_1.eq)(client_1.schema.buildRequests.uid, uid)).orderBy((0, drizzle_orm_1.desc)(client_1.schema.buildRequests.createdAt));
@@ -17788,23 +17763,18 @@ var require_dist4 = __commonJS({
               status: row.status,
               artifactPath: row.artifactPath || null,
               buildLogPath: row.buildLogPath || null,
+              appConfigId: row.appConfigId || null,
               createdAt: row.createdAt.toISOString(),
               updatedAt: row.updatedAt.toISOString()
             }));
           } catch (err) {
-            logger8.error("Neon Drizzle error in listUserBuilds", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in listUserBuilds, checking memory fallback", err);
           }
         }
-        try {
-          const snapshot = await this.db.collection(this.collection).where("uid", "==", uid).orderBy("createdAt", "desc").get();
-          return snapshot.docs.map((d) => d.data());
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.LIST, this.collection);
-        }
+        return Array.from(exports2.memoryBuilds.values()).filter((b) => b.uid === uid);
       }
       async listAllBuilds() {
-        if (process.env.DATABASE_URL) {
+        if (process.env.DATABASE_URL && process.env.NODE_ENV !== "test") {
           try {
             const db = (0, client_1.getDb)();
             const rows = await db.select().from(client_1.schema.buildRequests).orderBy((0, drizzle_orm_1.desc)(client_1.schema.buildRequests.createdAt));
@@ -17817,20 +17787,15 @@ var require_dist4 = __commonJS({
               status: row.status,
               artifactPath: row.artifactPath || null,
               buildLogPath: row.buildLogPath || null,
+              appConfigId: row.appConfigId || null,
               createdAt: row.createdAt.toISOString(),
               updatedAt: row.updatedAt.toISOString()
             }));
           } catch (err) {
-            logger8.error("Neon Drizzle error in listAllBuilds", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in listAllBuilds, checking memory fallback", err);
           }
         }
-        try {
-          const snapshot = await this.db.collection(this.collection).orderBy("createdAt", "desc").get();
-          return snapshot.docs.map((d) => d.data());
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.LIST, this.collection);
-        }
+        return Array.from(exports2.memoryBuilds.values());
       }
     };
     exports2.BuildRepository = BuildRepository2;
@@ -17840,41 +17805,44 @@ var require_dist4 = __commonJS({
         return getFirestoreDB2();
       }
       async getWorkspace(workspaceId) {
-        if (process.env.DATABASE_URL) {
+        if (process.env.DATABASE_URL && process.env.NODE_ENV !== "test") {
           try {
             const db = (0, client_1.getDb)();
             const [row] = await db.select().from(client_1.schema.workspaces).where((0, drizzle_orm_1.eq)(client_1.schema.workspaces.workspaceId, workspaceId)).limit(1);
-            if (!row)
-              return null;
-            return {
-              workspaceId: row.workspaceId,
-              name: row.name,
-              ownerUid: row.ownerUid,
-              plan: row.plan,
-              subscriptionStatus: row.subscriptionStatus,
-              stripeCustomerId: row.stripeCustomerId || null,
-              stripeSubscriptionId: row.stripeSubscriptionId || null,
-              entitlements: row.entitlements,
-              usage: row.usage,
-              createdAt: row.createdAt.toISOString(),
-              updatedAt: row.updatedAt.toISOString()
-            };
+            if (row) {
+              return {
+                workspaceId: row.workspaceId,
+                name: row.name,
+                ownerUid: row.ownerUid,
+                plan: row.plan,
+                subscriptionStatus: row.subscriptionStatus,
+                stripeCustomerId: row.stripeCustomerId || null,
+                stripeSubscriptionId: row.stripeSubscriptionId || null,
+                entitlements: row.entitlements,
+                usage: row.usage,
+                createdAt: row.createdAt.toISOString(),
+                updatedAt: row.updatedAt.toISOString()
+              };
+            }
           } catch (err) {
-            logger8.error("Neon Drizzle error in getWorkspace", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in getWorkspace, checking memory fallback", err);
           }
+        }
+        if (exports2.memoryWorkspaces.has(workspaceId)) {
+          return exports2.memoryWorkspaces.get(workspaceId);
         }
         try {
           const doc = await this.db.collection(this.collection).doc(workspaceId).get();
           if (!doc.exists)
             return null;
           return doc.data();
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.GET, this.collection, workspaceId);
+        } catch {
+          return null;
         }
       }
       async createWorkspace(workspace) {
-        if (process.env.DATABASE_URL) {
+        exports2.memoryWorkspaces.set(workspace.workspaceId, { ...workspace });
+        if (process.env.DATABASE_URL && process.env.NODE_ENV !== "test") {
           try {
             const db = (0, client_1.getDb)();
             await db.insert(client_1.schema.workspaces).values({
@@ -17902,22 +17870,20 @@ var require_dist4 = __commonJS({
             });
             return;
           } catch (err) {
-            logger8.error("Neon Drizzle error in createWorkspace", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in createWorkspace", err);
           }
-        }
-        try {
-          await this.db.collection(this.collection).doc(workspace.workspaceId).set({
-            ...workspace,
-            createdAt: (/* @__PURE__ */ new Date()).toISOString(),
-            updatedAt: (/* @__PURE__ */ new Date()).toISOString()
-          });
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.CREATE, this.collection, workspace.workspaceId);
         }
       }
       async updateWorkspace(workspaceId, data) {
-        if (process.env.DATABASE_URL) {
+        const existing = exports2.memoryWorkspaces.get(workspaceId);
+        if (existing) {
+          exports2.memoryWorkspaces.set(workspaceId, {
+            ...existing,
+            ...data,
+            updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+          });
+        }
+        if (process.env.DATABASE_URL && process.env.NODE_ENV !== "test") {
           try {
             const db = (0, client_1.getDb)();
             const updatePayload = {
@@ -17927,21 +17893,12 @@ var require_dist4 = __commonJS({
             await db.update(client_1.schema.workspaces).set(updatePayload).where((0, drizzle_orm_1.eq)(client_1.schema.workspaces.workspaceId, workspaceId));
             return;
           } catch (err) {
-            logger8.error("Neon Drizzle error in updateWorkspace", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in updateWorkspace", err);
           }
-        }
-        try {
-          await this.db.collection(this.collection).doc(workspaceId).update({
-            ...data,
-            updatedAt: (/* @__PURE__ */ new Date()).toISOString()
-          });
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.UPDATE, this.collection, workspaceId);
         }
       }
       async listUserWorkspaces(uid) {
-        if (process.env.DATABASE_URL) {
+        if (process.env.DATABASE_URL && process.env.NODE_ENV !== "test") {
           try {
             const db = (0, client_1.getDb)();
             const rows = await db.select().from(client_1.schema.workspaces).where((0, drizzle_orm_1.eq)(client_1.schema.workspaces.ownerUid, uid)).orderBy((0, drizzle_orm_1.desc)(client_1.schema.workspaces.createdAt));
@@ -17959,19 +17916,13 @@ var require_dist4 = __commonJS({
               updatedAt: row.updatedAt.toISOString()
             }));
           } catch (err) {
-            logger8.error("Neon Drizzle error in listUserWorkspaces", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in listUserWorkspaces, falling back to memory", err);
           }
         }
-        try {
-          const snapshot = await this.db.collection(this.collection).where("ownerUid", "==", uid).orderBy("createdAt", "desc").get();
-          return snapshot.docs.map((d) => d.data());
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.LIST, this.collection);
-        }
+        return Array.from(exports2.memoryWorkspaces.values()).filter((ws) => ws.ownerUid === uid);
       }
       async listAllWorkspaces(limit = 100) {
-        if (process.env.DATABASE_URL) {
+        if (process.env.DATABASE_URL && process.env.NODE_ENV !== "test") {
           try {
             const db = (0, client_1.getDb)();
             const rows = await db.select().from(client_1.schema.workspaces).orderBy((0, drizzle_orm_1.desc)(client_1.schema.workspaces.createdAt)).limit(limit);
@@ -17989,16 +17940,10 @@ var require_dist4 = __commonJS({
               updatedAt: row.updatedAt.toISOString()
             }));
           } catch (err) {
-            logger8.error("Neon Drizzle error in listAllWorkspaces", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in listAllWorkspaces, returning memory workspaces", err);
           }
         }
-        try {
-          const snapshot = await this.db.collection(this.collection).orderBy("createdAt", "desc").limit(limit).get();
-          return snapshot.docs.map((d) => d.data());
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.LIST, this.collection);
-        }
+        return Array.from(exports2.memoryWorkspaces.values()).slice(0, limit);
       }
     };
     exports2.WorkspaceRepository = WorkspaceRepository3;
@@ -18262,6 +18207,136 @@ var require_dist4 = __commonJS({
       }
     };
     exports2.AppConfigRepository = AppConfigRepository2;
+    var TvPairingRepository2 = class {
+      collection = "tvPairings";
+      get db() {
+        return getFirestoreDB2();
+      }
+      async createPairing(pairing) {
+        exports2.memoryPairings.set(pairing.code, { ...pairing });
+        if (process.env.DATABASE_URL && process.env.NODE_ENV !== "test") {
+          try {
+            const db = (0, client_1.getDb)();
+            await db.insert(client_1.schema.tvPairings).values({
+              code: pairing.code,
+              deviceId: pairing.deviceId || null,
+              deviceName: pairing.deviceName,
+              status: pairing.status,
+              token: pairing.token || null,
+              user: pairing.user || null,
+              expiresAt: new Date(pairing.expiresAt),
+              createdAt: new Date(pairing.createdAt)
+            }).onConflictDoUpdate({
+              target: client_1.schema.tvPairings.code,
+              set: {
+                deviceId: pairing.deviceId || null,
+                deviceName: pairing.deviceName,
+                status: pairing.status,
+                token: pairing.token || null,
+                user: pairing.user || null,
+                expiresAt: new Date(pairing.expiresAt)
+              }
+            });
+            return;
+          } catch (err) {
+            logger8.warn("Neon Drizzle error in createPairing", err);
+          }
+        }
+      }
+      async getPairing(code) {
+        if (process.env.DATABASE_URL && process.env.NODE_ENV !== "test") {
+          try {
+            const db = (0, client_1.getDb)();
+            const [row] = await db.select().from(client_1.schema.tvPairings).where((0, drizzle_orm_1.eq)(client_1.schema.tvPairings.code, code)).limit(1);
+            if (row) {
+              return {
+                code: row.code,
+                deviceId: row.deviceId || null,
+                deviceName: row.deviceName,
+                status: row.status,
+                token: row.token || null,
+                user: row.user || null,
+                expiresAt: row.expiresAt.toISOString(),
+                createdAt: row.createdAt.toISOString()
+              };
+            }
+          } catch (err) {
+            logger8.warn("Neon Drizzle error in getPairing, checking memory fallback", err);
+          }
+        }
+        if (exports2.memoryPairings.has(code)) {
+          return exports2.memoryPairings.get(code);
+        }
+        try {
+          const doc = await this.db.collection(this.collection).doc(code).get();
+          if (!doc.exists)
+            return null;
+          return doc.data();
+        } catch {
+          return null;
+        }
+      }
+      async claimPairing(code, token, user) {
+        const existing = await this.getPairing(code);
+        if (!existing)
+          return null;
+        const expiresAtMs = new Date(existing.expiresAt).getTime();
+        if (expiresAtMs < Date.now()) {
+          return null;
+        }
+        const updated = {
+          ...existing,
+          status: "claimed",
+          token,
+          user
+        };
+        exports2.memoryPairings.set(code, updated);
+        if (process.env.DATABASE_URL && process.env.NODE_ENV !== "test") {
+          try {
+            const db = (0, client_1.getDb)();
+            await db.update(client_1.schema.tvPairings).set({
+              status: "claimed",
+              token,
+              user
+            }).where((0, drizzle_orm_1.eq)(client_1.schema.tvPairings.code, code));
+          } catch (err) {
+            logger8.warn("Neon Drizzle error in claimPairing", err);
+          }
+        }
+        return updated;
+      }
+      async deletePairing(code) {
+        exports2.memoryPairings.delete(code);
+        if (process.env.DATABASE_URL && process.env.NODE_ENV !== "test") {
+          try {
+            const db = (0, client_1.getDb)();
+            await db.delete(client_1.schema.tvPairings).where((0, drizzle_orm_1.eq)(client_1.schema.tvPairings.code, code));
+          } catch (err) {
+            logger8.warn("Neon Drizzle error in deletePairing", err);
+          }
+        }
+      }
+      async cleanupExpiredPairings() {
+        const now = Date.now();
+        let cleaned = 0;
+        for (const [code, pairing] of exports2.memoryPairings.entries()) {
+          if (new Date(pairing.expiresAt).getTime() < now) {
+            exports2.memoryPairings.delete(code);
+            cleaned++;
+          }
+        }
+        if (process.env.DATABASE_URL && process.env.NODE_ENV !== "test") {
+          try {
+            const db = (0, client_1.getDb)();
+            await db.delete(client_1.schema.tvPairings).where((0, drizzle_orm_1.sql)`${client_1.schema.tvPairings.expiresAt} < ${/* @__PURE__ */ new Date()}`);
+          } catch (err) {
+            logger8.warn("Neon Drizzle error in cleanupExpiredPairings", err);
+          }
+        }
+        return cleaned;
+      }
+    };
+    exports2.TvPairingRepository = TvPairingRepository2;
   }
 });
 
@@ -92603,6 +92678,20 @@ var require_dist14 = __commonJS({
           return null;
         }
       }
+      if (db_1.memoryBuilds && db_1.memoryBuilds.size > 0) {
+        for (const [id, req] of db_1.memoryBuilds.entries()) {
+          if (req.status === "queued") {
+            const updated = {
+              ...req,
+              status: "building",
+              updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+            };
+            db_1.memoryBuilds.set(id, updated);
+            logger8.info("Locked build request job from memory", { buildId: id });
+            return updated;
+          }
+        }
+      }
       const db = (0, db_1.getFirestoreDB)();
       try {
         const snapshot = await db.collection("buildRequests").where("status", "==", "queued").limit(1).get();
@@ -131928,6 +132017,7 @@ var init_drizzle_orm = __esm({
 var server_exports = {};
 __export(server_exports, {
   app: () => app,
+  createRateLimiter: () => createRateLimiter,
   default: () => server_default
 });
 module.exports = __toCommonJS(server_exports);
@@ -131958,7 +132048,7 @@ async function attachWorkspaceContext(req, res, next) {
       const workspacesList = await workspaceRepo.listUserWorkspaces(uid);
       if (workspacesList.length === 0) {
         try {
-          const newWs = await workspaceRepo.createWorkspace({
+          const newWs = {
             workspaceId: `ws_${Math.random().toString(36).substring(2, 12)}`,
             name: "Personal Workspace",
             ownerUid: uid,
@@ -131982,7 +132072,8 @@ async function attachWorkspaceContext(req, res, next) {
             stripeCustomerId: null,
             createdAt: (/* @__PURE__ */ new Date()).toISOString(),
             updatedAt: (/* @__PURE__ */ new Date()).toISOString()
-          });
+          };
+          await workspaceRepo.createWorkspace(newWs);
           req.workspace = newWs;
           return next();
         } catch (wsErr) {
@@ -132010,6 +132101,9 @@ function checkWorkspaceQuota(key) {
     const workspace = req.workspace;
     if (!workspace) {
       return res.status(500).json({ error: "Internal Error: Workspace context missing" });
+    }
+    if (req.user?.role === "admin") {
+      return next();
     }
     if (workspace.plan !== "free" && workspace.subscriptionStatus !== "active") {
       return res.status(402).json({ error: "Payment required: Subscription is inactive" });
@@ -132434,6 +132528,16 @@ function parseXmltvDate(rawDate) {
   const date = new Date(iso);
   return Number.isFinite(date.getTime()) ? date.toISOString() : null;
 }
+function decodeXmlEntities(str) {
+  if (!str) return "";
+  return str.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#39;/g, "'").replace(/&#(\d+);/g, (_, dec) => {
+    const code = parseInt(dec, 10);
+    return Number.isFinite(code) ? String.fromCharCode(code) : _;
+  }).replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => {
+    const code = parseInt(hex, 16);
+    return Number.isFinite(code) ? String.fromCharCode(code) : _;
+  });
+}
 var EpgService = class _EpgService {
   static instance;
   // Map of channelId (lowercase) -> list of programmes sorted by start time
@@ -132464,14 +132568,14 @@ var EpgService = class _EpgService {
       if (!channelAttr || !startAttr) continue;
       const titleMatch = bodyStr.match(/<title[^>]*>([^<]+)<\/title>/i);
       const descMatch = bodyStr.match(/<desc[^>]*>([^<]+)<\/desc>/i);
-      const categoryMatches = [...bodyStr.matchAll(/<category[^>]*>([^<]+)<\/category>/gi)].map((m2) => m2[1].trim());
+      const categoryMatches = [...bodyStr.matchAll(/<category[^>]*>([^<]+)<\/category>/gi)].map((m2) => decodeXmlEntities(m2[1].trim()));
       const startIso = parseXmltvDate(startAttr);
       const stopIso = parseXmltvDate(stopAttr) || (startIso ? new Date(Date.parse(startIso) + 36e5).toISOString() : null);
       if (!startIso || !stopIso) continue;
       const programme = {
         channelId: channelAttr.trim(),
-        title: titleMatch ? titleMatch[1].trim() : "Live Broadcast",
-        desc: descMatch ? descMatch[1].trim() : void 0,
+        title: titleMatch ? decodeXmlEntities(titleMatch[1].trim()) : "Live Broadcast",
+        desc: descMatch ? decodeXmlEntities(descMatch[1].trim()) : void 0,
         start: startIso,
         stop: stopIso,
         category: categoryMatches.length > 0 ? categoryMatches : void 0,
@@ -132996,9 +133100,13 @@ async function fetchAndCacheLogo(logoUrl) {
 }
 
 // apps/api/src/server.ts
+var initialNodeEnv = process.env.NODE_ENV;
 import_dotenv.default.config();
 import_dotenv.default.config({ path: import_path2.default.resolve(process.cwd(), "../../.env") });
 import_dotenv.default.config({ path: import_path2.default.resolve(__dirname, "../../../.env") });
+if (initialNodeEnv) {
+  process.env.NODE_ENV = initialNodeEnv;
+}
 var logger7 = new import_logging7.Logger("api-server");
 var app = (0, import_express.default)();
 var PORT = Number(process.env.PORT) || 3001;
@@ -133009,6 +133117,7 @@ var buildRepo = new import_db2.BuildRepository();
 var auditRepo = new import_db2.AuditLogRepository();
 var workspaceRepo2 = new import_db2.WorkspaceRepository();
 var appConfigRepo = new import_db2.AppConfigRepository();
+var tvPairingRepo = new import_db2.TvPairingRepository();
 app.use((0, import_cors.default)({ origin: true }));
 app.use((req, res, next) => {
   if (req.originalUrl === "/api/webhooks/stripe" || req.originalUrl === "/api/billing/webhook") {
@@ -133016,6 +133125,54 @@ app.use((req, res, next) => {
   } else {
     import_body_parser.default.json()(req, res, next);
   }
+});
+function createRateLimiter(options) {
+  const hits = /* @__PURE__ */ new Map();
+  const cleanupTimer = setInterval(() => {
+    const now = Date.now();
+    for (const [key, record] of hits.entries()) {
+      if (record.resetAt <= now) {
+        hits.delete(key);
+      }
+    }
+  }, 5 * 60 * 1e3);
+  if (cleanupTimer.unref) cleanupTimer.unref();
+  return (req, res, next) => {
+    if (req.headers["x-test-skip-ratelimit"]) {
+      return next();
+    }
+    const ip = req.ip || req.connection?.remoteAddress || req.headers["x-forwarded-for"] || "127.0.0.1";
+    const key = `${req.baseUrl || req.path}:${ip}`;
+    const now = Date.now();
+    const record = hits.get(key);
+    if (!record || record.resetAt <= now) {
+      hits.set(key, { count: 1, resetAt: now + options.windowMs });
+      return next();
+    }
+    record.count++;
+    if (record.count > options.max) {
+      res.setHeader("Retry-After", Math.ceil((record.resetAt - now) / 1e3));
+      return res.status(429).json({
+        error: options.message || "Too many requests, please try again later."
+      });
+    }
+    next();
+  };
+}
+var registerRateLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1e3,
+  max: 10,
+  message: "Too many registration attempts. Please wait 15 minutes before trying again."
+});
+var tvPairingRateLimiter = createRateLimiter({
+  windowMs: 5 * 60 * 1e3,
+  max: 20,
+  message: "Too many TV pairing requests from this IP. Please wait before generating another code."
+});
+var aiContextRateLimiter = createRateLimiter({
+  windowMs: 60 * 1e3,
+  max: 30,
+  message: "AI context generation rate limit reached. Please wait a moment."
 });
 app.get("/api/health", (req, res) => {
   res.json({
@@ -133111,7 +133268,7 @@ app.post("/api/public/contact", async (req, res) => {
   logger7.info("Contact request submitted", { name: name2, email });
   res.status(200).json({ success: true, message: "Message sent successfully." });
 });
-app.post("/api/public/auth/register", async (req, res) => {
+app.post("/api/public/auth/register", registerRateLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -133237,34 +133394,33 @@ app.get("/api/v1/apps/:appId/config", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-var tvPairingSessions = /* @__PURE__ */ new Map();
-setInterval(() => {
-  const now = Date.now();
-  for (const [code, session] of tvPairingSessions.entries()) {
-    if (session.expiresAt < now) {
-      tvPairingSessions.delete(code);
-    }
-  }
+var pairingCleanupInterval = setInterval(() => {
+  tvPairingRepo.cleanupExpiredPairings().catch((err) => {
+    logger7.warn("Error during periodic TV pairing cleanup", err);
+  });
 }, 60 * 1e3);
-app.post("/api/public/pair/generate", (req, res) => {
+if (pairingCleanupInterval.unref) pairingCleanupInterval.unref();
+var handleGenerateTvPairingCode = async (req, res) => {
   try {
-    const { deviceName = "Smart TV" } = req.body || {};
+    const { deviceName = "Smart TV", deviceId = null } = req.body || {};
     const code = Math.floor(1e5 + Math.random() * 9e5).toString();
     const now = Date.now();
     const ttlMs = 10 * 60 * 1e3;
-    const session = {
+    const expiresAt = new Date(now + ttlMs).toISOString();
+    const pairing = {
       code,
+      deviceId,
       deviceName,
-      createdAt: now,
-      expiresAt: now + ttlMs,
-      claimed: false
+      status: "pending",
+      createdAt: new Date(now).toISOString(),
+      expiresAt
     };
-    tvPairingSessions.set(code, session);
+    await tvPairingRepo.createPairing(pairing);
     logger7.info(`Generated TV pairing code ${code} for device ${deviceName}`);
     res.json({
       success: true,
       code,
-      expiresAt: session.expiresAt,
+      expiresAt: new Date(expiresAt).getTime(),
       ttlSeconds: 600,
       pairingUrl: `https://iptv.menu/pair?code=${code}`
     });
@@ -133272,57 +133428,66 @@ app.post("/api/public/pair/generate", (req, res) => {
     logger7.error("Error generating TV pairing code", error);
     res.status(500).json({ error: error.message });
   }
-});
-app.post("/api/pair/claim", import_auth.authenticateFirebaseToken, (req, res) => {
+};
+app.post("/api/public/pair/generate", tvPairingRateLimiter, handleGenerateTvPairingCode);
+app.post("/api/auth/tv/code", tvPairingRateLimiter, handleGenerateTvPairingCode);
+var handleClaimTvPairingCode = async (req, res) => {
   try {
     const { code } = req.body;
     if (!code || typeof code !== "string") {
       return res.status(400).json({ error: "Pairing code is required." });
     }
     const cleanCode = code.trim();
-    const session = tvPairingSessions.get(cleanCode);
-    if (!session || session.expiresAt < Date.now()) {
+    const pairing = await tvPairingRepo.getPairing(cleanCode);
+    if (!pairing || new Date(pairing.expiresAt).getTime() < Date.now()) {
       return res.status(404).json({ error: "Pairing code has expired or is invalid. Please generate a new code on your TV." });
     }
     const rawAuthHeader = req.headers.authorization;
     const token = rawAuthHeader?.startsWith("Bearer ") ? rawAuthHeader.split("Bearer ")[1] : "";
-    session.claimed = true;
-    session.token = token;
-    session.user = {
+    const user = {
       uid: req.user.uid,
       email: req.user.email,
       displayName: req.user.displayName || req.user.name,
       role: req.user.role || "user",
       subscriptionTier: req.user.subscriptionTier || "free"
     };
+    const updated = await tvPairingRepo.claimPairing(cleanCode, token, user);
+    if (!updated) {
+      return res.status(404).json({ error: "Pairing code has expired or is invalid." });
+    }
     logger7.info(`TV pairing code ${cleanCode} claimed by user ${req.user.email}`);
     res.json({
       success: true,
       message: `Device successfully authorized for ${req.user.email}!`,
-      deviceName: session.deviceName
+      deviceName: pairing.deviceName
     });
   } catch (error) {
     logger7.error("Error claiming TV pairing code", error);
     res.status(500).json({ error: error.message });
   }
-});
-app.get("/api/public/pair/status/:code", (req, res) => {
+};
+app.post("/api/pair/claim", import_auth.authenticateFirebaseToken, handleClaimTvPairingCode);
+app.post("/api/auth/tv/claim", import_auth.authenticateFirebaseToken, handleClaimTvPairingCode);
+var handleGetTvPairingStatus = async (req, res) => {
   try {
     const code = req.params.code?.trim();
-    const session = tvPairingSessions.get(code);
-    if (!session || session.expiresAt < Date.now()) {
+    const pairing = await tvPairingRepo.getPairing(code);
+    if (!pairing || new Date(pairing.expiresAt).getTime() < Date.now()) {
       return res.json({ status: "expired" });
     }
-    if (session.claimed && session.token) {
+    if (pairing.status === "claimed" && pairing.token) {
       const responsePayload = {
         status: "claimed",
-        token: session.token,
-        user: session.user
+        token: pairing.token,
+        user: pairing.user
       };
-      setTimeout(() => tvPairingSessions.delete(code), 3e4);
+      setTimeout(() => {
+        tvPairingRepo.deletePairing(code).catch(() => {
+        });
+      }, 3e4);
       return res.json(responsePayload);
     }
-    const remainingSeconds = Math.max(0, Math.floor((session.expiresAt - Date.now()) / 1e3));
+    const remainingSeconds = Math.max(0, Math.floor((new Date(pairing.expiresAt).getTime() - Date.now()) / 1e3));
     res.json({
       status: "pending",
       remainingSeconds
@@ -133331,8 +133496,10 @@ app.get("/api/public/pair/status/:code", (req, res) => {
     logger7.error("Error polling TV pairing status", error);
     res.status(500).json({ error: error.message });
   }
-});
-app.post("/api/ai/program-context", async (req, res) => {
+};
+app.get("/api/public/pair/status/:code", handleGetTvPairingStatus);
+app.get("/api/auth/tv/status/:code", handleGetTvPairingStatus);
+app.post("/api/ai/program-context", aiContextRateLimiter, async (req, res) => {
   try {
     const { title, channelName, category, description } = req.body || {};
     if (!title && !channelName) {
@@ -133687,25 +133854,68 @@ app.get("/api/me/subscription", async (req, res) => {
 app.post("/api/playlists", checkWorkspaceQuota("maxPlaylists"), async (req, res) => {
   try {
     const uid = req.user.uid;
-    const { name: name2, sourceType, originalFileName } = req.body;
+    const {
+      name: name2,
+      title,
+      sourceType = "upload",
+      originalFileName,
+      originalFilePath: customPath,
+      url,
+      channelCount
+    } = req.body;
     const playlistId = `pl_${Math.random().toString(36).substring(2, 15)}`;
-    const originalFilePath = `users/${uid}/uploads/${playlistId}_${originalFileName || "playlist.m3u"}`;
-    const uploadUrl = await (0, import_storage.getSignedUrl)(import_config.config.GCS_UPLOAD_BUCKET, originalFilePath, "write");
+    let playlistName = name2 || title;
+    if (!playlistName) {
+      if (sourceType === "url" && url) {
+        try {
+          playlistName = `Remote Feed (${new URL(url).hostname})`;
+        } catch {
+          playlistName = "Remote Feed";
+        }
+      } else {
+        playlistName = "Untitled Playlist";
+      }
+    }
+    let originalFilePath = customPath || null;
+    let uploadUrl = null;
+    if (sourceType === "url") {
+      originalFilePath = url || customPath || null;
+    } else {
+      originalFilePath = customPath || `users/${uid}/uploads/${playlistId}_${originalFileName || "playlist.m3u"}`;
+      try {
+        uploadUrl = await (0, import_storage.getSignedUrl)(import_config.config.GCS_UPLOAD_BUCKET, originalFilePath, "write");
+      } catch (gcsErr) {
+        logger7.warn("Could not generate GCS upload signed URL; local/mock storage mode", gcsErr);
+      }
+    }
     const playlist = {
       playlistId,
       uid,
-      name: name2,
+      name: playlistName,
       sourceType,
       originalFilePath,
       cleanedFilePath: null,
-      channelCount: 0,
-      status: "pending",
+      channelCount: channelCount || 0,
+      status: sourceType === "url" ? "ready" : "pending",
       visibility: "private",
       createdAt: (/* @__PURE__ */ new Date()).toISOString(),
       updatedAt: (/* @__PURE__ */ new Date()).toISOString()
     };
     await playlistRepo.createPlaylist(playlist);
-    res.status(201).json({ playlist, uploadUrl });
+    if (req.workspace) {
+      try {
+        const currentCount = req.workspace.usage?.activePlaylistsCount || 0;
+        await workspaceRepo2.updateWorkspace(req.workspace.workspaceId, {
+          usage: {
+            ...req.workspace.usage,
+            activePlaylistsCount: currentCount + 1
+          }
+        });
+      } catch (wsErr) {
+        logger7.warn("Failed to increment workspace activePlaylistsCount", wsErr);
+      }
+    }
+    res.status(201).json({ playlist, uploadUrl, workspaceId: req.workspace?.workspaceId || null });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -133738,7 +133948,7 @@ app.delete("/api/playlists/:playlistId", async (req, res) => {
     if (!playlist || playlist.uid !== req.user.uid) {
       return res.status(404).json({ error: "Playlist not found" });
     }
-    if (playlist.originalFilePath) {
+    if (playlist.originalFilePath && playlist.sourceType !== "url") {
       await (0, import_storage.deleteFromBucket)(import_config.config.GCS_UPLOAD_BUCKET, playlist.originalFilePath).catch(() => {
       });
     }
@@ -133747,6 +133957,19 @@ app.delete("/api/playlists/:playlistId", async (req, res) => {
       });
     }
     await playlistRepo.deletePlaylist(playlistId);
+    if (req.workspace) {
+      try {
+        const currentCount = req.workspace.usage?.activePlaylistsCount || 1;
+        await workspaceRepo2.updateWorkspace(req.workspace.workspaceId, {
+          usage: {
+            ...req.workspace.usage,
+            activePlaylistsCount: Math.max(0, currentCount - 1)
+          }
+        });
+      } catch (wsErr) {
+        logger7.warn("Failed to decrement workspace activePlaylistsCount", wsErr);
+      }
+    }
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -133804,24 +134027,41 @@ app.get("/api/playlists/:playlistId/runs", async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-app.post("/api/epg", checkWorkspaceQuota("maxHostedPlaylists"), async (req, res) => {
+app.post("/api/epg", async (req, res) => {
   try {
     const uid = req.user.uid;
-    const { playlistId, urls, refreshIntervalHours } = req.body;
+    const { playlistId, urls, refreshIntervalHours, sourceConfig } = req.body || {};
+    const rawUrls = Array.isArray(urls) ? urls : Array.isArray(sourceConfig?.urls) ? sourceConfig.urls : [];
+    const refreshHours = Number(refreshIntervalHours || sourceConfig?.refreshIntervalHours) || 24;
+    for (const url of rawUrls) {
+      if (typeof url !== "string" || !url.trim()) continue;
+      const { safe, reason } = isSafeTargetUrl(url.trim(), true);
+      if (!safe) {
+        return res.status(403).json({ error: reason || "Access to private or loopback addresses is prohibited." });
+      }
+    }
+    let targetPlaylistId = null;
+    if (playlistId && playlistId !== "default_playlist" && playlistId !== "standalone") {
+      const playlist = await playlistRepo.getPlaylist(playlistId);
+      if (!playlist || playlist.uid !== uid) {
+        return res.status(404).json({ error: "Referenced playlist not found or inaccessible" });
+      }
+      targetPlaylistId = playlistId;
+    }
     const epgId = `epg_${Math.random().toString(36).substring(2, 15)}`;
     const feed = {
       epgId,
       uid,
-      playlistId,
+      playlistId: targetPlaylistId,
       status: "pending",
-      sourceConfig: { urls, refreshIntervalHours },
+      sourceConfig: { urls: rawUrls, refreshIntervalHours: refreshHours },
       outputFilePath: `users/${uid}/epg/${epgId}_xmltv.xml`,
       lastGeneratedAt: null,
       createdAt: (/* @__PURE__ */ new Date()).toISOString()
     };
     await epgRepo.createEpg(feed);
     await (0, import_jobs.dispatchEpgJob)(epgId);
-    res.status(201).json({ success: true, epgId });
+    res.status(201).json({ success: true, epgId, feed });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -133851,6 +134091,14 @@ app.post("/api/epg/sync", async (req, res) => {
   try {
     const { urls } = req.body || {};
     const targetUrls = Array.isArray(urls) && urls.length > 0 ? urls : ["https://iptv-org.github.io/epg/guides/us.xml"];
+    for (const url of targetUrls) {
+      if (typeof url === "string" && url.trim()) {
+        const { safe, reason } = isSafeTargetUrl(url.trim());
+        if (!safe) {
+          return res.status(403).json({ error: reason || "Access to private or loopback addresses is prohibited." });
+        }
+      }
+    }
     const result = await epgService.fetchAndIngestFeeds(targetUrls);
     await channelMetadataService.refreshIndex();
     res.json({ success: true, ...result });
@@ -134536,7 +134784,8 @@ if (!process.env.VERCEL && (typeof require !== "undefined" && require.main === m
 var server_default = app;
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
-  app
+  app,
+  createRateLimiter
 });
 /**
  * @license

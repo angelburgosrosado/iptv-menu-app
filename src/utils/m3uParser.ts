@@ -28,6 +28,7 @@ export function parseM3U(m3uContent: string, options?: ParserOptions): Channel[]
   const { onProgress } = options || {};
   const channels: Channel[] = [];
   const urlSet = new Set<string>(); // Used for deduplication
+  const idSet = new Set<string>(); // Used to ensure unique channel IDs across duplicate tvg-ids
 
   if (!m3uContent || !m3uContent.includes('#EXTM3U')) {
     console.warn('Invalid file format. Does not contain #EXTM3U header.');
@@ -118,7 +119,16 @@ export function parseM3U(m3uContent: string, options?: ParserOptions): Channel[]
         if (!urlSet.has(streamUrl)) {
           urlSet.add(streamUrl);
 
-          const stableId = currentExtinf.tvgId || generateStableId(currentExtinf.name, streamUrl);
+          let stableId = currentExtinf.tvgId || generateStableId(currentExtinf.name, streamUrl);
+          if (idSet.has(stableId)) {
+            const suffix = generateStableId(currentExtinf.name, streamUrl).slice(0, 8);
+            stableId = `${stableId}-${suffix}`;
+            let counter = 2;
+            while (idSet.has(stableId)) {
+              stableId = `${stableId}-${counter++}`;
+            }
+          }
+          idSet.add(stableId);
           
           channels.push({
             id: stableId,

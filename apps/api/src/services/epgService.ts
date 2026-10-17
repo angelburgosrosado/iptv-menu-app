@@ -36,6 +36,28 @@ export function parseXmltvDate(rawDate?: string): string | null {
   return Number.isFinite(date.getTime()) ? date.toISOString() : null;
 }
 
+/**
+ * Decodes standard and numeric XML character entities
+ */
+export function decodeXmlEntities(str: string): string {
+  if (!str) return '';
+  return str
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&#(\d+);/g, (_, dec) => {
+      const code = parseInt(dec, 10);
+      return Number.isFinite(code) ? String.fromCharCode(code) : _;
+    })
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => {
+      const code = parseInt(hex, 16);
+      return Number.isFinite(code) ? String.fromCharCode(code) : _;
+    });
+}
+
 export class EpgService {
   private static instance: EpgService;
   // Map of channelId (lowercase) -> list of programmes sorted by start time
@@ -72,7 +94,7 @@ export class EpgService {
 
       const titleMatch = bodyStr.match(/<title[^>]*>([^<]+)<\/title>/i);
       const descMatch = bodyStr.match(/<desc[^>]*>([^<]+)<\/desc>/i);
-      const categoryMatches = [...bodyStr.matchAll(/<category[^>]*>([^<]+)<\/category>/gi)].map((m) => m[1].trim());
+      const categoryMatches = [...bodyStr.matchAll(/<category[^>]*>([^<]+)<\/category>/gi)].map((m) => decodeXmlEntities(m[1].trim()));
 
       const startIso = parseXmltvDate(startAttr);
       const stopIso = parseXmltvDate(stopAttr) || (startIso ? new Date(Date.parse(startIso) + 3600000).toISOString() : null);
@@ -81,8 +103,8 @@ export class EpgService {
 
       const programme: EpgProgramme = {
         channelId: channelAttr.trim(),
-        title: titleMatch ? titleMatch[1].trim() : 'Live Broadcast',
-        desc: descMatch ? descMatch[1].trim() : undefined,
+        title: titleMatch ? decodeXmlEntities(titleMatch[1].trim()) : 'Live Broadcast',
+        desc: descMatch ? decodeXmlEntities(descMatch[1].trim()) : undefined,
         start: startIso,
         stop: stopIso,
         category: categoryMatches.length > 0 ? categoryMatches : undefined,
