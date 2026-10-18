@@ -4,7 +4,8 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Copy root workspace, configs, packages, and apps
-COPY package.json package-lock.json tsconfig.json ./
+COPY package*.json ./
+COPY tsconfig.json ./
 COPY packages ./packages
 COPY apps ./apps
 

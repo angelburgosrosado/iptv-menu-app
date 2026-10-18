@@ -62,7 +62,7 @@ services:
   - type: web
     name: iptv-menu-web
     runtime: static
-    buildCommand: npm install --include=dev && npm run build:web
+    buildCommand: npm ci --include=dev && npm run build:packages && npx vite build
     staticPublishPath: dist
     routes:
       - type: rewrite

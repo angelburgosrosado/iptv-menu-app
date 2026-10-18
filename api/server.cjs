@@ -133174,7 +133174,7 @@ var aiContextRateLimiter = createRateLimiter({
   max: 30,
   message: "AI context generation rate limit reached. Please wait a moment."
 });
-app.get("/api/health", (req, res) => {
+app.get(["/api/health", "/health", "/healthz", "/"], (req, res) => {
   res.json({
     status: "ok",
     timestamp: (/* @__PURE__ */ new Date()).toISOString(),
@@ -134776,7 +134776,7 @@ app.put("/api/admin/adsense", adminGuard, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-if (!process.env.VERCEL && (typeof require !== "undefined" && require.main === module)) {
+if (!process.env.VERCEL && !process.env.VITEST && process.env.NODE_ENV !== "test") {
   app.listen(PORT, "0.0.0.0", () => {
     logger7.info(`IPTV REST API Server is boot-running successfully on port ${PORT}`);
   });

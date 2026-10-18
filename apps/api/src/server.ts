@@ -147,7 +147,7 @@ const aiContextRateLimiter = createRateLimiter({
 // PUBLIC ROUTES
 // ==========================================
 
-app.get('/api/health', (req, res) => {
+app.get(['/api/health', '/health', '/healthz', '/'], (req, res) => {
   res.json({
     status: 'ok',
     timestamp: new Date().toISOString(),
@@ -2095,7 +2095,7 @@ app.put('/api/admin/adsense', adminGuard, async (req: any, res) => {
 });
 
 // Bind server and listen if running directly as standalone service
-if (!process.env.VERCEL && (typeof require !== 'undefined' && require.main === module)) {
+if (!process.env.VERCEL && !process.env.VITEST && process.env.NODE_ENV !== 'test') {
   app.listen(PORT, '0.0.0.0', () => {
     logger.info(`IPTV REST API Server is boot-running successfully on port ${PORT}`);
   });
