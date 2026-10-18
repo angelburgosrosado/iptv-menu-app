@@ -205,9 +205,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   badgeXtream: {
-    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    backgroundColor: 'rgba(124, 92, 255, 0.15)',
     borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.3)',
+    borderColor: 'rgba(124, 92, 255, 0.3)',
     borderRadius: 6,
     paddingHorizontal: 5,
     paddingVertical: 1,

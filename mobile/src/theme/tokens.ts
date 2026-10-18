@@ -6,23 +6,24 @@
 import { Platform, Dimensions } from 'react-native';
 
 export const PALETTE = {
-  // Midnight Glass Foundations
-  bgBase: '#07090e',
-  bgSurface: '#0d111a',
-  bgElevated: '#141a26',
-  bgCard: 'rgba(20, 26, 38, 0.75)',
+  // Midnight Glass Foundations (Streamly 2026)
+  bgBase: '#06070b',
+  bgSurface: '#0b0d14',
+  bgElevated: '#11141c',
+  bgCard: 'rgba(17, 20, 28, 0.78)',
 
   // Glassmorphic Fills & Borders
-  glassFill: 'rgba(22, 28, 42, 0.65)',
-  glassFillHover: 'rgba(32, 41, 60, 0.85)',
+  glassFill: 'rgba(17, 20, 28, 0.65)',
+  glassFillHover: 'rgba(28, 33, 46, 0.85)',
   glassBorder: 'rgba(255, 255, 255, 0.08)',
-  glassBorderActive: 'rgba(56, 189, 248, 0.35)',
+  glassBorderActive: 'rgba(124, 92, 255, 0.45)',
 
-  // Accents
-  primary: '#38bdf8',       // Sky neon
-  primaryDark: '#0284c7',
-  accentPurple: '#818cf8',  // Indigo neon
-  accentLive: '#f43f5e',    // Live red beacon
+  // Accents (Streamly Electric Violet & Neon Teal)
+  primary: '#7c5cff',       // Electric Violet
+  primaryDark: '#5a36ea',
+  accentNeon: '#00e0c6',    // Cyan Teal
+  accentPurple: '#a78bfa',  // Soft Violet
+  accentLive: '#ef4444',    // Live red beacon
   accentSuccess: '#10b981', // Emerald confirmation
   accentWarning: '#f59e0b', // Amber alert
 
@@ -33,9 +34,9 @@ export const PALETTE = {
   textDim: '#64748b',       // 45% dark slate
 
   // TV 10-foot Focus & Interaction States
-  focusRing: '#38bdf8',
-  focusGlow: 'rgba(56, 189, 248, 0.45)',
-  focusBg: 'rgba(56, 189, 248, 0.12)',
+  focusRing: '#7c5cff',
+  focusGlow: 'rgba(124, 92, 255, 0.55)',
+  focusBg: 'rgba(124, 92, 255, 0.15)',
 };
 
 export const SPACING = {
@@ -64,7 +65,7 @@ export const SHADOWS = {
     elevation: 8,
   },
   focusGlow: {
-    shadowColor: '#38bdf8',
+    shadowColor: '#7c5cff',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.75,
     shadowRadius: 18,

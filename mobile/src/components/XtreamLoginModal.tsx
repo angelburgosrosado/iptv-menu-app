@@ -421,7 +421,7 @@ const styles = StyleSheet.create({
   },
   formatBtnActive: {
     borderColor: PALETTE.primary,
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    backgroundColor: 'rgba(124, 92, 255, 0.12)',
   },
   formatBtnText: {
     color: PALETTE.textMuted,

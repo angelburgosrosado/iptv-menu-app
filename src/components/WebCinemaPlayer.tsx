@@ -169,49 +169,49 @@ export default function WebCinemaPlayer({
   }, [channels]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur-2xl flex flex-col overflow-hidden select-none animate-fade-in">
+    <div className="fixed inset-0 z-50 bg-[#06070b]/98 backdrop-blur-2xl flex flex-col overflow-hidden select-none animate-fade-in">
       {/* Top Header Bar */}
-      <header className="h-16 px-6 border-b border-white/10 flex items-center justify-between bg-zinc-950/80 backdrop-blur-md z-20">
+      <header className="h-16 px-6 border-b border-[#1f2330] flex items-center justify-between bg-[#0b0d14]/90 backdrop-blur-md z-20">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-blue-600/10 text-blue-400 border border-blue-500/20">
+          <div className="p-2 rounded-xl bg-[#7c5cff]/15 text-[#00e0c6] border border-[#7c5cff]/30">
             <Tv className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-black text-white tracking-tight">{currentChannel.name}</h2>
-              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">
+              <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-[#7c5cff]/20 text-[#00e0c6] border border-[#7c5cff]/40">
                 {currentChannel.group || 'Live TV'}
               </span>
               {currentChannel.healthStatus === 'blocked' ? (
-                <span className="text-[10px] uppercase font-mono font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20" title={currentChannel.blockedReason}>
+                <span className="text-[10px] uppercase font-mono font-bold tracking-wider px-2 py-0.5 rounded-full bg-[#ff5470]/20 text-[#ff5470] border border-[#ff5470]/30" title={currentChannel.blockedReason}>
                   FLAGGED: {currentChannel.blockedReason?.toUpperCase() || 'RESTRICTED'}
                 </span>
               ) : (
-                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-[#22c55e]/15 text-[#22c55e] border border-[#22c55e]/30 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#22c55e] animate-pulse" />
                   <span>ONLINE</span>
                 </span>
               )}
               {currentChannel.corsProxyRecommended && (
-                <span className="text-[10px] uppercase font-mono font-bold tracking-wider px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-300 border border-purple-500/20" title="Routed via Node.js Stream Proxy Gateway">
+                <span className="text-[10px] uppercase font-mono font-bold tracking-wider px-2 py-0.5 rounded-full bg-[#7c5cff]/20 text-[#7c5cff] border border-[#7c5cff]/30" title="Routed via Node.js Stream Proxy Gateway">
                   GATEWAY PROXY
                 </span>
               )}
               {currentChannel.alternateUrls && currentChannel.alternateUrls.length > 0 && (
-                <span className="text-[10px] uppercase font-mono font-bold tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/20" title={`${currentChannel.alternateUrls.length + 1} stream feeds available`}>
+                <span className="text-[10px] uppercase font-mono font-bold tracking-wider px-2 py-0.5 rounded-full bg-[#00e0c6]/20 text-[#00e0c6] border border-[#00e0c6]/30" title={`${currentChannel.alternateUrls.length + 1} stream feeds available`}>
                   {currentChannel.alternateUrls.length + 1} FEEDS
                 </span>
               )}
               {currentChannel.resolution && (
-                <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-white/5 text-zinc-300 border border-white/10">
+                <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-white/5 text-[#9aa0b3] border border-white/10">
                   {currentChannel.resolution}
                 </span>
               )}
             </div>
-            <p className="text-[11px] text-zinc-400 flex items-center gap-2">
+            <p className="text-[11px] text-[#9aa0b3] flex items-center gap-2">
               <span>Channel {currentIndex + 1} of {channels.length}</span>
               <span>•</span>
-              <span>Use <strong className="text-blue-400 font-bold">↑ ↓</strong> to switch</span>
+              <span>Use <strong className="text-[#00e0c6] font-bold">↑ ↓</strong> to switch</span>
               {currentChannel.countryName && (
                 <>
                   <span>•</span>
@@ -227,13 +227,13 @@ export default function WebCinemaPlayer({
           {/* Quick channel drawer toggle */}
           <button
             onClick={() => setShowChannelDrawer((prev) => !prev)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border cursor-pointer ${
               showChannelDrawer 
-                ? 'bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-500/20' 
-                : 'bg-white/5 hover:bg-white/10 text-zinc-300 border-white/10'
+                ? 'bg-[#7c5cff] text-white border-[#7c5cff] shadow-lg shadow-[#7c5cff]/25' 
+                : 'bg-[#181c27] hover:bg-[#202533] text-[#eef0f6] border-[#1f2330]'
             }`}
           >
-            <Grid className="w-3.5 h-3.5" />
+            <Grid className="w-3.5 h-3.5 text-[#00e0c6]" />
             <span>Channel Guide (E)</span>
           </button>
 
@@ -383,42 +383,42 @@ export default function WebCinemaPlayer({
 
         {/* Slide-in Channel Guide Drawer */}
         {showChannelDrawer && (
-          <aside className="absolute inset-y-0 right-0 w-80 md:w-96 bg-zinc-950/95 backdrop-blur-2xl border-l border-white/10 z-40 flex flex-col shadow-2xl animate-in slide-in-from-right duration-200">
+          <aside className="absolute inset-y-0 right-0 w-80 md:w-96 bg-[#0b0d14]/95 backdrop-blur-2xl border-l border-[#1f2330] z-40 flex flex-col shadow-2xl animate-in slide-in-from-right duration-200">
             {/* Drawer Header */}
-            <div className="p-4 border-b border-white/10 flex items-center justify-between">
+            <div className="p-4 border-b border-[#1f2330] flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Grid className="w-4 h-4 text-blue-400" />
+                <Grid className="w-4 h-4 text-[#00e0c6]" />
                 <h3 className="text-sm font-bold text-white">Channel Lineup</h3>
               </div>
               <button
                 onClick={() => setShowChannelDrawer(false)}
-                className="p-1 rounded-lg text-zinc-400 hover:text-white"
+                className="p-1 rounded-lg text-[#6b7180] hover:text-white transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Filter Search */}
-            <div className="p-3 border-b border-white/5">
+            <div className="p-3 border-b border-[#1f2330]">
               <div className="relative">
-                <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                <Search className="w-3.5 h-3.5 text-[#6b7180] absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   type="text"
                   placeholder="Quick search channels..."
                   value={drawerSearch}
                   onChange={(e) => setDrawerSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-1.5 bg-white/5 border border-white/10 rounded-xl text-xs text-white placeholder-zinc-500 outline-none focus:border-blue-500"
+                  className="w-full pl-9 pr-3 py-1.5 bg-[#11141c] border border-[#1f2330] rounded-xl text-xs text-white placeholder-[#6b7180] outline-none focus:border-[#7c5cff]"
                 />
               </div>
 
               {/* Category pills */}
-              <div className="flex items-center gap-1.5 mt-2 overflow-x-auto pb-1 scrollbar-thin">
+              <div className="flex items-center gap-1.5 mt-2 overflow-x-auto pb-1 scrollbar-hide">
                 <button
                   onClick={() => setSelectedGroup(null)}
-                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold whitespace-nowrap border ${
+                  className={`px-2.5 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap border cursor-pointer ${
                     !selectedGroup 
-                      ? 'bg-blue-600 text-white border-blue-500' 
-                      : 'bg-white/5 text-zinc-400 border-white/5'
+                      ? 'bg-[#7c5cff] text-white border-[#7c5cff]' 
+                      : 'bg-[#11141c] text-[#9aa0b3] border-[#1f2330]'
                   }`}
                 >
                   All ({channels.length})
@@ -427,10 +427,10 @@ export default function WebCinemaPlayer({
                   <button
                     key={g}
                     onClick={() => setSelectedGroup(g)}
-                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold whitespace-nowrap border ${
+                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap border cursor-pointer ${
                       selectedGroup === g 
-                        ? 'bg-blue-600 text-white border-blue-500' 
-                        : 'bg-white/5 text-zinc-400 border-white/5'
+                        ? 'bg-[#7c5cff] text-white border-[#7c5cff]' 
+                        : 'bg-[#11141c] text-[#9aa0b3] border-[#1f2330]'
                     }`}
                   >
                     {g}
@@ -440,7 +440,7 @@ export default function WebCinemaPlayer({
             </div>
 
             {/* Scrollable Channel List */}
-            <div className="flex-1 overflow-y-auto p-2 divide-y divide-white/5 scrollbar-thin">
+            <div className="flex-1 overflow-y-auto p-2 divide-y divide-[#1f2330] scrollbar-thin">
               {filteredDrawerChannels.map((c, idx) => {
                 const isSelected = c.id === currentChannel.id;
                 return (
@@ -452,12 +452,12 @@ export default function WebCinemaPlayer({
                     }}
                     className={`flex items-center gap-3 p-2.5 rounded-xl cursor-pointer transition-all ${
                       isSelected 
-                        ? 'bg-blue-600/20 border border-blue-500/40 text-white' 
-                        : 'hover:bg-white/5 text-zinc-300'
+                        ? 'bg-[#7c5cff]/20 border border-[#7c5cff]/50 text-white shadow-sm' 
+                        : 'hover:bg-[#11141c] text-[#9aa0b3] hover:text-white'
                     }`}
                   >
-                    <span className="text-[10px] font-mono text-zinc-500 w-5 text-right">{idx + 1}</span>
-                    <div className="w-8 h-8 rounded-lg bg-black/50 border border-white/10 flex items-center justify-center p-1 flex-shrink-0">
+                    <span className="text-[10px] font-mono text-[#6b7180] w-5 text-right">{idx + 1}</span>
+                    <div className="w-8 h-8 rounded-lg bg-[#06070b] border border-[#1f2330] flex items-center justify-center p-1 flex-shrink-0">
                       <img
                         src={c.logo || 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=80&auto=format&fit=crop&q=60'}
                         alt={c.name}
@@ -469,10 +469,10 @@ export default function WebCinemaPlayer({
                     </div>
                     <div className="flex-1 min-w-0">
                       <h4 className="text-xs font-bold truncate">{c.name}</h4>
-                      <span className="text-[9px] uppercase tracking-wider text-zinc-500 font-semibold">{c.group}</span>
+                      <span className="text-[9px] uppercase tracking-wider text-[#6b7180] font-semibold">{c.group}</span>
                     </div>
                     {isSelected && (
-                      <span className="text-[9px] text-blue-400 font-bold px-1.5 py-0.5 rounded bg-blue-500/10 border border-blue-500/20">
+                      <span className="text-[9px] text-[#00e0c6] font-bold px-1.5 py-0.5 rounded bg-[#00e0c6]/10 border border-[#00e0c6]/30">
                         NOW
                       </span>
                     )}

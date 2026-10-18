@@ -151,25 +151,26 @@ export function SeriesDetailModal({ channel, onClose, onPlayEpisode }: SeriesDet
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-3 sm:p-6 md:p-8 animate-in fade-in duration-300">
-      <div className="relative w-full max-w-5xl bg-zinc-950 rounded-3xl overflow-hidden shadow-2xl border border-white/10 flex flex-col max-h-[92vh]">
+      <div className="relative w-full max-w-5xl bg-[#0b0d14]/95 backdrop-blur-2xl rounded-3xl overflow-hidden shadow-[0_25px_70px_rgba(0,0,0,0.85)] border border-white/10 flex flex-col max-h-[92vh]">
         
         {/* Background Blur Overlay */}
         <div 
-          className="absolute inset-0 opacity-20 bg-cover bg-center pointer-events-none"
-          style={{ backgroundImage: `url(${bgImage})`, filter: 'blur(40px)' }}
+          className="absolute inset-0 opacity-25 bg-cover bg-center pointer-events-none"
+          style={{ backgroundImage: `url(${bgImage})`, filter: 'blur(50px)' }}
         />
+        <div className="absolute inset-0 bg-gradient-to-t md:bg-gradient-to-r from-[#06070b] via-[#06070b]/80 to-transparent pointer-events-none" />
 
         {/* Top Header / Close Button */}
         <div className="relative z-10 flex items-center justify-between p-5 border-b border-white/10 bg-black/40">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20">
+            <div className="p-2 rounded-xl bg-[#7c5cff]/15 text-[#a78bfa] border border-[#7c5cff]/30">
               <Tv className="w-5 h-5" />
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-black text-white truncate max-w-md sm:max-w-xl">
                 {title}
               </h2>
-              <span className="text-[11px] font-mono text-purple-400">
+              <span className="text-[11px] font-mono text-[#a78bfa]">
                 TV Series • {seasons.length} {seasons.length === 1 ? 'Season' : 'Seasons'}
               </span>
             </div>
@@ -177,7 +178,7 @@ export function SeriesDetailModal({ channel, onClose, onPlayEpisode }: SeriesDet
 
           <button 
             onClick={onClose}
-            className="p-2 bg-black/50 hover:bg-black/80 rounded-full text-zinc-400 hover:text-white transition-all cursor-pointer border border-white/10"
+            className="p-2 bg-black/60 hover:bg-white/20 rounded-full text-zinc-400 hover:text-white transition-all cursor-pointer border border-white/10"
             aria-label="Close series modal"
           >
             <X className="w-5 h-5" />
@@ -212,12 +213,12 @@ export function SeriesDetailModal({ channel, onClose, onPlayEpisode }: SeriesDet
                   </span>
                 )}
                 {rating && (
-                  <span className="flex items-center gap-1 bg-yellow-500/10 text-yellow-400 px-2 py-0.5 rounded-lg border border-yellow-500/20 font-bold">
+                  <span className="flex items-center gap-1 bg-amber-500/15 text-amber-300 px-2 py-0.5 rounded-lg border border-amber-500/30 font-bold">
                     <Star className="w-3.5 h-3.5 fill-current" />
                     {typeof rating === 'number' ? rating.toFixed(1) : rating}
                   </span>
                 )}
-                <span className="bg-purple-500/10 text-purple-300 px-2.5 py-0.5 rounded-lg border border-purple-500/20 font-bold">
+                <span className="bg-[#7c5cff]/15 text-[#a78bfa] px-2.5 py-0.5 rounded-lg border border-[#7c5cff]/30 font-bold uppercase tracking-wider text-[11px]">
                   {channel.group || 'TV Series'}
                 </span>
               </div>
@@ -234,7 +235,7 @@ export function SeriesDetailModal({ channel, onClose, onPlayEpisode }: SeriesDet
                       onClose();
                     }
                   }}
-                  className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-purple-500/25 transition-all cursor-pointer"
+                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#7c5cff] to-[#00e0c6] hover:brightness-110 text-black font-black text-xs flex items-center gap-2 shadow-lg shadow-[#7c5cff]/30 transition-all cursor-pointer"
                 >
                   <Play className="w-4 h-4 fill-current" />
                   <span>Start Watching</span>
@@ -247,7 +248,7 @@ export function SeriesDetailModal({ channel, onClose, onPlayEpisode }: SeriesDet
           {seasons.length > 1 && (
             <div className="flex items-center gap-2 border-b border-white/10 pb-3 overflow-x-auto no-scrollbar">
               <span className="text-xs font-bold text-zinc-400 mr-2 flex items-center gap-1 flex-shrink-0">
-                <Layers className="w-3.5 h-3.5 text-purple-400" />
+                <Layers className="w-3.5 h-3.5 text-[#a78bfa]" />
                 Seasons:
               </span>
               {seasons.map((s) => (
@@ -256,7 +257,7 @@ export function SeriesDetailModal({ channel, onClose, onPlayEpisode }: SeriesDet
                   onClick={() => setSelectedSeason(s)}
                   className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex-shrink-0 cursor-pointer ${
                     selectedSeason === s
-                      ? 'bg-purple-600 text-white shadow-md shadow-purple-500/20'
+                      ? 'bg-gradient-to-r from-[#7c5cff] to-[#5a36ea] text-white shadow-md shadow-[#7c5cff]/25'
                       : 'bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10'
                   }`}
                 >

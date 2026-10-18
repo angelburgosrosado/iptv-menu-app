@@ -347,30 +347,30 @@ export default function XtreamConnector({ onNavigateTab }: XtreamConnectorProps 
 
   return (
     <div className="flex flex-col h-full gap-6">
-      {/* Sleek, Content-First Xtream Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-white/5">
+      {/* Streamly Xtream Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#1f2330]">
         <div>
           <div className="flex items-center gap-2.5">
-            <h2 className="text-lg font-black tracking-tight text-white flex items-center gap-2">
-              <Server className="w-5 h-5 text-cyan-400" />
+            <h2 className="text-xl font-black tracking-tight text-white flex items-center gap-2">
+              <Server className="w-5 h-5 text-[#7c5cff]" />
               <span>IPTV Server Connections</span>
             </h2>
-            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#7c5cff]/20 text-[#00e0c6] border border-[#7c5cff]/30">
               Provider Gateway
             </span>
           </div>
-          <p className="text-xs text-zinc-400 mt-0.5">
-            Connect your Xtream Codes API account or Stalker Middleware portal to load live streams, VOD, and series
+          <p className="text-xs text-[#9aa0b3] mt-1">
+            Connect your Xtream Codes API account or Stalker Middleware portal to stream live channels, movies, and series
           </p>
         </div>
 
-        <div className="flex items-center gap-1 bg-[#16161a] p-1 border border-white/10 rounded-2xl">
+        <div className="flex items-center gap-1 bg-[#11141c] p-1 border border-[#1f2330] rounded-2xl">
           <button
             onClick={() => setProtocolType('xtream')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               protocolType === 'xtream'
-                ? 'bg-cyan-600 text-white shadow-md shadow-cyan-500/20'
-                : 'text-zinc-400 hover:text-white'
+                ? 'bg-gradient-to-r from-[#7c5cff] to-[#6342e8] text-white shadow-md shadow-[#7c5cff]/30'
+                : 'text-[#9aa0b3] hover:text-white'
             }`}
             aria-label="Xtream Codes API Protocol"
           >
@@ -378,10 +378,10 @@ export default function XtreamConnector({ onNavigateTab }: XtreamConnectorProps 
           </button>
           <button
             onClick={() => setProtocolType('stalker')}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               protocolType === 'stalker'
-                ? 'bg-cyan-600 text-white shadow-md shadow-cyan-500/20'
-                : 'text-zinc-400 hover:text-white'
+                ? 'bg-gradient-to-r from-[#7c5cff] to-[#00e0c6] text-white shadow-md shadow-[#7c5cff]/30'
+                : 'text-[#9aa0b3] hover:text-white'
             }`}
             aria-label="Stalker Middleware Portal Protocol"
           >
@@ -393,13 +393,13 @@ export default function XtreamConnector({ onNavigateTab }: XtreamConnectorProps 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Credentials Form Box (7 cols) */}
         <div className="lg:col-span-7 flex flex-col gap-5">
-          <form onSubmit={handleConnect} className="bg-[#16161a] border border-white/10 rounded-3xl p-6 flex flex-col gap-4 shadow-xl">
+          <form onSubmit={handleConnect} className="bg-[#11141c]/90 border border-[#1f2330] rounded-3xl p-6 flex flex-col gap-4 shadow-xl">
             <div className="flex items-center justify-between border-b border-white/5 pb-3">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <KeyRound className="w-4 h-4 text-cyan-400" />
+                <KeyRound className="w-4 h-4 text-[#00e0c6]" />
                 {protocolType === 'xtream' ? 'Xtream Codes API Credentials' : 'Stalker Middleware Portal Credentials'}
               </h3>
-              <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20">
+              <span className="text-[10px] font-bold text-[#00e0c6] uppercase tracking-wider bg-[#00e0c6]/10 px-2 py-0.5 rounded-full border border-[#00e0c6]/30">
                 {protocolType === 'xtream' ? 'player_api.php' : 'MAG/Aura MAC Protocol'}
               </span>
             </div>

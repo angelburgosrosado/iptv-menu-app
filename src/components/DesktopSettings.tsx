@@ -21,12 +21,15 @@ import {
   UserX,
   AlertTriangle,
   CheckCircle2,
-  Lock
+  Lock,
+  Tv,
+  Smartphone,
+  Radio,
+  Zap
 } from 'lucide-react';
-import { PageProtocolHeader } from './PageProtocolHeader';
 
 export default function DesktopSettings() {
-  const { clearHistory, clearCache, playlistUrl, setPlaylistUrl, loadPlaylist } = usePlayerStore();
+  const { clearHistory, clearCache, playlistUrl, setPlaylistUrl, loadPlaylist, isConnectedToXtream, xtreamAccount } = usePlayerStore();
   const auth = useAuth();
 
   const [bufferSize, setBufferSize] = React.useState('1.5s (Low Latency)');
@@ -37,9 +40,9 @@ export default function DesktopSettings() {
   const [statusMessage, setStatusMessage] = React.useState<string | null>(null);
 
   const [logs, setLogs] = React.useState<string[]>([
-    `[INFO] Initializing high-speed streaming components...`,
-    `[DEBUG] Mounting React Native Expo shims context.`,
-    `[INFO] Ready. Stream cache initialized (MMKV: live).`
+    `[INFO] Streamly engine mounted with HLS.js 1.7.3`,
+    `[INFO] Dual MSE & hardware video decoders online`,
+    `[INFO] Local EPG cache active (30min TTL)`
   ]);
 
   const addSimulatedLog = (msg: string) => {
@@ -48,19 +51,12 @@ export default function DesktopSettings() {
 
   const handleBufferSizeChange = (size: string) => {
     setBufferSize(size);
-    addSimulatedLog(`HLS player stream buffer modified to: ${size}`);
+    addSimulatedLog(`HLS forward buffer adjusted to: ${size}`);
   };
 
   const handleEngineChange = (engine: string) => {
     setVideoEngine(engine);
-    addSimulatedLog(`Player pipeline switched to: ${engine}`);
-  };
-
-  const handleThemeChange = (mode: 'dark' | 'light') => {
-    setThemeMode(mode);
-    addSimulatedLog(`Theme preference set to: ${mode} mode.`);
-    setStatusMessage(`Theme switched to ${mode} mode.`);
-    setTimeout(() => setStatusMessage(null), 2500);
+    addSimulatedLog(`Playback pipeline set to: ${engine}`);
   };
 
   const handleSaveDefaultUrl = (e: React.FormEvent) => {
@@ -68,7 +64,7 @@ export default function DesktopSettings() {
     if (!defaultUrl.trim()) return;
     setPlaylistUrl(defaultUrl.trim());
     loadPlaylist(defaultUrl.trim());
-    addSimulatedLog(`Default playlist URL updated to: ${defaultUrl}`);
+    addSimulatedLog(`Ingestion playlist URL updated: ${defaultUrl}`);
     setStatusMessage('Default playlist URL saved and re-synced.');
     setTimeout(() => setStatusMessage(null), 3000);
   };
@@ -76,42 +72,34 @@ export default function DesktopSettings() {
   const handleResetCache = () => {
     clearCache();
     clearHistory();
-    addSimulatedLog("[WARNING] ClearCache triggered. Storage MMKV indexes successfully pruned.");
-    setStatusMessage("Simulator cache, history, and stored preferences pruned.");
+    addSimulatedLog("[WARNING] Local storage cache and EPG indexes successfully pruned.");
+    setStatusMessage("Streamly local cache, history, and stored preferences pruned.");
     setTimeout(() => setStatusMessage(null), 3000);
   };
 
-  const handleDeleteAccount = () => {
-    authStore.logout();
-    clearCache();
-    clearHistory();
-    setShowDeleteConfirm(false);
-    alert("Account and local data successfully removed from this client.");
-  };
-
   return (
-    <div className="flex flex-col h-full gap-6">
-      {/* Sleek, Content-First Settings Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-white/5">
+    <div className="flex flex-col h-full gap-6 px-4 sm:px-6 py-2">
+      {/* Streamly Settings Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-[#1f2330]">
         <div>
           <div className="flex items-center gap-2.5">
-            <h2 className="text-lg font-black tracking-tight text-white flex items-center gap-2">
-              <Settings className="w-5 h-5 text-cyan-400" />
-              <span>Application Settings</span>
+            <h2 className="text-xl font-black tracking-tight text-white flex items-center gap-2">
+              <Settings className="w-5 h-5 text-[#7c5cff]" />
+              <span>Settings & Preferences</span>
             </h2>
-            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
-              Preferences & Audio DSP
+            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#7c5cff]/20 text-[#00e0c6] border border-[#7c5cff]/30">
+              System Configuration
             </span>
           </div>
-          <p className="text-xs text-zinc-400 mt-0.5">
-            Configure stream buffer latency, storage cache, audio equalizer profiles, and playlist parameters
+          <p className="text-xs text-[#9aa0b3] mt-1">
+            Configure stream buffer latency, hardware acceleration, playback engine, and data storage
           </p>
         </div>
       </div>
 
       {statusMessage && (
-        <div className="p-3.5 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs font-bold flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-cyan-400" />
+        <div className="p-3.5 rounded-2xl bg-[#22c55e]/15 border border-[#22c55e]/30 text-[#22c55e] text-xs font-bold flex items-center gap-2">
+          <CheckCircle2 className="w-4 h-4" />
           <span>{statusMessage}</span>
         </div>
       )}
@@ -121,14 +109,14 @@ export default function DesktopSettings() {
         {/* Left Column: Config cards (7 cols) */}
         <div className="lg:col-span-7 flex flex-col gap-5">
           {/* Buffer Size / Latency preferences */}
-          <div className="bg-[#16161a] border border-white/10 rounded-3xl p-6 flex flex-col gap-4 shadow-xl">
+          <div className="bg-[#11141c]/90 border border-[#1f2330] rounded-3xl p-6 flex flex-col gap-4 shadow-xl">
             <h3 className="text-sm font-bold text-white flex items-center gap-2 border-b border-white/5 pb-3">
-              <Cpu className="w-4 h-4 text-cyan-400" />
-              Stream Pipeline & Buffer Latency Preferences
+              <Cpu className="w-4 h-4 text-[#00e0c6]" />
+              <span>Playback Pipeline & Low-Latency Buffer</span>
             </h3>
 
             <div>
-              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-2">
+              <span className="text-[10px] font-bold text-[#9aa0b3] uppercase tracking-wider block mb-2">
                 HLS Forward Buffer Length
               </span>
               <div className="grid grid-cols-3 gap-2">
@@ -138,10 +126,9 @@ export default function DesktopSettings() {
                     onClick={() => handleBufferSizeChange(size)}
                     className={`p-2.5 rounded-xl text-xs font-bold transition-all border text-center cursor-pointer ${
                       bufferSize === size
-                        ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-sm'
-                        : 'bg-black/40 text-zinc-400 border-white/5 hover:text-white'
+                        ? 'bg-[#7c5cff]/20 text-white border-[#7c5cff]/60 shadow-sm'
+                        : 'bg-[#06070b] text-[#9aa0b3] border-[#1f2330] hover:text-white'
                     }`}
-                    aria-label={`Select buffer size ${size}`}
                   >
                     {size}
                   </button>
@@ -150,8 +137,8 @@ export default function DesktopSettings() {
             </div>
 
             <div>
-              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-2">
-                Underlying Streaming Engine
+              <span className="text-[10px] font-bold text-[#9aa0b3] uppercase tracking-wider block mb-2">
+                Underlying Video Engine
               </span>
               <div className="grid grid-cols-2 gap-2">
                 {['Hls.js Core', 'Native HTML5 Video'].map((engine) => (
@@ -160,10 +147,9 @@ export default function DesktopSettings() {
                     onClick={() => handleEngineChange(engine)}
                     className={`p-2.5 rounded-xl text-xs font-bold transition-all border text-center cursor-pointer ${
                       videoEngine === engine
-                        ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-sm'
-                        : 'bg-black/40 text-zinc-400 border-white/5 hover:text-white'
+                        ? 'bg-[#7c5cff]/20 text-white border-[#7c5cff]/60 shadow-sm'
+                        : 'bg-[#06070b] text-[#9aa0b3] border-[#1f2330] hover:text-white'
                     }`}
-                    aria-label={`Select engine ${engine}`}
                   >
                     {engine}
                   </button>
@@ -172,53 +158,16 @@ export default function DesktopSettings() {
             </div>
           </div>
 
-          {/* Theme Toggle */}
-          <div className="bg-[#16161a] border border-white/10 rounded-3xl p-6 flex flex-col gap-4 shadow-xl">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2 border-b border-white/5 pb-3">
-              <Sun className="w-4 h-4 text-cyan-400" />
-              Theme Appearance Toggle
-            </h3>
-
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-xs font-bold text-white block">Visual Color Scheme</span>
-                <span className="text-[11px] text-zinc-400">Default dark-first high-contrast palette or soft studio mode.</span>
-              </div>
-              <div className="flex bg-black/50 p-1 border border-white/10 rounded-xl">
-                <button
-                  onClick={() => handleThemeChange('dark')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                    themeMode === 'dark' ? 'bg-cyan-600 text-white shadow-md' : 'text-zinc-400 hover:text-white'
-                  }`}
-                  aria-label="Dark Mode Theme"
-                >
-                  <Moon className="w-3.5 h-3.5" />
-                  Dark
-                </button>
-                <button
-                  onClick={() => handleThemeChange('light')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                    themeMode === 'light' ? 'bg-cyan-600 text-white shadow-md' : 'text-zinc-400 hover:text-white'
-                  }`}
-                  aria-label="Light Studio Mode Theme"
-                >
-                  <Sun className="w-3.5 h-3.5" />
-                  Light
-                </button>
-              </div>
-            </div>
-          </div>
-
           {/* Default Playlist URL */}
-          <form onSubmit={handleSaveDefaultUrl} className="bg-[#16161a] border border-white/10 rounded-3xl p-6 flex flex-col gap-4 shadow-xl">
+          <form onSubmit={handleSaveDefaultUrl} className="bg-[#11141c]/90 border border-[#1f2330] rounded-3xl p-6 flex flex-col gap-4 shadow-xl">
             <h3 className="text-sm font-bold text-white flex items-center gap-2 border-b border-white/5 pb-3">
-              <Link className="w-4 h-4 text-cyan-400" />
-              Default Playlist URL Feed
+              <Link className="w-4 h-4 text-[#7c5cff]" />
+              <span>Default M3U Playlist Feed</span>
             </h3>
 
             <div>
-              <label className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5 block">
-                Automatic Boot Ingestion Source
+              <label className="text-[10px] font-bold uppercase tracking-wider text-[#9aa0b3] mb-1.5 block">
+                Automatic Ingestion URL
               </label>
               <div className="flex gap-2">
                 <input
@@ -226,11 +175,11 @@ export default function DesktopSettings() {
                   value={defaultUrl}
                   onChange={(e) => setDefaultUrl(e.target.value)}
                   placeholder="https://example.com/playlist.m3u"
-                  className="flex-1 px-3.5 py-2.5 bg-black/50 border border-white/10 focus:border-cyan-500/50 rounded-xl text-xs text-white font-mono outline-none"
+                  className="flex-1 px-3.5 py-2.5 bg-[#06070b] border border-[#1f2330] focus:border-[#7c5cff]/60 rounded-xl text-xs text-white font-mono outline-none"
                 />
                 <button
                   type="submit"
-                  className="px-4 py-2.5 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-cyan-500/20 cursor-pointer"
+                  className="px-4 py-2.5 bg-gradient-to-r from-[#7c5cff] to-[#00e0c6] text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-[#7c5cff]/20 cursor-pointer"
                 >
                   Save URL
                 </button>
@@ -239,99 +188,80 @@ export default function DesktopSettings() {
           </form>
 
           {/* Cache Clear Action */}
-          <div className="bg-[#16161a] border border-white/10 rounded-3xl p-6 flex items-center justify-between gap-4 shadow-xl">
+          <div className="bg-[#11141c]/90 border border-[#1f2330] rounded-3xl p-6 flex items-center justify-between gap-4 shadow-xl">
             <div className="min-w-0">
               <span className="text-xs font-bold text-white block">Purge Local Stream Cache</span>
-              <span className="text-[11px] text-zinc-400 block mt-0.5">
-                Prunes local MMKV storage indexes, favorites, and watch history tokens.
+              <span className="text-[11px] text-[#9aa0b3] block mt-0.5">
+                Prunes local storage indexes, cached EPG XMLTV schedules, and history tokens.
               </span>
             </div>
             <button
               onClick={handleResetCache}
-              className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-200 hover:text-white border border-white/10 text-xs font-bold flex items-center gap-2 transition-all cursor-pointer flex-shrink-0"
-              aria-label="Clear cache"
+              className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-xl text-xs font-bold transition-all cursor-pointer whitespace-nowrap"
             >
-              <RotateCcw className="w-3.5 h-3.5 text-cyan-400" />
-              Clear Cache
+              Purge Cache
             </button>
           </div>
-
-          {/* Dangerous Zone: Account Deletion */}
-          <div className="bg-red-500/5 border border-red-500/20 rounded-3xl p-6 flex items-center justify-between gap-4 shadow-xl">
-            <div className="min-w-0">
-              <span className="text-xs font-bold text-red-400 block">Delete Account & Stored Data</span>
-              <span className="text-[11px] text-zinc-400 block mt-0.5">
-                Permanently prune your account profile, uploaded playlist keys, and cancel active sessions.
-              </span>
-            </div>
-            <button
-              onClick={() => setShowDeleteConfirm(true)}
-              className="px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer flex-shrink-0"
-              aria-label="Delete Account"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-              Delete Account
-            </button>
-          </div>
-
-          {/* Account Deletion Confirmation Dialog */}
-          {showDeleteConfirm && (
-            <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/30 flex flex-col gap-3">
-              <div className="flex items-center gap-2 text-red-400 text-xs font-bold">
-                <AlertTriangle className="w-4 h-4" />
-                Are you sure you want to delete your account ({auth.email || 'guest'})?
-              </div>
-              <p className="text-[11px] text-zinc-300 leading-relaxed">
-                This action is irreversible. All local bookmarks, history, and credentials will be permanently erased.
-              </p>
-              <div className="flex items-center justify-end gap-2 pt-1">
-                <button
-                  onClick={() => setShowDeleteConfirm(false)}
-                  className="px-3 py-1.5 bg-white/10 hover:bg-white/15 text-white rounded-lg text-xs font-bold cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleDeleteAccount}
-                  className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-lg text-xs font-bold shadow-md cursor-pointer"
-                >
-                  Confirm Delete
-                </button>
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Right Column: Diagnostics Telemetry Terminal (5 cols) */}
+        {/* Right Column: Account & Live Diagnostics (5 cols) */}
         <div className="lg:col-span-5 flex flex-col gap-5">
-          <div className="bg-[#16161a] border border-white/10 rounded-3xl p-6 flex flex-col gap-4 shadow-xl">
+          {/* Account Profile Card */}
+          <div className="bg-[#11141c]/90 border border-[#1f2330] rounded-3xl p-6 flex flex-col gap-4 shadow-xl">
             <h3 className="text-sm font-bold text-white flex items-center gap-2 border-b border-white/5 pb-3">
-              <Terminal className="w-4 h-4 text-cyan-400" />
-              Real-time Console Diagnostics
+              <Shield className="w-4 h-4 text-[#00e0c6]" />
+              <span>Account & Authentication</span>
             </h3>
 
-            <div className="p-4 bg-black rounded-2xl border border-white/10 font-mono text-[11px] text-zinc-300 min-h-[180px] space-y-2">
-              {logs.map((log, idx) => (
-                <div key={idx} className="leading-snug">
-                  <span className="text-cyan-400 mr-1.5">›</span>
-                  {log}
-                </div>
-              ))}
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#7c5cff] to-[#00e0c6] flex items-center justify-center font-bold text-white text-base shadow-md">
+                {auth.email ? auth.email.charAt(0).toUpperCase() : 'U'}
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-white">{auth.email || 'Xtream Guest User'}</h4>
+                <p className="text-[10px] text-[#22c55e] font-semibold flex items-center gap-1 mt-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#22c55e] animate-pulse" />
+                  IPTV.Menu Pro Session Active
+                </p>
+              </div>
             </div>
 
-            <div className="space-y-2 text-xs">
-              <div className="flex justify-between text-zinc-400">
-                <span>Active Account:</span>
-                <span className="text-white font-bold">{auth.email || 'Guest Session'}</span>
+            <div className="pt-2 border-t border-white/5 flex flex-col gap-2 text-xs">
+              <div className="flex justify-between py-1 border-b border-white/5">
+                <span className="text-[#9aa0b3]">Active Subscription</span>
+                <span className="font-semibold text-white">IPTV.Menu Pro</span>
               </div>
-              <div className="flex justify-between text-zinc-400">
-                <span>Subscription Status:</span>
-                <span className="text-cyan-400 font-bold uppercase">{auth.role}</span>
+              <div className="flex justify-between py-1 border-b border-white/5">
+                <span className="text-[#9aa0b3]">Hardware DRM</span>
+                <span className="font-mono text-[#00e0c6]">Widevine / Clearkey Enabled</span>
               </div>
-              <div className="flex justify-between text-zinc-400">
-                <span>Storage Backend:</span>
-                <span className="text-emerald-400 font-mono">MMKV + LocalStorage</span>
+              <div className="flex justify-between py-1">
+                <span className="text-[#9aa0b3]">Storage Persistence</span>
+                <span className="font-mono text-[#22c55e]">Local IndexedDB Active</span>
               </div>
+            </div>
+          </div>
+
+          {/* System Terminal Console */}
+          <div className="bg-[#0b0d14] border border-[#1f2330] rounded-3xl p-5 shadow-xl flex flex-col gap-3 font-mono">
+            <div className="flex items-center justify-between text-xs text-[#9aa0b3] border-b border-white/5 pb-2">
+              <span className="flex items-center gap-1.5 font-bold text-[#eef0f6]">
+                <Terminal className="w-3.5 h-3.5 text-[#00e0c6]" />
+                IPTV.Menu System Console
+              </span>
+              <span className="text-[10px] text-[#22c55e] flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#22c55e] animate-ping" />
+                ONLINE
+              </span>
+            </div>
+
+            <div className="flex flex-col gap-1.5 text-[11px] text-[#9aa0b3] min-h-[100px]">
+              {logs.map((log, idx) => (
+                <p key={idx} className="leading-tight break-all">
+                  <span className="text-[#00e0c6]">{log.slice(0, log.indexOf(']') + 1)}</span>
+                  <span className="text-[#eef0f6]">{log.slice(log.indexOf(']') + 1)}</span>
+                </p>
+              ))}
             </div>
           </div>
         </div>

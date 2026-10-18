@@ -1,8 +1,12 @@
-# IPTV.MENU
+# IPTV.Menu Pro
 
-A modern, high-performance IPTV playlist management and automated private Android APK generation platform.
+A modern, high-performance IPTV streaming player, multi-screen matrix, Xtream Codes suite, and automated Android TV / Mobile APK generation platform.
 
-Built with **React 19**, **Vite**, **TypeScript**, **Drizzle ORM**, **Neon Serverless PostgreSQL**, **Vercel Blob**, **Expo EAS**, and containerized background workers.
+Built with **React 19**, **Vite**, **TypeScript**, **Expo React Native**, **Drizzle ORM**, **Neon Serverless PostgreSQL**, **Vercel Blob / GCS**, **Expo EAS**, and containerized background workers.
+
+* **Production Checklist & TV Manual:** [`PRODUCTION_READINESS_CHECKLIST.md`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/PRODUCTION_READINESS_CHECKLIST.md)
+* **Living Room TV Sideload Code:** `94218` (via Amazon / Android TV Downloader app)
+* **Client & Code Download Portal:** `https://iptv.menu/download`
 
 ---
 
@@ -100,16 +104,19 @@ The database schema is defined in [`packages/db/src/schema.ts`](file:///Volumes/
 
 ---
 
-## Mobile Android APK Builds (Expo EAS)
+## Mobile Android APK Builds & Client Distribution
 
-The platform generates custom-branded, functional Android release APKs with pre-configured playlist links.
+The platform generates custom-branded, functional Android release APKs with pre-configured playlist links, 10-foot remote D-pad focus, and universal streaming architecture.
 
-- **Verified Release Binary**:
-  [Download Release APK (75.0 MB)](https://expo.dev/artifacts/eas/4Y9x5B2hzK9juzbgnLV3AAINRI383uRemO5Cw8dscyc.apk)
+- **Direct Endpoints**:
+  - Direct APK Download: `/api/download/latest.apk` (or `/download/latest.apk`)
+  - Complete Source Code Archive: `/api/download/source.zip` (or `/download/source.zip`)
+  - Fire TV Downloader Numeric Code: **`94218`**
+  - Web Customer Download Portal: [`/download`](https://iptv.menu/download)
 
 - **Trigger New Builds Locally**:
   ```bash
-  # Preview build (non-blocking)
+  # Preview APK build (non-blocking)
   npm run build:apk
 
   # Production release build

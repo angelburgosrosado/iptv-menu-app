@@ -128,6 +128,8 @@ export function VideoPlayer({
   const [hasAttemptedAutoTsFallback, setHasAttemptedAutoTsFallback] = React.useState(false);
   const [hasAttemptedAutoHlsFallback, setHasAttemptedAutoHlsFallback] = React.useState(false);
   const [hasAttemptedEngineSwitch, setHasAttemptedEngineSwitch] = React.useState(false);
+  const [hasAttemptedProxyFailover, setHasAttemptedProxyFailover] = React.useState(false);
+  const [attemptedCandidateCount, setAttemptedCandidateCount] = React.useState(0);
   const [catchupTitle, setCatchupTitle] = React.useState<string | null>(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
@@ -212,6 +214,8 @@ export function VideoPlayer({
     setHasAttemptedAutoTsFallback(false);
     setHasAttemptedAutoHlsFallback(false);
     setHasAttemptedEngineSwitch(false);
+    setHasAttemptedProxyFailover(false);
+    setAttemptedCandidateCount(0);
 
     // Check catchupUrl query param
     if (typeof window !== 'undefined') {
@@ -622,6 +626,18 @@ export function VideoPlayer({
           type: 'SWITCH_FORMAT',
           targetValue: diag.alternativeFormatUrl
         });
+      } else if (!isUsingProxyRelay && !hasAttemptedProxyFailover) {
+        // Direct stream failed with network or CORS block; auto-route through proxy gateway
+        setHasAttemptedProxyFailover(true);
+        triggerChannelHud('Auto-recovering: Routing stream through proxy relay...');
+        switchCandidate(activeCandidateIndex, true);
+      } else if (streamCandidates.length > 1 && attemptedCandidateCount < streamCandidates.length - 1) {
+        // Current candidate failed completely; cascade to next alternate feed
+        const nextIdx = (activeCandidateIndex + 1) % streamCandidates.length;
+        setAttemptedCandidateCount((prev) => prev + 1);
+        setHasAttemptedProxyFailover(false);
+        triggerChannelHud(`Auto-recovering: Cascading to Alternate Feed ${nextIdx + 1}/${streamCandidates.length}...`);
+        switchCandidate(nextIdx, false);
       }
     };
 

@@ -112,7 +112,11 @@ const readArrayFromStorage = (key: string): string[] => {
 };
 
 const writeArrayToStorage = (key: string, data: string[]): void => {
-  storage.set(key, JSON.stringify(data));
+  try {
+    storage.set(key, JSON.stringify(data));
+  } catch (err) {
+    console.warn(`[Storage] Failed writing array to key "${key}":`, err);
+  }
 };
 
 const readJsonFromStorage = <T>(key: string, fallback: T): T => {
@@ -147,7 +151,11 @@ const getStoredXtreamAccount = () => {
 };
 
 const writeJsonToStorage = (key: string, data: any): void => {
-  storage.set(key, JSON.stringify(data));
+  try {
+    storage.set(key, JSON.stringify(data));
+  } catch (err) {
+    console.warn(`[Storage] Failed writing JSON to key "${key}":`, err);
+  }
 };
 
 const INITIAL_FALLBACK_CHANNELS: Channel[] = [];

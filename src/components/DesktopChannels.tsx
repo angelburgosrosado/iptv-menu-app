@@ -34,11 +34,15 @@ import {
   Radio,
   Activity,
   Wifi,
-  Zap
+  Zap,
+  Layers
 } from 'lucide-react';
 import { Channel } from '../types/iptv';
 import WebCinemaPlayer from './WebCinemaPlayer';
 import CountryChannelSections from './CountryChannelSections';
+import HorizontalShelfScroll from './HorizontalShelfScroll';
+import LiveChannelTile from './LiveChannelTile';
+import MediaCard from './MediaCard';
 import { 
   StreamResolutionBadge, 
   StreamBitrateBadge, 
@@ -93,7 +97,7 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
 
   const [searchQuery, setSearchQuery] = React.useState('');
   const [selectedGroup, setSelectedGroup] = React.useState<string | null>(null);
-  const [viewMode, setViewMode] = React.useState<'grid' | 'list' | 'country'>('grid');
+  const [viewMode, setViewMode] = React.useState<'shelves' | 'grid' | 'list' | 'country'>('shelves');
   const [sortMode, setSortMode] = React.useState<'default' | 'name-asc' | 'name-desc' | 'health'>('default');
   const [displayLimit, setDisplayLimit] = React.useState(60);
   const [openMenuChannelId, setOpenMenuChannelId] = React.useState<string | null>(null);
@@ -215,6 +219,19 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
 
     return list;
   }, [activeCatalog, selectedGroup, searchQuery, sortMode, customTags, parentalControls, isChannelLocked, parsedSearch]);
+
+  // Group channels into Streamly category shelves
+  const categoryShelves = React.useMemo(() => {
+    const map = new Map<string, Channel[]>();
+    for (const ch of filteredChannels) {
+      const cat = ch.category || normalizeCategory(ch.group) || 'General';
+      if (!map.has(cat)) {
+        map.set(cat, []);
+      }
+      map.get(cat)!.push(ch);
+    }
+    return Array.from(map.entries()).sort((a, b) => b[1].length - a[1].length);
+  }, [filteredChannels]);
 
   // Reset display limit when query or filter options change
   React.useEffect(() => {
@@ -389,11 +406,21 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
           </div>
 
           {/* View Toggle */}
-          <div className="flex items-center bg-[#16161a] border border-white/10 rounded-xl p-1">
+          <div className="flex items-center bg-[#11141c] border border-[#1f2330] rounded-xl p-1">
+            <button
+              onClick={() => setViewMode('shelves')}
+              className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
+                viewMode === 'shelves' ? 'bg-[#7c5cff] text-white shadow-md' : 'text-zinc-400 hover:text-white'
+              }`}
+              title="Category Shelves View (Streamly)"
+              aria-label="Shelves View"
+            >
+              <Layers className="w-3.5 h-3.5" />
+            </button>
             <button
               onClick={() => setViewMode('grid')}
               className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                viewMode === 'grid' ? 'bg-cyan-600 text-white shadow-md' : 'text-zinc-400 hover:text-white'
+                viewMode === 'grid' ? 'bg-[#7c5cff] text-white shadow-md' : 'text-zinc-400 hover:text-white'
               }`}
               title="Grid View"
               aria-label="Grid View"
@@ -403,7 +430,7 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
             <button
               onClick={() => setViewMode('list')}
               className={`p-1.5 rounded-lg transition-colors cursor-pointer ${
-                viewMode === 'list' ? 'bg-cyan-600 text-white shadow-md' : 'text-zinc-400 hover:text-white'
+                viewMode === 'list' ? 'bg-[#7c5cff] text-white shadow-md' : 'text-zinc-400 hover:text-white'
               }`}
               title="List View"
               aria-label="List View"
@@ -626,6 +653,55 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
             <RotateCcw className="w-3.5 h-3.5" />
             <span>Reset Search & Filters</span>
           </button>
+        </div>
+      ) : viewMode === 'shelves' ? (
+        /* Streamly Category Shelves View */
+        <div className="flex flex-col gap-2 overflow-y-auto max-h-[700px] pr-1 pb-8 scrollbar-hide">
+          {categoryShelves.map(([categoryName, shelfChannels]) => (
+            <HorizontalShelfScroll
+              key={categoryName}
+              title={categoryName}
+              badge={`${shelfChannels.length} ${selectedStreamType === 'vod' ? 'MOVIES' : selectedStreamType === 'series' ? 'SERIES' : 'LIVE'}`}
+              onSeeAll={() => {
+                setSelectedGroup(categoryName);
+                setViewMode('grid');
+              }}
+            >
+              {selectedStreamType === 'vod' || selectedStreamType === 'series'
+                ? shelfChannels.map((c) => (
+                    <div key={c.id} className="w-[160px] sm:w-[180px] shrink-0">
+                      <MediaCard
+                        title={c.name}
+                        subtitle={c.category || categoryName}
+                        poster={c.logo}
+                        rating={c.rating || 8.0}
+                        aspectRatio="poster"
+                        isFavorite={favorites.includes(c.id)}
+                        onPlay={() => handleOpenCinema(c)}
+                        onDetail={() => {
+                          if (selectedStreamType === 'series') setSeriesDetailChannel(c);
+                          else setVodDetailChannel(c);
+                        }}
+                        onToggleFavorite={() => toggleFavorite(c.id)}
+                      />
+                    </div>
+                  ))
+                : shelfChannels.map((c) => (
+                    <LiveChannelTile
+                      key={c.id}
+                      channel={c}
+                      isFavorite={favorites.includes(c.id)}
+                      currentProgram={{
+                        title: c.currentProgram || c.epgDescription || 'Live Broadcast',
+                        progressPercent: Math.floor(25 + ((c.name.length * 13) % 60)),
+                        minutesRemaining: Math.floor(15 + ((c.name.length * 9) % 50))
+                      }}
+                      onPlay={() => handleOpenCinema(c)}
+                      onToggleFavorite={() => toggleFavorite(c.id)}
+                    />
+                  ))}
+            </HorizontalShelfScroll>
+          ))}
         </div>
       ) : viewMode === 'country' ? (
         <div className="overflow-y-auto max-h-[600px] pr-2 scrollbar-thin">

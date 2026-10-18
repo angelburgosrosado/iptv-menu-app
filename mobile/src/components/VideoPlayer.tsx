@@ -439,7 +439,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: RADII.md,
     borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.3)',
+    borderColor: 'rgba(124, 92, 255, 0.3)',
     gap: 4,
     alignSelf: 'flex-start',
     maxWidth: '90%',

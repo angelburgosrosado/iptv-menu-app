@@ -1,12 +1,12 @@
 {
-  "name": "IPTV Menu",
-  "short_name": "IPTV Menu",
-  "description": "Developer platform for IPTV m3u playlists, channel testing, and certified hardware.",
+  "name": "IPTV.Menu Pro",
+  "short_name": "IPTV.Menu",
+  "description": "High-performance streaming hub, IPTV player, Xtream Codes client, and EPG guide.",
   "start_url": "/",
   "display": "standalone",
-  "orientation": "portrait-primary",
-  "background_color": "#050505",
-  "theme_color": "#050505",
+  "orientation": "any",
+  "background_color": "#06070b",
+  "theme_color": "#06070b",
   "icons": [
     {
       "src": "/icon.svg",

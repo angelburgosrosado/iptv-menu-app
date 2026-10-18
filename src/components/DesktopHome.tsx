@@ -14,17 +14,26 @@ import {
   ChevronRight, 
   Sparkles, 
   Flame, 
-  Radio, 
   Film, 
   Clapperboard, 
   Check, 
   Info,
-  Maximize2,
-  Volume2
+  Heart,
+  TrendingUp,
+  History,
+  Layers,
+  Radio,
+  Sliders,
+  ShieldCheck,
+  Download,
+  Smartphone
 } from 'lucide-react';
 import { Channel } from '../types/iptv';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { DEMO_FAST_CHANNELS } from '../data/demoChannels';
+import HorizontalShelfScroll from './HorizontalShelfScroll';
+import LiveChannelTile from './LiveChannelTile';
+import MediaCard from './MediaCard';
 
 interface DesktopHomeProps {
   onSelectChannel: (channel: Channel) => void;
@@ -39,73 +48,21 @@ interface FeaturedItem {
   subTitle: string;
   description: string;
   backdropUrl: string;
-  streamUrl?: string;
   rating?: string;
+  duration?: string;
   channelFallback: Channel;
 }
-
-interface VodItem {
-  id: string;
-  title: string;
-  duration: string;
-  rating: string;
-  posterUrl: string;
-  category: string;
-  channelFallback: Channel;
-}
-
-interface EpgRow {
-  channelId: string;
-  channelName: string;
-  logo: React.ReactNode;
-  channelObj: Channel;
-  programs: {
-    title: string;
-    start: string;
-    end: string;
-    durationMinutes: number;
-    isCurrent?: boolean;
-    progress?: number;
-  }[];
-}
-
-// Built-in Brand Logos for TV Guide and Live Channels (sharp vector SVGs)
-const ChannelLogos = {
-  bbcOne: (
-    <div className="flex items-center gap-1 px-2 py-1 bg-red-600 rounded-md text-white font-black text-xs tracking-tighter">
-      <span>BBC</span>
-      <span className="bg-white text-red-600 px-1 rounded text-[10px]">ONE</span>
-    </div>
-  ),
-  espn: (
-    <div className="flex items-center px-2 py-0.5 bg-red-700 rounded text-white font-black italic text-xs tracking-wider">
-      <span>ESPN</span>
-    </div>
-  ),
-  itv: (
-    <div className="flex items-center px-2 py-0.5 bg-yellow-500 rounded text-black font-extrabold text-xs tracking-wide">
-      <span>itv</span>
-    </div>
-  ),
-  cnn: (
-    <div className="flex items-center px-2 py-0.5 bg-red-600 rounded text-white font-black text-xs tracking-tight">
-      <span>CNN</span>
-    </div>
-  ),
-  discovery: (
-    <div className="flex items-center gap-0.5 px-2 py-0.5 bg-sky-600 rounded text-white font-bold text-xs">
-      <span>Discovery</span>
-    </div>
-  ),
-  skySports: (
-    <div className="flex items-center px-2 py-0.5 bg-gradient-to-r from-red-600 to-blue-700 rounded text-white font-extrabold text-xs">
-      <span>sky sports</span>
-    </div>
-  )
-};
 
 export default function DesktopHome({ onSelectChannel, onNavigateTab }: DesktopHomeProps) {
-  const { channels, vodChannels, seriesChannels, loadDemoChannels } = usePlayerStore();
+  const { 
+    channels, 
+    vodChannels, 
+    seriesChannels, 
+    favorites, 
+    toggleFavorite,
+    watchHistory,
+    removeFromWatchHistory
+  } = usePlayerStore();
 
   const [activeCarouselIndex, setActiveCarouselIndex] = React.useState(0);
   const [isAutoPlay, setIsAutoPlay] = React.useState(true);
@@ -113,81 +70,82 @@ export default function DesktopHome({ onSelectChannel, onNavigateTab }: DesktopH
   // Fallback demo channel if user has no playlists yet
   const defaultLiveChannel: Channel = channels[0] || DEMO_FAST_CHANNELS[0];
 
-  // 1. Curated Featured Carousel items (matching wireframe: Man City vs Arsenal [4K], Loki S2E4, Dune: Part Two)
+  // 1. Featured Spotlight Carousel items
   const featuredItems: FeaturedItem[] = React.useMemo(() => [
     {
       id: 'featured-1',
       title: 'LIVE FOOTBALL: Man City vs Arsenal',
       category: 'Premier League Super Sunday',
-      badge: '4K',
+      badge: '4K LIVE',
       subTitle: 'Match of the Season • Etihad Stadium',
-      description: 'Title decider clash streaming live in Ultra HD with multi-camera interactive angles and Dolby Atmos audio.',
+      description: 'Title decider clash streaming live in Ultra HD 60fps with spatial multi-audio and high bitrate HLS.',
       backdropUrl: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=1600&q=80',
+      rating: '9.8',
+      duration: 'Live Now',
       channelFallback: channels.find(c => c.category?.toLowerCase().includes('sport') || c.name.toLowerCase().includes('sport')) || {
         ...defaultLiveChannel,
+        id: 'sky-sports-premier-league',
         name: 'Sky Sports Premier League (4K)',
         currentProgram: 'LIVE FOOTBALL: Man City vs Arsenal',
+        category: 'Sports',
         resolution: '4K Ultra HD'
       }
     },
     {
       id: 'featured-2',
-      title: 'Loki - S2E4',
-      category: 'Marvel Cinematic Universe',
-      badge: '4K',
-      subTitle: 'Episode 4 • Heart of the TVA',
-      description: 'Loki and Mobius race against time to repair the Temporal Loom before timeline collapse consumes all existence.',
-      backdropUrl: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=1600&q=80',
-      channelFallback: vodChannels[0] || seriesChannels[0] || {
+      title: 'Dune: Part Two',
+      category: 'Blockbuster Sci-Fi Cinema',
+      badge: '4K HDR',
+      subTitle: 'IMAX Enhanced • Dolby Atmos',
+      description: 'Paul Atreides unites with Chani and the Fremen while seeking revenge against the conspirators who destroyed his family.',
+      backdropUrl: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=1600&q=80',
+      rating: '8.6',
+      duration: '2h 46m',
+      channelFallback: vodChannels[0] || {
         ...defaultLiveChannel,
-        name: 'Disney+ / Marvel 4K Feed',
-        currentProgram: 'Loki - S2E4: Heart of the TVA',
-        resolution: '4K HDR'
+        id: 'dune-part-two',
+        name: 'Dune: Part Two (2024)',
+        category: 'Movies',
+        streamType: 'vod',
+        resolution: '4K Ultra HD'
       }
     },
     {
       id: 'featured-3',
-      title: 'Dune: Part Two',
-      category: 'Blockbuster Sci-Fi Cinema',
-      badge: '4K',
-      subTitle: 'IMAX Enhanced • Master Audio',
-      description: 'Paul Atreides unites with Chani and the Fremen while seeking revenge against the conspirators who destroyed his family.',
-      backdropUrl: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=1600&q=80',
-      channelFallback: vodChannels[1] || {
+      title: 'Loki - Season 2',
+      category: 'Marvel Cinematic Universe',
+      badge: '4K UHD',
+      subTitle: 'Glorious Purpose • Master Audio',
+      description: 'Loki and Mobius journey through fractured timelines to preserve reality before the Temporal Loom collapses.',
+      backdropUrl: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=1600&q=80',
+      rating: '8.7',
+      duration: '6 Episodes',
+      channelFallback: seriesChannels[0] || {
         ...defaultLiveChannel,
-        name: 'Cinema Premiere 4K',
-        currentProgram: 'Dune: Part Two (2024)',
-        resolution: '4K Ultra HD'
+        id: 'loki-s2',
+        name: 'Loki - Season 2',
+        category: 'Series',
+        streamType: 'series',
+        resolution: '4K HDR'
       }
     },
     {
       id: 'featured-4',
       title: 'UEFA Champions League Final',
       category: 'European Football Championship',
-      badge: '4K',
-      subTitle: 'Real Madrid vs Borussia Dortmund • Wembley',
-      description: 'The pinnacle of club football live in ultra-crisp 4K 60FPS with dedicated tactical feed and ambient stadium sound.',
+      badge: '4K 60FPS',
+      subTitle: 'Wembley Stadium • Live Broadcast',
+      description: 'The pinnacle of European club football live with tactical view options and crystal clear surround sound.',
       backdropUrl: 'https://images.unsplash.com/photo-1522778119026-d647f0596c20?auto=format&fit=crop&w=1600&q=80',
+      rating: '9.9',
+      duration: 'Live Now',
       channelFallback: {
         ...defaultLiveChannel,
+        id: 'tnt-sports-ultimate',
         name: 'TNT Sports Ultimate 4K',
-        currentProgram: 'Champions League Final Live',
+        currentProgram: 'UEFA Champions League Final Live',
+        category: 'Sports',
         resolution: '4K 60fps'
-      }
-    },
-    {
-      id: 'featured-5',
-      title: 'Oppenheimer',
-      category: 'Academy Award Winner',
-      badge: '4K',
-      subTitle: 'Christopher Nolan Masterwork',
-      description: 'The story of American scientist J. Robert Oppenheimer and his role in the development of the atomic bomb.',
-      backdropUrl: 'https://images.unsplash.com/photo-1440404653325-ab127d49abc1?auto=format&fit=crop&w=1600&q=80',
-      channelFallback: {
-        ...defaultLiveChannel,
-        name: 'Universal Cinema 4K',
-        currentProgram: 'Oppenheimer (Extended Cut)',
-        resolution: '4K Ultra HD'
       }
     }
   ], [channels, vodChannels, seriesChannels, defaultLiveChannel]);
@@ -201,591 +159,466 @@ export default function DesktopHome({ onSelectChannel, onNavigateTab }: DesktopH
     return () => clearInterval(interval);
   }, [isAutoPlay, featuredItems.length]);
 
-  // 2. LIVE CHANNELS NOW (matches wireframe: BBC One HD, ESPN, BBC Channel HD with live progress bars)
-  const liveChannelsNow = React.useMemo(() => {
+  const activeFeatured = featuredItems[activeCarouselIndex] || featuredItems[0];
+  const isFeaturedInFavorites = favorites.includes(activeFeatured.channelFallback.id);
+
+  // Live Channels list for trending shelf
+  const liveChannelsList = React.useMemo(() => {
+    const live = channels.filter(c => !c.streamType || c.streamType === 'live');
+    return live.length > 0 ? live.slice(0, 16) : DEMO_FAST_CHANNELS;
+  }, [channels]);
+
+  // Movies list for trending movies shelf
+  const moviesList = React.useMemo(() => {
+    if (vodChannels.length > 0) return vodChannels.slice(0, 14);
     return [
       {
-        id: 'live-bbc-one',
-        name: 'BBC ONE (HD)',
-        program: 'News at Ten',
-        badge: '4K',
-        progress: 68,
-        logo: ChannelLogos.bbcOne,
-        channel: channels.find(c => c.name.toLowerCase().includes('bbc one')) || {
-          ...defaultLiveChannel,
-          id: 'bbc-one-4k',
-          name: 'BBC ONE (HD)',
-          currentProgram: 'News at Ten',
-          resolution: '4K 50fps'
-        }
+        id: 'vod-1',
+        name: 'Dune: Part Two',
+        category: 'Sci-Fi / Adventure',
+        rating: 8.6,
+        year: '2024',
+        poster: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=600&q=80',
+        url: defaultLiveChannel.url,
+        streamType: 'vod' as const
       },
       {
-        id: 'live-espn',
-        name: 'ESPN',
-        program: 'NBA Today',
-        badge: '4K',
-        progress: 42,
-        logo: ChannelLogos.espn,
-        channel: channels.find(c => c.name.toLowerCase().includes('espn')) || {
-          ...defaultLiveChannel,
-          id: 'espn-4k',
-          name: 'ESPN (HD)',
-          currentProgram: 'NBA Today: Courtside Live',
-          resolution: '4K 60fps'
-        }
+        id: 'vod-2',
+        name: 'Oppenheimer',
+        category: 'Biography / Drama',
+        rating: 8.9,
+        year: '2023',
+        poster: 'https://images.unsplash.com/photo-1440404653325-ab127d49abc1?auto=format&fit=crop&w=600&q=80',
+        url: defaultLiveChannel.url,
+        streamType: 'vod' as const
       },
       {
-        id: 'live-bbc-channe',
-        name: 'BBC Channe (HD)',
-        program: 'NBA Today',
-        badge: '4K',
-        progress: 85,
-        logo: ChannelLogos.bbcOne,
-        channel: channels.find(c => c.name.toLowerCase().includes('bbc')) || {
-          ...defaultLiveChannel,
-          id: 'bbc-channe-hd',
-          name: 'BBC Channel (HD)',
-          currentProgram: 'NBA Today International',
-          resolution: '4K'
-        }
+        id: 'vod-3',
+        name: 'Cyberpunk Edgerunners',
+        category: 'Sci-Fi / Action',
+        rating: 8.3,
+        year: '2023',
+        poster: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=600&q=80',
+        url: defaultLiveChannel.url,
+        streamType: 'vod' as const
       },
       {
-        id: 'live-sky-sports',
-        name: 'Sky Sports F1',
-        program: 'Grand Prix Qualifiers',
-        badge: '4K',
-        progress: 54,
-        logo: ChannelLogos.skySports,
-        channel: channels.find(c => c.name.toLowerCase().includes('sky')) || {
-          ...defaultLiveChannel,
-          id: 'sky-sports-f1',
-          name: 'Sky Sports F1 (4K)',
-          currentProgram: 'Grand Prix Qualifiers Live',
-          resolution: '4K 60fps'
-        }
+        id: 'vod-4',
+        name: 'Interstellar (Extended)',
+        category: 'Sci-Fi / Adventure',
+        rating: 8.7,
+        year: '2014',
+        poster: 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=600&q=80',
+        url: defaultLiveChannel.url,
+        streamType: 'vod' as const
+      },
+      {
+        id: 'vod-5',
+        name: 'Blade Runner 2049',
+        category: 'Sci-Fi / Mystery',
+        rating: 8.0,
+        year: '2017',
+        poster: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=600&q=80',
+        url: defaultLiveChannel.url,
+        streamType: 'vod' as const
+      },
+      {
+        id: 'vod-6',
+        name: 'Spider-Man: Across the Spider-Verse',
+        category: 'Animation / Action',
+        rating: 8.7,
+        year: '2023',
+        poster: 'https://images.unsplash.com/photo-1635805737707-575885ab0820?auto=format&fit=crop&w=600&q=80',
+        url: defaultLiveChannel.url,
+        streamType: 'vod' as const
       }
     ];
-  }, [channels, defaultLiveChannel]);
+  }, [vodChannels, defaultLiveChannel]);
 
-  // 3. POPULAR ON DEMAND (matches wireframe: Barbie, Succession, Ahsoka with ★ 4.5 and runtime)
-  const popularOnDemand: VodItem[] = React.useMemo(() => [
-    {
-      id: 'vod-barbie',
-      title: 'Barbie',
-      duration: '50m • 26me',
-      rating: '4.5',
-      category: 'Comedy • Adventure',
-      posterUrl: 'https://images.unsplash.com/photo-1594909122845-11baa439b7bf?auto=format&fit=crop&w=600&q=80',
-      channelFallback: vodChannels[0] || {
-        ...defaultLiveChannel,
-        id: 'vod-barbie-movie',
-        name: 'Barbie (2023)',
-        streamType: 'vod'
-      }
-    },
-    {
-      id: 'vod-succession',
-      title: 'Succession',
-      duration: '50m • 1time',
-      rating: '4.5',
-      category: 'Drama • HBO Series',
-      posterUrl: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=600&q=80',
-      channelFallback: seriesChannels[0] || {
-        ...defaultLiveChannel,
-        id: 'vod-succession-series',
-        name: 'Succession (Final Season)',
-        streamType: 'series'
-      }
-    },
-    {
-      id: 'vod-ahsoka',
-      title: 'Ahsoka',
-      duration: '38m • 1.7time',
-      rating: '4.5',
-      category: 'Sci-Fi • Star Wars',
-      posterUrl: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=600&q=80',
-      channelFallback: seriesChannels[1] || {
-        ...defaultLiveChannel,
-        id: 'vod-ahsoka-series',
-        name: 'Star Wars: Ahsoka',
-        streamType: 'series'
-      }
-    }
-  ], [vodChannels, seriesChannels, defaultLiveChannel]);
-
-  // 4. NEW RELEASES (matches wireframe: New Releases, Succession, New Releases with ★ 4.5 and duration)
-  const newReleases: VodItem[] = React.useMemo(() => [
-    {
-      id: 'rel-1',
-      title: 'New Releases',
-      duration: '30m • 31me',
-      rating: '4.5',
-      category: 'Civil War • Action',
-      posterUrl: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=600&q=80',
-      channelFallback: vodChannels[2] || {
-        ...defaultLiveChannel,
-        id: 'new-release-civilwar',
-        name: 'Civil War (4K Master)',
-        streamType: 'vod'
-      }
-    },
-    {
-      id: 'rel-2',
-      title: 'Succession',
-      duration: '50m • 2time',
-      rating: '4.5',
-      category: 'Drama • Season 4',
-      posterUrl: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=600&q=80',
-      channelFallback: seriesChannels[0] || {
-        ...defaultLiveChannel,
-        id: 'new-release-succession',
-        name: 'Succession: S4 Finale',
-        streamType: 'series'
-      }
-    },
-    {
-      id: 'rel-3',
-      title: 'New Releases',
-      duration: '50m • 1time',
-      rating: '4.5',
-      category: 'Fallout • Sci-Fi Series',
-      posterUrl: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?auto=format&fit=crop&w=600&q=80',
-      channelFallback: seriesChannels[2] || {
-        ...defaultLiveChannel,
-        id: 'new-release-fallout',
-        name: 'Fallout: S1 Premiere',
-        streamType: 'series'
-      }
-    }
-  ], [vodChannels, seriesChannels, defaultLiveChannel]);
-
-  // 5. TV GUIDE TIMELINE MATRIX (matches wireframe: 00:00, 08:00, 09:00, 12:00 with itv, CNN, Discovery)
-  const epgRows: EpgRow[] = React.useMemo(() => [
-    {
-      channelId: 'epg-itv',
-      channelName: 'itv',
-      logo: ChannelLogos.itv,
-      channelObj: {
-        ...defaultLiveChannel,
-        id: 'channel-itv-1',
-        name: 'ITV 1 (HD)',
-        currentProgram: 'Schedule Program: Good Morning'
+  // Series list for series shelf
+  const seriesList = React.useMemo(() => {
+    if (seriesChannels.length > 0) return seriesChannels.slice(0, 14);
+    return [
+      {
+        id: 'ser-1',
+        name: 'Loki',
+        category: 'Marvel Universe',
+        rating: 8.7,
+        seasons: '2 Seasons',
+        poster: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=600&q=80',
+        url: defaultLiveChannel.url,
+        streamType: 'series' as const
       },
-      programs: [
-        { title: 'Schedule Program', start: '00:00', end: '08:00', durationMinutes: 480, isCurrent: true, progress: 65 },
-        { title: 'Schedulet Program', start: '08:00', end: '11:00', durationMinutes: 180 },
-        { title: 'Progr', start: '11:00', end: '13:00', durationMinutes: 120 }
-      ]
-    },
-    {
-      channelId: 'epg-cnn',
-      channelName: 'CNN',
-      logo: ChannelLogos.cnn,
-      channelObj: {
-        ...defaultLiveChannel,
-        id: 'channel-cnn-news',
-        name: 'CNN International',
-        currentProgram: 'CNN TV Shows'
+      {
+        id: 'ser-2',
+        name: 'The Last of Us',
+        category: 'Drama / Sci-Fi',
+        rating: 8.8,
+        seasons: '1 Season',
+        poster: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=600&q=80',
+        url: defaultLiveChannel.url,
+        streamType: 'series' as const
       },
-      programs: [
-        { title: 'CNN TV Shows', start: '00:00', end: '07:30', durationMinutes: 450, isCurrent: true, progress: 80 },
-        { title: 'News at Today', start: '07:30', end: '10:30', durationMinutes: 180 },
-        { title: 'Program at mor', start: '10:30', end: '13:00', durationMinutes: 150 }
-      ]
-    },
-    {
-      channelId: 'epg-discovery',
-      channelName: 'Discovery',
-      logo: ChannelLogos.discovery,
-      channelObj: {
-        ...defaultLiveChannel,
-        id: 'channel-discovery-hd',
-        name: 'Discovery Channel HD',
-        currentProgram: 'Reading Efro'
+      {
+        id: 'ser-3',
+        name: 'House of the Dragon',
+        category: 'Fantasy / Drama',
+        rating: 8.4,
+        seasons: '2 Seasons',
+        poster: 'https://images.unsplash.com/photo-1514539079130-25950c84af65?auto=format&fit=crop&w=600&q=80',
+        url: defaultLiveChannel.url,
+        streamType: 'series' as const
       },
-      programs: [
-        { title: 'Reading Efro', start: '00:00', end: '08:00', durationMinutes: 480, isCurrent: true, progress: 45 },
-        { title: 'The filtlonost', start: '08:00', end: '11:30', durationMinutes: 210 },
-        { title: 'Cone', start: '11:30', end: '13:00', durationMinutes: 90 }
-      ]
-    }
-  ], [defaultLiveChannel]);
+      {
+        id: 'ser-4',
+        name: 'Severance',
+        category: 'Sci-Fi / Thriller',
+        rating: 8.7,
+        seasons: '2 Seasons',
+        poster: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=600&q=80',
+        url: defaultLiveChannel.url,
+        streamType: 'series' as const
+      }
+    ];
+  }, [seriesChannels, defaultLiveChannel]);
 
-  const activeFeatured = featuredItems[activeCarouselIndex];
+  // Continue watching items (from watchHistory or simulated)
+  const continueWatchingItems = React.useMemo(() => {
+    if (watchHistory && watchHistory.length > 0) {
+      return watchHistory.slice(0, 10).map((h) => ({
+        id: h.channelId || h.id,
+        title: h.channelName || h.name || 'Stream Playback',
+        subtitle: h.category || 'Last watched',
+        poster: h.logo || h.poster,
+        duration: h.duration ? `${Math.round(h.duration / 60)}m` : 'Paused',
+        progress: h.progress || (h.currentTime && h.duration ? Math.round((h.currentTime / h.duration) * 100) : 40),
+        channelObj: channels.find(c => c.id === (h.channelId || h.id)) || {
+          ...defaultLiveChannel,
+          id: h.channelId || h.id,
+          name: h.channelName || h.name,
+          url: h.url || defaultLiveChannel.url
+        }
+      }));
+    }
+    // Default simulated shelf when user opens
+    return [
+      {
+        id: 'cw-1',
+        title: 'Sky Sports Premier League (4K)',
+        subtitle: 'Man City vs Arsenal',
+        poster: 'https://images.unsplash.com/photo-1508098682722-e99c43a406b2?auto=format&fit=crop&w=600&q=80',
+        duration: '65m left',
+        progress: 72,
+        channelObj: defaultLiveChannel
+      },
+      {
+        id: 'cw-2',
+        title: 'Dune: Part Two',
+        subtitle: 'Movie • 1h 14m left',
+        poster: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?auto=format&fit=crop&w=600&q=80',
+        duration: '1h 14m left',
+        progress: 54,
+        channelObj: defaultLiveChannel
+      }
+    ];
+  }, [watchHistory, channels, defaultLiveChannel]);
 
   return (
-    <div className="flex-1 flex flex-col gap-8 w-full max-w-[1600px] mx-auto pb-12 select-none">
+    <div className="flex flex-col gap-6 pb-16">
       
-      {/* 1. FEATURED CONTENT HERO CAROUSEL */}
-      <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-            <span>Featured content</span>
-          </h2>
-          <div className="flex items-center gap-1.5 text-xs text-zinc-400">
-            <button
-              onClick={() => {
-                setIsAutoPlay(false);
-                setActiveCarouselIndex(prev => (prev === 0 ? featuredItems.length - 1 : prev - 1));
-              }}
-              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 hover:text-white transition-colors"
-              aria-label="Previous featured"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => {
-                setIsAutoPlay(false);
-                setActiveCarouselIndex(prev => (prev + 1) % featuredItems.length);
-              }}
-              className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 hover:text-white transition-colors"
-              aria-label="Next featured"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Carousel Slide Container */}
+      {/* 1. FEATURED CINEMATIC SPOTLIGHT HERO (Streamly Hero) */}
+      <div 
+        className="relative mx-4 sm:mx-6 rounded-3xl overflow-hidden min-h-[380px] sm:min-h-[460px] flex flex-col justify-end p-6 sm:p-12 border border-white/10 shadow-2xl group transition-all"
+        onMouseEnter={() => setIsAutoPlay(false)}
+        onMouseLeave={() => setIsAutoPlay(true)}
+      >
+        {/* Backdrop Image with Smooth Fade */}
         <div 
-          className="relative w-full aspect-[21/9] sm:aspect-[2.4/1] md:aspect-[2.6/1] rounded-2xl md:rounded-3xl overflow-hidden border border-white/10 bg-zinc-950 shadow-2xl group cursor-pointer"
-          onClick={() => onSelectChannel(activeFeatured.channelFallback)}
-        >
-          {/* Backdrop Image */}
-          <img
-            src={activeFeatured.backdropUrl}
-            alt={activeFeatured.title}
-            className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 brightness-[0.75]"
-          />
+          className="absolute inset-0 bg-cover bg-center transition-all duration-700 transform scale-100 group-hover:scale-102"
+          style={{ backgroundImage: `url(${activeFeatured.backdropUrl})` }}
+        />
 
-          {/* Gradients */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/30 to-transparent" />
+        {/* Cinematic Vignette Overlays */}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#06070b] via-[#06070b]/60 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#06070b] via-[#06070b]/70 to-transparent" />
 
-          {/* Slide Content Overlay */}
-          <div className="absolute inset-0 p-6 md:p-10 flex flex-col justify-end gap-3 z-10 max-w-3xl">
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <span className="px-2.5 py-0.5 rounded-full bg-blue-600/90 text-white font-black text-[11px] tracking-wider uppercase border border-blue-400/30 shadow-md">
-                {activeFeatured.category}
+        {/* Content Box */}
+        <div className="relative z-10 max-w-2xl flex flex-col gap-3">
+          
+          {/* Eyebrow / Badges */}
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <span className="px-2.5 py-1 rounded-lg bg-[#7c5cff] text-white text-xs font-black tracking-wider uppercase shadow-md shadow-[#7c5cff]/30">
+              {activeFeatured.badge}
+            </span>
+            <span className="px-2.5 py-1 rounded-lg bg-black/70 backdrop-blur-md border border-white/10 text-[#00e0c6] text-xs font-bold uppercase tracking-wide">
+              {activeFeatured.category}
+            </span>
+            {activeFeatured.rating && (
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-black/60 backdrop-blur-md border border-white/10 text-amber-300 text-xs font-bold">
+                <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+                <span>{activeFeatured.rating}</span>
               </span>
-              <span className="px-2 py-0.5 rounded bg-white/15 text-white font-extrabold text-[10px] tracking-widest border border-white/20">
-                {activeFeatured.badge}
+            )}
+            {activeFeatured.duration && (
+              <span className="text-xs text-[#9aa0b3] font-medium">
+                {activeFeatured.duration}
               </span>
-            </div>
+            )}
+          </div>
 
-            <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black text-white tracking-tight drop-shadow-md">
-              {activeFeatured.title}
-            </h1>
+          {/* Title */}
+          <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight drop-shadow-md leading-tight">
+            {activeFeatured.title}
+          </h1>
 
-            <p className="text-xs sm:text-sm text-zinc-300 font-medium line-clamp-2 max-w-2xl drop-shadow">
-              {activeFeatured.description}
-            </p>
+          {/* Subtitle & Description */}
+          <p className="text-sm sm:text-base font-semibold text-[#00e0c6] drop-shadow">
+            {activeFeatured.subTitle}
+          </p>
+          <p className="text-xs sm:text-sm text-[#9aa0b3] line-clamp-2 max-w-xl leading-relaxed">
+            {activeFeatured.description}
+          </p>
 
-            <div className="flex items-center gap-3 pt-2">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onSelectChannel(activeFeatured.channelFallback);
-                }}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-white text-black font-extrabold text-sm shadow-xl hover:bg-zinc-200 transition-all active:scale-95 cursor-pointer"
-              >
-                <Play className="w-4 h-4 fill-current" />
-                <span>Watch Now</span>
-              </button>
+          {/* Action Buttons */}
+          <div className="flex items-center gap-3 mt-3 flex-wrap">
+            <button
+              type="button"
+              onClick={() => onSelectChannel(activeFeatured.channelFallback)}
+              className="flex items-center gap-2.5 px-6 py-3 rounded-2xl bg-gradient-to-r from-[#7c5cff] to-[#00e0c6] text-white font-bold text-sm shadow-lg shadow-[#7c5cff]/30 hover:opacity-95 hover:scale-102 transition-all cursor-pointer"
+            >
+              <Play className="w-4 h-4 fill-current ml-0.5" />
+              <span>Watch Now</span>
+            </button>
 
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onNavigateTab('channels');
-                }}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-sm backdrop-blur-md border border-white/15 transition-all cursor-pointer"
-              >
-                <Tv className="w-4 h-4" />
-                <span>All Live Channels</span>
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => toggleFavorite(activeFeatured.channelFallback.id)}
+              className={`flex items-center gap-2 px-4 py-3 rounded-2xl backdrop-blur-xl border text-sm font-semibold transition-all cursor-pointer ${
+                isFeaturedInFavorites
+                  ? 'bg-red-500/20 border-red-500/40 text-red-300 hover:bg-red-500/30'
+                  : 'bg-white/10 border-white/15 text-white hover:bg-white/20'
+              }`}
+            >
+              <Heart className={`w-4 h-4 ${isFeaturedInFavorites ? 'fill-current text-red-400' : ''}`} />
+              <span>{isFeaturedInFavorites ? 'Saved in My List' : '+ My List'}</span>
+            </button>
           </div>
         </div>
 
-        {/* Carousel Pagination Dots */}
-        <div className="flex items-center justify-center gap-2 pt-1">
-          {featuredItems.map((_, idx) => (
+        {/* Carousel Indicators / Navigation */}
+        <div className="absolute bottom-6 right-6 sm:right-12 z-10 flex items-center gap-2">
+          {featuredItems.map((item, idx) => (
             <button
-              key={idx}
-              onClick={() => {
-                setIsAutoPlay(false);
-                setActiveCarouselIndex(idx);
-              }}
+              key={item.id}
+              onClick={() => setActiveCarouselIndex(idx)}
               className={`h-2 rounded-full transition-all duration-300 ${
-                activeCarouselIndex === idx
-                  ? 'w-6 bg-white'
+                idx === activeCarouselIndex
+                  ? 'w-8 bg-[#00e0c6] shadow-sm shadow-[#00e0c6]/50'
                   : 'w-2 bg-white/30 hover:bg-white/60'
               }`}
               aria-label={`Go to slide ${idx + 1}`}
             />
           ))}
         </div>
-      </section>
-
-      {/* 2. MIDDLE TWO-COLUMN GRID: LIVE CHANNELS NOW & POPULAR ON DEMAND */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-        
-        {/* Left Column: LIVE CHANNELS NOW */}
-        <section className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold uppercase tracking-wider text-white flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-              <span>LIVE CHANNELS NOW</span>
-            </h2>
-            <button
-              onClick={() => onNavigateTab('channels')}
-              className="text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors"
-            >
-              See all
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {liveChannelsNow.slice(0, 3).map((item) => (
-              <div
-                key={item.id}
-                onClick={() => onSelectChannel(item.channel)}
-                className="group relative bg-zinc-900/80 hover:bg-zinc-800/90 border border-white/10 hover:border-white/25 rounded-2xl p-4 flex flex-col justify-between gap-3 transition-all duration-200 cursor-pointer shadow-lg hover:shadow-blue-500/10 hover:-translate-y-0.5"
-              >
-                {/* Logo & Quality Badge */}
-                <div className="flex items-center justify-between">
-                  <div>{item.logo}</div>
-                  <span className="px-1.5 py-0.5 rounded bg-white/10 text-[10px] font-bold text-zinc-300 border border-white/15">
-                    {item.badge}
-                  </span>
-                </div>
-
-                {/* Channel & Program Info */}
-                <div>
-                  <h3 className="text-sm font-bold text-white group-hover:text-blue-400 transition-colors truncate">
-                    {item.name}
-                  </h3>
-                  <p className="text-xs text-zinc-400 truncate mt-0.5">
-                    {item.program}
-                  </p>
-                </div>
-
-                {/* Progress bar & Live indicator */}
-                <div className="flex items-center justify-between gap-2 pt-1 border-t border-white/5">
-                  <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-blue-500 rounded-full"
-                      style={{ width: `${item.progress}%` }}
-                    />
-                  </div>
-                  <div className="flex items-center gap-1 text-[11px] font-bold text-red-500">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping" />
-                    <span>Live</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Right Column: POPULAR ON DEMAND */}
-        <section className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold uppercase tracking-wider text-white">
-              POPULAR ON DEMAND
-            </h2>
-            <button
-              onClick={() => onNavigateTab('vod')}
-              className="text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors"
-            >
-              See all
-            </button>
-          </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            {popularOnDemand.map((item) => (
-              <div
-                key={item.id}
-                onClick={() => onSelectChannel(item.channelFallback)}
-                className="group relative flex flex-col gap-2 cursor-pointer"
-              >
-                {/* Poster Artwork */}
-                <div className="aspect-[16/10] sm:aspect-[16/11] rounded-2xl overflow-hidden border border-white/10 bg-zinc-900 relative shadow-md group-hover:border-white/30 transition-all">
-                  <img
-                    src={item.posterUrl}
-                    alt={item.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 brightness-90 group-hover:brightness-100"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 group-hover:opacity-40 transition-opacity" />
-                  
-                  {/* Floating Play Button */}
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <div className="w-10 h-10 rounded-full bg-white/90 text-black flex items-center justify-center shadow-xl transform scale-75 group-hover:scale-100 transition-transform">
-                      <Play className="w-4 h-4 fill-current ml-0.5" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Metadata */}
-                <div>
-                  <h4 className="text-sm font-bold text-white truncate group-hover:text-blue-400 transition-colors">
-                    {item.title}
-                  </h4>
-                  <div className="flex items-center justify-between text-[11px] text-zinc-400 mt-0.5">
-                    <span>{item.duration}</span>
-                    <span className="flex items-center gap-0.5 text-amber-400 font-bold">
-                      <Star className="w-3 h-3 fill-current" />
-                      <span>{item.rating}</span>
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
       </div>
 
-      {/* 3. BOTTOM TWO-COLUMN GRID: NEW RELEASES & TV GUIDE */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-        
-        {/* Left Column: NEW RELEASES */}
-        <section className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold uppercase tracking-wider text-white">
-              NEW RELEASES
-            </h2>
-            <button
-              onClick={() => onNavigateTab('series')}
-              className="text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors"
-            >
-              See all
-            </button>
+      {/* 2. LIBRARY OVERVIEW STATS (Streamly Quick Metrics) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mx-4 sm:mx-6">
+        <div 
+          onClick={() => onNavigateTab('channels')}
+          className="flex items-center gap-3.5 p-4 rounded-2xl bg-[#11141c]/80 border border-[#1f2330] hover:border-[#7c5cff]/50 transition-all cursor-pointer group"
+        >
+          <div className="w-11 h-11 rounded-xl bg-[#7c5cff]/15 border border-[#7c5cff]/30 flex items-center justify-center text-[#7c5cff] group-hover:scale-105 transition-transform">
+            <Tv className="w-5 h-5" />
           </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            {newReleases.map((item) => (
-              <div
-                key={item.id}
-                onClick={() => onSelectChannel(item.channelFallback)}
-                className="group relative flex flex-col gap-2 cursor-pointer"
-              >
-                {/* Poster Artwork */}
-                <div className="aspect-[16/10] sm:aspect-[16/11] rounded-2xl overflow-hidden border border-white/10 bg-zinc-900 relative shadow-md group-hover:border-white/30 transition-all">
-                  <img
-                    src={item.posterUrl}
-                    alt={item.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 brightness-90 group-hover:brightness-100"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 group-hover:opacity-40 transition-opacity" />
-                  
-                  {/* Floating Play Button */}
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                    <div className="w-10 h-10 rounded-full bg-white/90 text-black flex items-center justify-center shadow-xl transform scale-75 group-hover:scale-100 transition-transform">
-                      <Play className="w-4 h-4 fill-current ml-0.5" />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Metadata */}
-                <div>
-                  <h4 className="text-sm font-bold text-white truncate group-hover:text-blue-400 transition-colors">
-                    {item.title}
-                  </h4>
-                  <div className="flex items-center justify-between text-[11px] text-zinc-400 mt-0.5">
-                    <span>{item.duration}</span>
-                    <span className="flex items-center gap-0.5 text-amber-400 font-bold">
-                      <Star className="w-3 h-3 fill-current" />
-                      <span>{item.rating}</span>
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))}
+          <div>
+            <div className="text-xl font-black text-white">{channels.length || 240}</div>
+            <div className="text-xs text-[#9aa0b3]">Live Channels</div>
           </div>
-        </section>
+        </div>
 
-        {/* Right Column: TV GUIDE (INTERACTIVE TIMELINE MATRIX) */}
-        <section className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold uppercase tracking-wider text-white flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-blue-400" />
-              <span>TV GUIDE</span>
-            </h2>
-            <button
-              onClick={() => onNavigateTab('epg')}
-              className="text-xs font-semibold text-blue-400 hover:text-blue-300 transition-colors"
-            >
-              Full Guide
-            </button>
+        <div 
+          onClick={() => onNavigateTab('vod')}
+          className="flex items-center gap-3.5 p-4 rounded-2xl bg-[#11141c]/80 border border-[#1f2330] hover:border-[#00e0c6]/50 transition-all cursor-pointer group"
+        >
+          <div className="w-11 h-11 rounded-xl bg-[#00e0c6]/15 border border-[#00e0c6]/30 flex items-center justify-center text-[#00e0c6] group-hover:scale-105 transition-transform">
+            <Clapperboard className="w-5 h-5" />
           </div>
+          <div>
+            <div className="text-xl font-black text-white">{vodChannels.length || 1850}</div>
+            <div className="text-xs text-[#9aa0b3]">Movies & Cinema</div>
+          </div>
+        </div>
 
-          {/* Interactive Guide Table */}
-          <div className="bg-zinc-900/80 border border-white/10 rounded-2xl p-4 flex flex-col gap-3 shadow-xl backdrop-blur-md overflow-x-auto">
-            
-            {/* Timeline Time Header */}
-            <div className="grid grid-cols-[80px_1fr_1fr_1fr] items-center text-xs font-bold text-zinc-400 border-b border-white/10 pb-2 px-1">
-              <span>Channel</span>
-              <span className="text-center">00:00</span>
-              <span className="text-center">08:00</span>
-              <span className="text-center">12:00</span>
+        <div 
+          onClick={() => onNavigateTab('series')}
+          className="flex items-center gap-3.5 p-4 rounded-2xl bg-[#11141c]/80 border border-[#1f2330] hover:border-[#7c5cff]/50 transition-all cursor-pointer group"
+        >
+          <div className="w-11 h-11 rounded-xl bg-[#7c5cff]/15 border border-[#7c5cff]/30 flex items-center justify-center text-[#7c5cff] group-hover:scale-105 transition-transform">
+            <Film className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="text-xl font-black text-white">{seriesChannels.length || 420}</div>
+            <div className="text-xs text-[#9aa0b3]">TV Series</div>
+          </div>
+        </div>
+
+        <div 
+          onClick={() => onNavigateTab('epg')}
+          className="flex items-center gap-3.5 p-4 rounded-2xl bg-[#11141c]/80 border border-[#1f2330] hover:border-[#22c55e]/50 transition-all cursor-pointer group"
+        >
+          <div className="w-11 h-11 rounded-xl bg-[#22c55e]/15 border border-[#22c55e]/30 flex items-center justify-center text-[#22c55e] group-hover:scale-105 transition-transform">
+            <Calendar className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="text-xl font-black text-white">EPG Live</div>
+            <div className="text-xs text-[#22c55e] flex items-center gap-1 font-semibold">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#22c55e] animate-pulse" />
+              Synced & Active
             </div>
-
-            {/* Channels & Programme Blocks */}
-            <div className="flex flex-col gap-2.5">
-              {epgRows.map((row) => (
-                <div 
-                  key={row.channelId}
-                  className="grid grid-cols-[80px_1fr] items-center gap-2.5 py-1"
-                >
-                  {/* Channel Logo */}
-                  <div 
-                    onClick={() => onSelectChannel(row.channelObj)}
-                    className="cursor-pointer hover:opacity-80 transition-opacity flex items-center"
-                    title={`Watch ${row.channelName}`}
-                  >
-                    {row.logo}
-                  </div>
-
-                  {/* Program timeline blocks */}
-                  <div className="grid grid-cols-3 gap-1.5 w-full">
-                    {row.programs.map((prog, pIdx) => (
-                      <div
-                        key={pIdx}
-                        onClick={() => onSelectChannel(row.channelObj)}
-                        className={`group relative px-2.5 py-2 rounded-xl text-left cursor-pointer transition-all border ${
-                          prog.isCurrent
-                            ? 'bg-blue-600/20 border-blue-500/40 text-white shadow-sm hover:bg-blue-600/30'
-                            : 'bg-white/5 border-white/10 text-zinc-300 hover:bg-white/10 hover:text-white'
-                        }`}
-                        title={`${prog.title} (${prog.start} - ${prog.end})`}
-                      >
-                        <p className="text-xs font-bold truncate">
-                          {prog.title}
-                        </p>
-                        <p className="text-[10px] text-zinc-400 mt-0.5">
-                          {prog.start} - {prog.end}
-                        </p>
-
-                        {/* Progress Highlight on Current Program */}
-                        {prog.isCurrent && (
-                          <div className="w-full h-1 bg-white/10 rounded-full mt-1.5 overflow-hidden">
-                            <div 
-                              className="h-full bg-blue-400 rounded-full" 
-                              style={{ width: `${prog.progress || 50}%` }}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-
           </div>
-        </section>
+        </div>
+      </div>
 
+      {/* 3. CONTINUE WATCHING SHELF (Streamly Shelf) */}
+      {continueWatchingItems.length > 0 && (
+        <HorizontalShelfScroll
+          title="Continue Watching"
+          subtitle="Pick up right where you left off"
+          icon={<History className="w-5 h-5 text-[#00e0c6]" />}
+          onSeeAll={() => onNavigateTab('favorites')}
+        >
+          {continueWatchingItems.map((item) => (
+            <div key={item.id} className="w-[240px] shrink-0">
+              <MediaCard
+                title={item.title}
+                subtitle={item.subtitle}
+                poster={item.poster}
+                duration={item.duration}
+                progressPercent={item.progress}
+                aspectRatio="video"
+                onPlay={() => onSelectChannel(item.channelObj)}
+                onRemove={() => removeFromWatchHistory?.(item.id)}
+              />
+            </div>
+          ))}
+        </HorizontalShelfScroll>
+      )}
+
+      {/* 4. TRENDING ON LIVE TV SHELF (Streamly Category Shelf) */}
+      <HorizontalShelfScroll
+        title="Trending on Live TV"
+        subtitle="Most watched channels and live events airing right now"
+        icon={<Flame className="w-5 h-5 text-amber-400" />}
+        badge="POPULAR"
+        onSeeAll={() => onNavigateTab('channels')}
+      >
+        {liveChannelsList.map((ch) => (
+          <LiveChannelTile
+            key={ch.id}
+            channel={ch}
+            isFavorite={favorites.includes(ch.id)}
+            currentProgram={{
+              title: ch.currentProgram || 'Live HD Stream',
+              progressPercent: Math.floor(25 + ((ch.name.length * 11) % 65)),
+              minutesRemaining: Math.floor(15 + ((ch.name.length * 7) % 55))
+            }}
+            onPlay={(selected) => onSelectChannel(selected)}
+            onToggleFavorite={(selected) => toggleFavorite(selected.id)}
+          />
+        ))}
+      </HorizontalShelfScroll>
+
+      {/* 5. TOP RATED MOVIES (Streamly Poster Shelf) */}
+      <HorizontalShelfScroll
+        title="Top Rated Movies"
+        subtitle="Cinematic blockbusters and award-winning titles"
+        icon={<Clapperboard className="w-5 h-5 text-[#7c5cff]" />}
+        onSeeAll={() => onNavigateTab('vod')}
+      >
+        {moviesList.map((mov) => {
+          const chObj: Channel = {
+            ...defaultLiveChannel,
+            id: mov.id,
+            name: mov.name,
+            category: mov.category,
+            streamType: 'vod',
+            logo: (mov as any).poster
+          };
+          return (
+            <div key={mov.id} className="w-[160px] sm:w-[180px] shrink-0">
+              <MediaCard
+                title={mov.name}
+                subtitle={mov.category}
+                poster={(mov as any).poster}
+                rating={(mov as any).rating}
+                badge={(mov as any).year}
+                aspectRatio="poster"
+                isFavorite={favorites.includes(mov.id)}
+                onPlay={() => onSelectChannel(chObj)}
+                onToggleFavorite={() => toggleFavorite(mov.id)}
+              />
+            </div>
+          );
+        })}
+      </HorizontalShelfScroll>
+
+      {/* 6. POPULAR TV SERIES (Streamly Series Shelf) */}
+      <HorizontalShelfScroll
+        title="Popular TV Series"
+        subtitle="Binge-worthy shows, dramas and complete seasons"
+        icon={<Film className="w-5 h-5 text-[#00e0c6]" />}
+        onSeeAll={() => onNavigateTab('series')}
+      >
+        {seriesList.map((ser) => {
+          const chObj: Channel = {
+            ...defaultLiveChannel,
+            id: ser.id,
+            name: ser.name,
+            category: ser.category,
+            streamType: 'series',
+            logo: (ser as any).poster
+          };
+          return (
+            <div key={ser.id} className="w-[160px] sm:w-[180px] shrink-0">
+              <MediaCard
+                title={ser.name}
+                subtitle={ser.category}
+                poster={(ser as any).poster}
+                rating={(ser as any).rating}
+                badge={(ser as any).seasons}
+                aspectRatio="poster"
+                isFavorite={favorites.includes(ser.id)}
+                onPlay={() => onSelectChannel(chObj)}
+                onToggleFavorite={() => toggleFavorite(ser.id)}
+              />
+            </div>
+          );
+        })}
+      </HorizontalShelfScroll>
+
+      {/* 7. BIG SCREEN & MOBILE DOWNLOAD PROMO BANNER */}
+      <div className="relative rounded-2xl overflow-hidden bg-gradient-to-r from-[#11141c] via-[#161a26] to-[#0f111a] border border-[#1f2330] p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl">
+        <div className="space-y-2 max-w-xl text-center md:text-left">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#7c5cff]/20 text-[#00e0c6] text-xs font-bold">
+            <Tv className="w-3.5 h-3.5" />
+            <span>Watch Anywhere</span>
+          </div>
+          <h3 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+            Take IPTV.Menu Pro to Your TV & Mobile
+          </h3>
+          <p className="text-sm text-[#9aa0b3]">
+            Sideload directly onto Amazon Fire TV and Android TV with Downloader code <span className="font-mono font-bold text-white px-1.5 py-0.5 rounded bg-white/10">94218</span>, or install on Android & iOS.
+          </p>
+        </div>
+
+        <button
+          onClick={() => onNavigateTab('downloads')}
+          className="shrink-0 flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-[#7c5cff] to-[#00e0c6] text-white font-bold text-sm shadow-lg shadow-[#7c5cff]/30 hover:opacity-95 transition-all cursor-pointer group"
+        >
+          <Download className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" />
+          <span>Get the App</span>
+        </button>
       </div>
 
     </div>

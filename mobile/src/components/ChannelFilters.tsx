@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
     borderColor: PALETTE.glassBorder,
   },
   pillActive: {
-    backgroundColor: 'rgba(56, 189, 248, 0.15)',
+    backgroundColor: 'rgba(124, 92, 255, 0.15)',
     borderColor: PALETTE.primary,
   },
   pillFocused: {
@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
     borderRadius: RADII.pill,
   },
   countBadgeActive: {
-    backgroundColor: 'rgba(56, 189, 248, 0.25)',
+    backgroundColor: 'rgba(124, 92, 255, 0.25)',
   },
   countText: {
     color: PALETTE.textDim,

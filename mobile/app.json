@@ -1,13 +1,13 @@
 {
   "expo": {
-    "name": "IPTV Player Pro",
+    "name": "IPTV.Menu Pro",
     "slug": "iptv-menu-app",
-    "scheme": "iptvplayer",
+    "scheme": "iptvmenu",
     "version": "1.0.0",
     "orientation": "default",
     "userInterfaceStyle": "dark",
     "splash": {
-      "backgroundColor": "#07090e"
+      "backgroundColor": "#06070b"
     },
     "plugins": [
       "expo-router",

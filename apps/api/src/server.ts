@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 const initialNodeEnv = process.env.NODE_ENV;
 dotenv.config();
 dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
@@ -238,6 +239,84 @@ app.get('/api/public/devices', (req, res) => {
       { id: 'formuler_z11', brand: 'Formuler', name: 'Z11 Pro Max Android Box', status: 'certified' }
     ]
   });
+});
+
+app.get('/api/public/downloads', (req, res) => {
+  res.json({
+    appName: 'IPTV.Menu Pro',
+    version: '1.2.0',
+    downloaderCode: '94218',
+    directApkUrl: '/api/download/latest.apk',
+    clients: [
+      {
+        id: 'firetv',
+        name: 'Amazon Fire TV & Android TV',
+        type: 'apk',
+        badge: 'TV Optimized',
+        architecture: 'Universal APK (arm64-v8a / armeabi-v7a)',
+        downloaderCode: '94218',
+        downloadUrl: '/api/download/latest.apk',
+        instructions: 'Open Downloader on Fire TV / Android TV, enter code 94218, and press Go to install.'
+      },
+      {
+        id: 'android_mobile',
+        name: 'Android Mobile & Tablet',
+        type: 'apk',
+        badge: 'Touch Optimized',
+        architecture: 'Universal APK',
+        downloadUrl: '/api/download/latest.apk',
+        instructions: 'Download APK directly on mobile browser and install.'
+      },
+      {
+        id: 'apple_pwa',
+        name: 'Apple iOS & macOS Web Player',
+        type: 'pwa',
+        badge: 'Instant Play',
+        downloadUrl: '/',
+        instructions: "Open Safari, tap Share, and select 'Add to Home Screen' for fullscreen app experience."
+      },
+      {
+        id: 'web_player',
+        name: 'Desktop Web Player',
+        type: 'web',
+        badge: '4K Fullscreen',
+        downloadUrl: '/',
+        instructions: 'Instant zero-install web streaming via Chrome, Edge, Safari, or Firefox.'
+      }
+    ]
+  });
+});
+
+app.get(['/api/download/latest.apk', '/download/latest.apk', '/api/public/download/latest.apk'], (req, res) => {
+  const remoteUrl = process.env.APK_DOWNLOAD_URL || process.env.EXPO_APK_URL || process.env.LATEST_APK_URL;
+  if (remoteUrl) {
+    return res.redirect(302, remoteUrl);
+  }
+
+  const candidatePaths = [
+    path.resolve(process.cwd(), 'public/IPTV-Menu-Pro.apk'),
+    path.resolve(process.cwd(), 'dist/IPTV-Menu-Pro.apk'),
+    path.resolve(process.cwd(), 'mobile/android/app/build/outputs/apk/release/app-release.apk'),
+    path.resolve(__dirname, '../../../public/IPTV-Menu-Pro.apk'),
+    path.resolve(__dirname, '../../../dist/IPTV-Menu-Pro.apk')
+  ];
+
+  for (const p of candidatePaths) {
+    if (fs.existsSync(p)) {
+      res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+      res.setHeader('Content-Disposition', 'attachment; filename="IPTV-Menu-Pro.apk"');
+      return res.sendFile(p);
+    }
+  }
+
+  // Fallback to latest GitHub release artifact
+  const fallbackUrl = 'https://github.com/angelburgosrosado/iptv-menu-app/releases/latest/download/IPTV-Menu-Pro.apk';
+  return res.redirect(302, fallbackUrl);
+});
+
+app.get(['/api/download/source.zip', '/download/source.zip', '/api/download/code.zip'], (req, res) => {
+  const remoteUrl = process.env.SOURCE_ZIP_URL || 'https://github.com/angelburgosrosado/iptv-menu-app/archive/refs/heads/main.zip';
+  return res.redirect(302, remoteUrl);
 });
 
 app.post('/api/public/contact', async (req, res) => {

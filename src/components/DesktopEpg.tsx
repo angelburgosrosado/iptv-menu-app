@@ -441,7 +441,7 @@ export default function DesktopEpg({ onSelectChannel }: DesktopEpgProps = {}) {
       )}
 
       {/* FILTER & SEARCH TOOLBAR */}
-      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-[#131418] border border-white/10 rounded-2xl p-3 shadow-md">
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 bg-[#0b0d14]/90 backdrop-blur-md border border-white/10 rounded-2xl p-3 shadow-md">
         {/* Search input */}
         <div className="relative flex-1 min-w-[240px] max-w-md">
           <Search className="w-4 h-4 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -450,7 +450,7 @@ export default function DesktopEpg({ onSelectChannel }: DesktopEpgProps = {}) {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search channels or shows..."
-            className="w-full bg-black/60 border border-white/10 focus:border-cyan-500 rounded-xl pl-9 pr-8 py-2 text-xs text-white placeholder-zinc-500 outline-none transition-all focus:ring-1 focus:ring-cyan-500/50"
+            className="w-full bg-black/60 border border-white/10 focus:border-[#7c5cff] rounded-xl pl-9 pr-8 py-2 text-xs text-white placeholder-zinc-500 outline-none transition-all focus:ring-1 focus:ring-[#7c5cff]/50"
           />
           {searchTerm && (
             <button
@@ -473,7 +473,7 @@ export default function DesktopEpg({ onSelectChannel }: DesktopEpgProps = {}) {
                 onClick={() => setSelectedCategory(cat)}
                 className={`px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
                   isActive
-                    ? 'bg-cyan-500 text-black shadow-md shadow-cyan-500/25 font-bold'
+                    ? 'bg-gradient-to-r from-[#7c5cff] to-[#00e0c6] text-black shadow-md shadow-[#7c5cff]/20 font-black'
                     : 'bg-white/5 text-zinc-300 hover:bg-white/10 hover:text-white border border-white/5'
                 }`}
               >
@@ -520,7 +520,7 @@ export default function DesktopEpg({ onSelectChannel }: DesktopEpgProps = {}) {
         </div>
       ) : (
         <>
-          <div className="bg-[#121316] border border-white/10 rounded-2xl p-3 flex flex-col md:flex-row items-center justify-between gap-3 shadow-lg">
+          <div className="bg-[#0b0d14]/90 backdrop-blur-md border border-white/10 rounded-2xl p-3 flex flex-col md:flex-row items-center justify-between gap-3 shadow-lg">
             {/* HORIZONTAL TIMELINE SCRUBBER RIBBON */}
           <div className="flex items-center gap-2">
             <button
@@ -592,7 +592,7 @@ export default function DesktopEpg({ onSelectChannel }: DesktopEpgProps = {}) {
         {/* TIMELINE GRID & INSPECTOR SPLIT */}
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-stretch">
           {/* Main Grid View */}
-          <div className="xl:col-span-8 flex flex-col bg-[#121316] border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
+          <div className="xl:col-span-8 flex flex-col bg-[#0b0d14]/90 backdrop-blur-md border border-white/10 rounded-3xl overflow-hidden shadow-2xl">
             {/* Header hours */}
             <div className="grid grid-cols-12 border-b border-white/10 bg-black/60 p-3.5 text-[11px] font-bold text-zinc-400 uppercase tracking-wider gap-3 select-none sticky top-0 z-20 backdrop-blur-md">
               <div className="col-span-3 flex items-center gap-1.5 text-zinc-300">
@@ -766,7 +766,7 @@ export default function DesktopEpg({ onSelectChannel }: DesktopEpgProps = {}) {
           {/* Show Inspector Sidebar */}
           <div className="xl:col-span-4 flex flex-col xl:sticky xl:top-4 h-fit">
             {selectedShow && selectedChannel ? (
-              <div className="bg-[#121316] border border-white/10 rounded-3xl p-6 flex flex-col gap-5 shadow-2xl">
+              <div className="bg-[#0b0d14]/95 backdrop-blur-xl border border-white/10 rounded-3xl p-6 flex flex-col gap-5 shadow-2xl">
                 {/* Channel Header Banner */}
                 <div className="flex items-center gap-3.5 pb-4 border-b border-white/10">
                   <div className="w-12 h-12 rounded-2xl bg-black/80 border border-white/10 p-2 flex-shrink-0 flex items-center justify-center overflow-hidden shadow-inner">

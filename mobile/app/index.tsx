@@ -59,8 +59,8 @@ export default function HomePage() {
               <Tv size={18} color="#fff" />
             </View>
             <View>
-              <Text style={styles.brandTitle}>IPTV PLAYER PRO</Text>
-              <Text style={styles.brandSubtitle}>Next-Gen Media Experience</Text>
+              <Text style={styles.brandTitle}>IPTV.MENU PRO</Text>
+              <Text style={styles.brandSubtitle}>High-Performance Stream Hub</Text>
             </View>
           </View>
 
@@ -201,9 +201,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   pairTvBtn: {
-    backgroundColor: 'rgba(56, 189, 248, 0.08)',
+    backgroundColor: 'rgba(124, 92, 255, 0.08)',
     borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.25)',
+    borderColor: 'rgba(124, 92, 255, 0.25)',
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: RADII.pill,
@@ -214,9 +214,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   xtreamBtn: {
-    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+    backgroundColor: 'rgba(124, 92, 255, 0.12)',
     borderWidth: 1,
-    borderColor: 'rgba(56, 189, 248, 0.28)',
+    borderColor: 'rgba(124, 92, 255, 0.28)',
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: RADII.pill,
