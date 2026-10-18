@@ -149,6 +149,27 @@ export function parseTokenPayload(token: string, secret: string = config.JWT_SEC
 export function getFirebaseAdmin(): any {
   if (adminApp) return adminApp;
 
+  const mockFirestore = () => ({
+    collection: (colName: string) => ({
+      doc: (docId: string) => ({
+        get: async () => ({ exists: false, data: () => null }),
+        set: async () => {},
+        update: async () => {},
+        delete: async () => {}
+      }),
+      where: () => ({
+        limit: () => ({ get: async () => ({ empty: true, docs: [] }) }),
+        get: async () => ({ empty: true, docs: [] })
+      }),
+      orderBy: () => ({
+        limit: () => ({ get: async () => ({ docs: [] }) }),
+        get: async () => ({ docs: [] })
+      }),
+      limit: () => ({ get: async () => ({ docs: [] }) }),
+      get: async () => ({ empty: true, docs: [] })
+    })
+  });
+
   // If no private key or in modern Vercel/Neon/Render environment without Firebase infrastructure
   if (!config.FIREBASE_CLIENT_EMAIL || !config.FIREBASE_PRIVATE_KEY || config.FIREBASE_PRIVATE_KEY.includes('...')) {
     return {
@@ -157,7 +178,8 @@ export function getFirebaseAdmin(): any {
         setCustomUserClaims: async () => {},
         revokeRefreshTokens: async () => {},
         getUser: async (uid: string) => ({ uid, email: `${uid}@iptv.menu` })
-      })
+      }),
+      firestore: mockFirestore
     };
   }
 
@@ -177,7 +199,8 @@ export function getFirebaseAdmin(): any {
         setCustomUserClaims: async () => {},
         revokeRefreshTokens: async () => {},
         getUser: async (uid: string) => ({ uid, email: `${uid}@iptv.menu` })
-      })
+      }),
+      firestore: mockFirestore
     };
   }
 }

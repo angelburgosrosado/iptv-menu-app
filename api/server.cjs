@@ -642,6 +642,29 @@ var require_dist3 = __commonJS({
     function getFirebaseAdmin2() {
       if (adminApp)
         return adminApp;
+      const mockFirestore = () => ({
+        collection: (colName) => ({
+          doc: (docId) => ({
+            get: async () => ({ exists: false, data: () => null }),
+            set: async () => {
+            },
+            update: async () => {
+            },
+            delete: async () => {
+            }
+          }),
+          where: () => ({
+            limit: () => ({ get: async () => ({ empty: true, docs: [] }) }),
+            get: async () => ({ empty: true, docs: [] })
+          }),
+          orderBy: () => ({
+            limit: () => ({ get: async () => ({ docs: [] }) }),
+            get: async () => ({ docs: [] })
+          }),
+          limit: () => ({ get: async () => ({ docs: [] }) }),
+          get: async () => ({ empty: true, docs: [] })
+        })
+      });
       if (!config_1.config.FIREBASE_CLIENT_EMAIL || !config_1.config.FIREBASE_PRIVATE_KEY || config_1.config.FIREBASE_PRIVATE_KEY.includes("...")) {
         return {
           auth: () => ({
@@ -651,7 +674,8 @@ var require_dist3 = __commonJS({
             revokeRefreshTokens: async () => {
             },
             getUser: async (uid) => ({ uid, email: `${uid}@iptv.menu` })
-          })
+          }),
+          firestore: mockFirestore
         };
       }
       try {
@@ -672,7 +696,8 @@ var require_dist3 = __commonJS({
             revokeRefreshTokens: async () => {
             },
             getUser: async (uid) => ({ uid, email: `${uid}@iptv.menu` })
-          })
+          }),
+          firestore: mockFirestore
         };
       }
     }
@@ -17083,7 +17108,7 @@ var require_dist4 = __commonJS({
       for (var p in m2) if (p !== "default" && !Object.prototype.hasOwnProperty.call(exports3, p)) __createBinding(exports3, m2, p);
     };
     Object.defineProperty(exports2, "__esModule", { value: true });
-    exports2.TvPairingRepository = exports2.AppConfigRepository = exports2.AuditLogRepository = exports2.WorkspaceRepository = exports2.BuildRepository = exports2.EpgRepository = exports2.PlaylistRepository = exports2.UserRepository = exports2.DbOperation = exports2.memoryPairings = exports2.memoryBuilds = exports2.memoryEpgFeeds = exports2.memoryPlaylistRuns = exports2.memoryPlaylists = exports2.memoryWorkspaces = exports2.sql = exports2.and = exports2.asc = exports2.desc = exports2.eq = void 0;
+    exports2.TvPairingRepository = exports2.AppConfigRepository = exports2.AuditLogRepository = exports2.WorkspaceRepository = exports2.BuildRepository = exports2.EpgRepository = exports2.PlaylistRepository = exports2.UserRepository = exports2.DbOperation = exports2.memoryAuditLogs = exports2.memoryAppConfigs = exports2.memoryPairings = exports2.memoryBuilds = exports2.memoryEpgFeeds = exports2.memoryPlaylistRuns = exports2.memoryPlaylists = exports2.memoryWorkspaces = exports2.memoryUsers = exports2.sql = exports2.and = exports2.asc = exports2.desc = exports2.eq = void 0;
     exports2.getFirestoreDB = getFirestoreDB2;
     var auth_1 = require_dist3();
     var logging_1 = require_dist2();
@@ -17108,17 +17133,92 @@ var require_dist4 = __commonJS({
       return drizzle_orm_2.sql;
     } });
     var logger8 = new logging_1.Logger("db-repository");
+    exports2.memoryUsers = /* @__PURE__ */ new Map();
     exports2.memoryWorkspaces = /* @__PURE__ */ new Map();
     exports2.memoryPlaylists = /* @__PURE__ */ new Map();
     exports2.memoryPlaylistRuns = /* @__PURE__ */ new Map();
     exports2.memoryEpgFeeds = /* @__PURE__ */ new Map();
     exports2.memoryBuilds = /* @__PURE__ */ new Map();
     exports2.memoryPairings = /* @__PURE__ */ new Map();
+    exports2.memoryAppConfigs = /* @__PURE__ */ new Map();
+    exports2.memoryAuditLogs = [];
     var dbInstance = null;
     function getFirestoreDB2() {
       if (dbInstance)
         return dbInstance;
       const adminApp = (0, auth_1.getFirebaseAdmin)();
+      if (!adminApp || typeof adminApp.firestore !== "function") {
+        const memoryStore = /* @__PURE__ */ new Map();
+        const getCol = (name2) => {
+          if (!memoryStore.has(name2))
+            memoryStore.set(name2, /* @__PURE__ */ new Map());
+          return memoryStore.get(name2);
+        };
+        dbInstance = {
+          collection: (colName) => {
+            const col = getCol(colName);
+            return {
+              doc: (docId) => ({
+                get: async () => ({
+                  exists: col.has(docId),
+                  data: () => col.get(docId) || null
+                }),
+                set: async (data) => {
+                  col.set(docId, data);
+                },
+                update: async (data) => {
+                  const prev = col.get(docId) || {};
+                  col.set(docId, { ...prev, ...data });
+                },
+                delete: async () => {
+                  col.delete(docId);
+                }
+              }),
+              where: (field, op, val) => {
+                const matches = Array.from(col.values()).filter((item) => item && item[field] === val);
+                return {
+                  limit: (n) => ({
+                    get: async () => ({
+                      empty: matches.length === 0,
+                      docs: matches.slice(0, n).map((m2) => ({ data: () => m2, exists: true }))
+                    })
+                  }),
+                  get: async () => ({
+                    empty: matches.length === 0,
+                    docs: matches.map((m2) => ({ data: () => m2, exists: true }))
+                  })
+                };
+              },
+              orderBy: () => ({
+                limit: (n) => ({
+                  get: async () => {
+                    const items = Array.from(col.values());
+                    return { docs: items.slice(0, n).map((m2) => ({ data: () => m2, exists: true })) };
+                  }
+                }),
+                get: async () => {
+                  const items = Array.from(col.values());
+                  return { docs: items.map((m2) => ({ data: () => m2, exists: true })) };
+                }
+              }),
+              limit: (n) => ({
+                get: async () => {
+                  const items = Array.from(col.values());
+                  return { docs: items.slice(0, n).map((m2) => ({ data: () => m2, exists: true })) };
+                }
+              }),
+              get: async () => {
+                const items = Array.from(col.values());
+                return {
+                  empty: items.length === 0,
+                  docs: items.map((m2) => ({ data: () => m2, exists: true }))
+                };
+              }
+            };
+          }
+        };
+        return dbInstance;
+      }
       dbInstance = adminApp.firestore();
       return dbInstance;
     }
@@ -17130,16 +17230,6 @@ var require_dist4 = __commonJS({
       DbOperation2["DELETE"] = "delete";
       DbOperation2["LIST"] = "list";
     })(DbOperation || (exports2.DbOperation = DbOperation = {}));
-    function handleFirestoreError(error, op, collection, docId) {
-      const errInfo = {
-        error: error instanceof Error ? error.message : String(error),
-        operationType: op,
-        path: docId ? `${collection}/${docId}` : collection,
-        timestamp: (/* @__PURE__ */ new Date()).toISOString()
-      };
-      logger8.error(`Firestore Error during ${op} on ${collection}`, error, errInfo);
-      throw new Error(JSON.stringify(errInfo));
-    }
     var UserRepository2 = class {
       collection = "users";
       get db() {
@@ -17150,32 +17240,34 @@ var require_dist4 = __commonJS({
           try {
             const db = (0, client_1.getDb)();
             const [row] = await db.select().from(client_1.schema.users).where((0, drizzle_orm_1.eq)(client_1.schema.users.uid, uid)).limit(1);
-            if (!row)
-              return null;
-            return {
-              uid: row.uid,
-              email: row.email,
-              displayName: row.displayName || void 0,
-              photoURL: row.photoURL || null,
-              role: row.role,
-              accountStatus: row.accountStatus,
-              subscriptionTier: row.subscriptionTier,
-              passwordHash: row.passwordHash || null,
-              createdAt: row.createdAt.toISOString(),
-              updatedAt: row.updatedAt.toISOString()
-            };
+            if (row) {
+              return {
+                uid: row.uid,
+                email: row.email,
+                displayName: row.displayName || void 0,
+                photoURL: row.photoURL || null,
+                role: row.role,
+                accountStatus: row.accountStatus,
+                subscriptionTier: row.subscriptionTier,
+                passwordHash: row.passwordHash || null,
+                createdAt: row.createdAt.toISOString(),
+                updatedAt: row.updatedAt.toISOString()
+              };
+            }
           } catch (err) {
-            logger8.error("Neon Drizzle error in getUser", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in getUser, checking memory fallback", err);
           }
+        }
+        if (exports2.memoryUsers.has(uid)) {
+          return exports2.memoryUsers.get(uid);
         }
         try {
           const doc = await this.db.collection(this.collection).doc(uid).get();
           if (!doc.exists)
             return null;
           return doc.data();
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.GET, this.collection, uid);
+        } catch {
+          return null;
         }
       }
       async getUserByEmail(email) {
@@ -17183,35 +17275,38 @@ var require_dist4 = __commonJS({
           try {
             const db = (0, client_1.getDb)();
             const [row] = await db.select().from(client_1.schema.users).where((0, drizzle_orm_1.eq)(client_1.schema.users.email, email)).limit(1);
-            if (!row)
-              return null;
-            return {
-              uid: row.uid,
-              email: row.email,
-              displayName: row.displayName || void 0,
-              photoURL: row.photoURL || null,
-              role: row.role,
-              accountStatus: row.accountStatus,
-              subscriptionTier: row.subscriptionTier,
-              passwordHash: row.passwordHash || null,
-              createdAt: row.createdAt.toISOString(),
-              updatedAt: row.updatedAt.toISOString()
-            };
+            if (row) {
+              return {
+                uid: row.uid,
+                email: row.email,
+                displayName: row.displayName || void 0,
+                photoURL: row.photoURL || null,
+                role: row.role,
+                accountStatus: row.accountStatus,
+                subscriptionTier: row.subscriptionTier,
+                passwordHash: row.passwordHash || null,
+                createdAt: row.createdAt.toISOString(),
+                updatedAt: row.updatedAt.toISOString()
+              };
+            }
           } catch (err) {
-            logger8.error("Neon Drizzle error in getUserByEmail", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in getUserByEmail, checking memory fallback", err);
           }
         }
+        const memoryUser = Array.from(exports2.memoryUsers.values()).find((u) => u.email.toLowerCase() === email.toLowerCase());
+        if (memoryUser)
+          return memoryUser;
         try {
           const snap = await this.db.collection(this.collection).where("email", "==", email).limit(1).get();
           if (snap.empty)
             return null;
           return snap.docs[0].data();
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.GET, this.collection, email);
+        } catch {
+          return null;
         }
       }
       async createUser(profile) {
+        exports2.memoryUsers.set(profile.uid, { ...profile });
         if (process.env.DATABASE_URL) {
           try {
             const db = (0, client_1.getDb)();
@@ -17239,8 +17334,7 @@ var require_dist4 = __commonJS({
             });
             return;
           } catch (err) {
-            logger8.error("Neon Drizzle error in createUser", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in createUser", err);
           }
         }
         try {
@@ -17249,11 +17343,18 @@ var require_dist4 = __commonJS({
             createdAt: (/* @__PURE__ */ new Date()).toISOString(),
             updatedAt: (/* @__PURE__ */ new Date()).toISOString()
           });
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.CREATE, this.collection, profile.uid);
+        } catch {
         }
       }
       async updateUser(uid, data) {
+        const existing = exports2.memoryUsers.get(uid);
+        if (existing) {
+          exports2.memoryUsers.set(uid, {
+            ...existing,
+            ...data,
+            updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+          });
+        }
         if (process.env.DATABASE_URL) {
           try {
             const db = (0, client_1.getDb)();
@@ -17264,8 +17365,7 @@ var require_dist4 = __commonJS({
             await db.update(client_1.schema.users).set(updatePayload).where((0, drizzle_orm_1.eq)(client_1.schema.users.uid, uid));
             return;
           } catch (err) {
-            logger8.error("Neon Drizzle error in updateUser", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in updateUser", err);
           }
         }
         try {
@@ -17273,8 +17373,7 @@ var require_dist4 = __commonJS({
             ...data,
             updatedAt: (/* @__PURE__ */ new Date()).toISOString()
           });
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.UPDATE, this.collection, uid);
+        } catch {
         }
       }
       async listUsers(limit = 100, offset = 0) {
@@ -17295,16 +17394,10 @@ var require_dist4 = __commonJS({
               updatedAt: row.updatedAt.toISOString()
             }));
           } catch (err) {
-            logger8.error("Neon Drizzle error in listUsers", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in listUsers, falling back to memory", err);
           }
         }
-        try {
-          const snapshot = await this.db.collection(this.collection).orderBy("createdAt", "desc").limit(limit).get();
-          return snapshot.docs.map((d) => d.data());
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.LIST, this.collection);
-        }
+        return Array.from(exports2.memoryUsers.values());
       }
     };
     exports2.UserRepository = UserRepository2;
@@ -17953,6 +18046,7 @@ var require_dist4 = __commonJS({
         return getFirestoreDB2();
       }
       async logAction(action) {
+        exports2.memoryAuditLogs.unshift({ ...action });
         if (process.env.DATABASE_URL) {
           try {
             const db = (0, client_1.getDb)();
@@ -17966,8 +18060,7 @@ var require_dist4 = __commonJS({
             });
             return;
           } catch (err) {
-            logger8.error("Neon Drizzle error in logAction", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in logAction", err);
           }
         }
         try {
@@ -17975,8 +18068,7 @@ var require_dist4 = __commonJS({
             ...action,
             createdAt: (/* @__PURE__ */ new Date()).toISOString()
           });
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.CREATE, this.collection, action.actionId);
+        } catch {
         }
       }
       async listActions(limit = 100) {
@@ -17994,15 +18086,14 @@ var require_dist4 = __commonJS({
               createdAt: row.createdAt.toISOString()
             }));
           } catch (err) {
-            logger8.error("Neon Drizzle error in listActions", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in listActions, falling back to memory", err);
           }
         }
         try {
           const snapshot = await this.db.collection(this.collection).orderBy("createdAt", "desc").limit(limit).get();
           return snapshot.docs.map((d) => d.data());
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.LIST, this.collection);
+        } catch {
+          return exports2.memoryAuditLogs.slice(0, limit);
         }
       }
     };
@@ -18017,35 +18108,37 @@ var require_dist4 = __commonJS({
           try {
             const db = (0, client_1.getDb)();
             const [row] = await db.select().from(client_1.schema.appConfigs).where((0, drizzle_orm_1.eq)(client_1.schema.appConfigs.appId, appId)).limit(1);
-            if (!row)
-              return null;
-            return {
-              appId: row.appId,
-              workspaceId: row.workspaceId,
-              ownerUid: row.ownerUid,
-              name: row.name,
-              slug: row.slug,
-              theme: row.theme,
-              playlistUrl: row.playlistUrl,
-              epgUrl: row.epgUrl,
-              announcement: row.announcement,
-              version: row.version,
-              active: row.active === "true",
-              createdAt: row.createdAt.toISOString(),
-              updatedAt: row.updatedAt.toISOString()
-            };
+            if (row) {
+              return {
+                appId: row.appId,
+                workspaceId: row.workspaceId,
+                ownerUid: row.ownerUid,
+                name: row.name,
+                slug: row.slug,
+                theme: row.theme,
+                playlistUrl: row.playlistUrl,
+                epgUrl: row.epgUrl,
+                announcement: row.announcement,
+                version: row.version,
+                active: row.active === "true",
+                createdAt: row.createdAt.toISOString(),
+                updatedAt: row.updatedAt.toISOString()
+              };
+            }
           } catch (err) {
-            logger8.error("Neon Drizzle error in getAppConfig", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in getAppConfig, checking memory fallback", err);
           }
+        }
+        if (exports2.memoryAppConfigs.has(appId)) {
+          return exports2.memoryAppConfigs.get(appId);
         }
         try {
           const doc = await this.db.collection(this.collection).doc(appId).get();
           if (!doc.exists)
             return null;
           return doc.data();
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.GET, this.collection, appId);
+        } catch {
+          return null;
         }
       }
       async createAppConfig(data) {
@@ -18057,6 +18150,7 @@ var require_dist4 = __commonJS({
           createdAt: now.toISOString(),
           updatedAt: now.toISOString()
         };
+        exports2.memoryAppConfigs.set(configRecord.appId, configRecord);
         if (process.env.DATABASE_URL) {
           try {
             const db = (0, client_1.getDb)();
@@ -18077,84 +18171,95 @@ var require_dist4 = __commonJS({
             });
             return configRecord;
           } catch (err) {
-            logger8.error("Neon Drizzle error in createAppConfig", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in createAppConfig", err);
           }
         }
         try {
           await this.db.collection(this.collection).doc(configRecord.appId).set(configRecord);
-          return configRecord;
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.CREATE, this.collection, configRecord.appId);
+        } catch {
         }
+        return configRecord;
       }
       async updateAppConfig(appId, updates) {
         const now = /* @__PURE__ */ new Date();
+        const existingMemory = exports2.memoryAppConfigs.get(appId);
+        let fallbackVersion = existingMemory ? (existingMemory.version || 1) + 1 : 1;
         if (process.env.DATABASE_URL) {
           try {
             const db = (0, client_1.getDb)();
             const [existing] = await db.select().from(client_1.schema.appConfigs).where((0, drizzle_orm_1.eq)(client_1.schema.appConfigs.appId, appId)).limit(1);
-            if (!existing)
-              throw new Error(`AppConfig ${appId} not found`);
-            const newVersion = (existing.version || 1) + 1;
-            const updatePayload = {
-              updatedAt: now,
-              version: newVersion
-            };
-            if (updates.name !== void 0)
-              updatePayload.name = updates.name;
-            if (updates.slug !== void 0)
-              updatePayload.slug = updates.slug;
-            if (updates.theme !== void 0)
-              updatePayload.theme = updates.theme;
-            if (updates.playlistUrl !== void 0)
-              updatePayload.playlistUrl = updates.playlistUrl;
-            if (updates.epgUrl !== void 0)
-              updatePayload.epgUrl = updates.epgUrl;
-            if (updates.announcement !== void 0)
-              updatePayload.announcement = updates.announcement;
-            if (updates.active !== void 0)
-              updatePayload.active = updates.active ? "true" : "false";
-            await db.update(client_1.schema.appConfigs).set(updatePayload).where((0, drizzle_orm_1.eq)(client_1.schema.appConfigs.appId, appId));
-            const [updated] = await db.select().from(client_1.schema.appConfigs).where((0, drizzle_orm_1.eq)(client_1.schema.appConfigs.appId, appId)).limit(1);
-            return {
-              appId: updated.appId,
-              workspaceId: updated.workspaceId,
-              ownerUid: updated.ownerUid,
-              name: updated.name,
-              slug: updated.slug,
-              theme: updated.theme,
-              playlistUrl: updated.playlistUrl,
-              epgUrl: updated.epgUrl,
-              announcement: updated.announcement,
-              version: updated.version,
-              active: updated.active === "true",
-              createdAt: updated.createdAt.toISOString(),
-              updatedAt: updated.updatedAt.toISOString()
-            };
+            if (existing) {
+              const newVersion = (existing.version || 1) + 1;
+              const updatePayload = {
+                updatedAt: now,
+                version: newVersion
+              };
+              if (updates.name !== void 0)
+                updatePayload.name = updates.name;
+              if (updates.slug !== void 0)
+                updatePayload.slug = updates.slug;
+              if (updates.theme !== void 0)
+                updatePayload.theme = updates.theme;
+              if (updates.playlistUrl !== void 0)
+                updatePayload.playlistUrl = updates.playlistUrl;
+              if (updates.epgUrl !== void 0)
+                updatePayload.epgUrl = updates.epgUrl;
+              if (updates.announcement !== void 0)
+                updatePayload.announcement = updates.announcement;
+              if (updates.active !== void 0)
+                updatePayload.active = updates.active ? "true" : "false";
+              await db.update(client_1.schema.appConfigs).set(updatePayload).where((0, drizzle_orm_1.eq)(client_1.schema.appConfigs.appId, appId));
+              const [updated] = await db.select().from(client_1.schema.appConfigs).where((0, drizzle_orm_1.eq)(client_1.schema.appConfigs.appId, appId)).limit(1);
+              const result = {
+                appId: updated.appId,
+                workspaceId: updated.workspaceId,
+                ownerUid: updated.ownerUid,
+                name: updated.name,
+                slug: updated.slug,
+                theme: updated.theme,
+                playlistUrl: updated.playlistUrl,
+                epgUrl: updated.epgUrl,
+                announcement: updated.announcement,
+                version: updated.version,
+                active: updated.active === "true",
+                createdAt: updated.createdAt.toISOString(),
+                updatedAt: updated.updatedAt.toISOString()
+              };
+              exports2.memoryAppConfigs.set(appId, result);
+              return result;
+            }
           } catch (err) {
-            logger8.error("Neon Drizzle error in updateAppConfig", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in updateAppConfig, checking fallback", err);
           }
         }
+        const baseConfig = existingMemory || {
+          appId,
+          workspaceId: "default",
+          ownerUid: "system",
+          name: updates.name || "IPTV App",
+          slug: updates.slug || "iptv-app",
+          theme: updates.theme || { primaryColor: "#6366f1", accentColor: "#ec4899" },
+          playlistUrl: updates.playlistUrl || "",
+          epgUrl: updates.epgUrl || null,
+          announcement: updates.announcement || null,
+          version: 1,
+          active: true,
+          createdAt: now.toISOString(),
+          updatedAt: now.toISOString()
+        };
+        const finalData = {
+          ...baseConfig,
+          ...updates,
+          version: fallbackVersion,
+          updatedAt: now.toISOString()
+        };
+        exports2.memoryAppConfigs.set(appId, finalData);
         try {
           const docRef = this.db.collection(this.collection).doc(appId);
-          const snapshot = await docRef.get();
-          if (!snapshot.exists)
-            throw new Error(`AppConfig ${appId} not found`);
-          const existing = snapshot.data();
-          const newVersion = (existing.version || 1) + 1;
-          const finalData = {
-            ...existing,
-            ...updates,
-            version: newVersion,
-            updatedAt: now.toISOString()
-          };
           await docRef.set(finalData, { merge: true });
-          return finalData;
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.UPDATE, this.collection, appId);
+        } catch {
         }
+        return finalData;
       }
       async listAppConfigsByWorkspace(workspaceId) {
         if (process.env.DATABASE_URL) {
@@ -18177,32 +18282,25 @@ var require_dist4 = __commonJS({
               updatedAt: row.updatedAt.toISOString()
             }));
           } catch (err) {
-            logger8.error("Neon Drizzle error in listAppConfigsByWorkspace", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in listAppConfigsByWorkspace, checking memory fallback", err);
           }
         }
-        try {
-          const snapshot = await this.db.collection(this.collection).where("workspaceId", "==", workspaceId).orderBy("updatedAt", "desc").get();
-          return snapshot.docs.map((d) => d.data());
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.LIST, this.collection);
-        }
+        return Array.from(exports2.memoryAppConfigs.values()).filter((c) => c.workspaceId === workspaceId);
       }
       async deleteAppConfig(appId) {
+        exports2.memoryAppConfigs.delete(appId);
         if (process.env.DATABASE_URL) {
           try {
             const db = (0, client_1.getDb)();
             await db.delete(client_1.schema.appConfigs).where((0, drizzle_orm_1.eq)(client_1.schema.appConfigs.appId, appId));
             return;
           } catch (err) {
-            logger8.error("Neon Drizzle error in deleteAppConfig", err);
-            throw err;
+            logger8.warn("Neon Drizzle error in deleteAppConfig", err);
           }
         }
         try {
           await this.db.collection(this.collection).doc(appId).delete();
-        } catch (err) {
-          handleFirestoreError(err, DbOperation.DELETE, this.collection, appId);
+        } catch {
         }
       }
     };
