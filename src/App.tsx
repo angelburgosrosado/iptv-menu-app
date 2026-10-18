@@ -21,10 +21,15 @@ import {
   LogOut,
   Maximize2,
   Film,
-  Clapperboard
+  Clapperboard,
+  Home,
+  Search,
+  PlayCircle,
+  Video
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
+import DesktopHome from './components/DesktopHome';
 import DesktopChannels from './components/DesktopChannels';
 import DesktopFavorites from './components/DesktopFavorites';
 import DesktopEpg from './components/DesktopEpg';
@@ -37,6 +42,7 @@ import LegalModal, { LegalTab } from './components/LegalModal';
 import XtreamConnector from './components/XtreamConnector';
 import MultiScreenMatrix from './components/MultiScreenMatrix';
 import AuthModal from './components/AuthModal';
+import { DvrModal } from './components/DvrModal';
 import WorkspaceSwitcher from './components/WorkspaceSwitcher';
 import FloatingPiPPlayer from './components/FloatingPiPPlayer';
 import WebCinemaPlayer from './components/WebCinemaPlayer';
@@ -89,6 +95,7 @@ export default function App() {
 
   const [isAuthModalOpen, setIsAuthModalOpen] = React.useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = React.useState(false);
+  const [isDvrModalOpen, setIsDvrModalOpen] = React.useState(false);
   const [isOnboardingModalOpen, setIsOnboardingModalOpen] = React.useState(false);
   const [isTvPairingOpen, setIsTvPairingOpen] = React.useState(false);
   const [pairingParamCode, setPairingParamCode] = React.useState('');
@@ -99,8 +106,8 @@ export default function App() {
   const [toastMessage, setToastMessage] = React.useState<string | null>(null);
   const [globalCinemaChannel, setGlobalCinemaChannel] = React.useState<Channel | null>(null);
 
-  // Default directly to 'channels' for a clean, video-focused experience
-  const [activeMenu, setActiveMenu] = React.useState<string>('channels');
+  // Default directly to 'home' matching the wireframe architecture
+  const [activeMenu, setActiveMenu] = React.useState<string>('home');
 
   const triggerToast = (msg: string) => {
     setToastMessage(msg);
@@ -109,7 +116,7 @@ export default function App() {
     }, 4000);
   };
 
-  const { sleepTimer, tickSleepTimer, channels, hydrateSavedXtreamSession } = usePlayerStore();
+  const { sleepTimer, tickSleepTimer, channels, hydrateSavedXtreamSession, searchTerm, setSearchTerm } = usePlayerStore();
 
   React.useEffect(() => {
     if (channels.length === 0 && hydrateSavedXtreamSession) {
@@ -157,30 +164,38 @@ export default function App() {
     }
   }, []);
 
-  // Streamlined sidebar items with media & system grouping
+  // Navigation matching wireframe: Search, Home, Live TV, VOD, Series, Recordings, Settings, Profile
   const SIDEBAR_ITEMS = [
-    { id: 'channels', label: 'Live TV', icon: Tv, section: 'watch' },
-    { id: 'vod', label: 'Movies', icon: Film, section: 'watch' },
-    { id: 'series', label: 'TV Series', icon: Clapperboard, section: 'watch' },
-    { id: 'epg', label: 'TV Guide', icon: CalendarRange, section: 'watch' },
-    { id: 'multiscreen', label: 'MultiScreen', icon: LayoutGrid, section: 'watch' },
-    { id: 'favorites', label: 'My Library', icon: Heart, section: 'library' },
-    { id: 'xtream', label: 'Xtream / Stalker', icon: Server, section: 'sources' },
-    { id: 'upload', label: 'M3U Playlists', icon: UploadCloud, section: 'sources' },
-    { id: 'settings', label: 'Settings', icon: Settings, section: 'manage' },
+    { id: 'search', label: 'Search', icon: Search },
+    { id: 'home', label: 'Home', icon: Home },
+    { id: 'channels', label: 'Live TV', icon: Tv },
+    { id: 'vod', label: 'VOD', icon: PlayCircle },
+    { id: 'series', label: 'Series', icon: Clapperboard },
+    { id: 'recordings', label: 'Recordings', icon: Video },
+    { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
   const MOBILE_TAB_ITEMS = [
-    { id: 'channels', label: 'Live', icon: Tv },
-    { id: 'vod', label: 'Movies', icon: Film },
+    { id: 'home', label: 'Home', icon: Home },
+    { id: 'channels', label: 'Live TV', icon: Tv },
+    { id: 'vod', label: 'VOD', icon: PlayCircle },
     { id: 'series', label: 'Series', icon: Clapperboard },
-    { id: 'epg', label: 'Guide', icon: CalendarRange },
-    { id: 'multiscreen', label: 'Quad', icon: LayoutGrid },
-    { id: 'favorites', label: 'Library', icon: Heart },
+    { id: 'recordings', label: 'Recordings', icon: Video },
+    { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
   const renderActiveSection = () => {
     switch (activeMenu) {
+      case 'home':
+        return (
+          <DesktopHome 
+            onSelectChannel={(ch) => setGlobalCinemaChannel(ch)} 
+            onNavigateTab={(tab) => {
+              if (tab === 'recordings') setIsDvrModalOpen(true);
+              else setActiveMenu(tab);
+            }} 
+          />
+        );
       case 'channels':
         return <DesktopChannels initialStreamType="live" onSwitchToMultiScreen={() => setActiveMenu('multiscreen')} onNavigateTab={(tab) => setActiveMenu(tab)} />;
       case 'vod':
@@ -202,7 +217,15 @@ export default function App() {
       case 'premium':
         return <DesktopPremium onTriggerAuth={() => setIsAuthModalOpen(true)} />;
       default:
-        return <DesktopChannels onSwitchToMultiScreen={() => setActiveMenu('multiscreen')} onNavigateTab={(tab) => setActiveMenu(tab)} />;
+        return (
+          <DesktopHome 
+            onSelectChannel={(ch) => setGlobalCinemaChannel(ch)} 
+            onNavigateTab={(tab) => {
+              if (tab === 'recordings') setIsDvrModalOpen(true);
+              else setActiveMenu(tab);
+            }} 
+          />
+        );
     }
   };
 
@@ -253,8 +276,48 @@ export default function App() {
           )}
         </div>
 
-        {/* Right Toolbar: Studio, TV Pairing, and User Auth */}
+        {/* Center/Left Search Pill matching wireframe */}
+        <div className="flex-1 max-w-lg mx-2 hidden sm:flex items-center">
+          <div className="relative w-full">
+            <Search className="w-4 h-4 text-zinc-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              id="global-header-search"
+              type="text"
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                if (activeMenu !== 'home' && activeMenu !== 'channels') {
+                  setActiveMenu('channels');
+                }
+              }}
+              placeholder="Search Movies, Shows, Channels..."
+              className="w-full bg-zinc-900/90 border border-white/10 focus:border-blue-500/60 rounded-full pl-10 pr-4 py-2 text-xs text-white placeholder-zinc-500 outline-none transition-all shadow-inner focus:ring-2 focus:ring-blue-500/20"
+            />
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white text-xs"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Right Toolbar: Studio, TV Pairing, Settings, and User Auth */}
         <div className="flex items-center gap-2.5 text-xs">
+          {/* Quick Settings Shortcut matching wireframe */}
+          <button
+            onClick={() => setActiveMenu('settings')}
+            className={`p-2 rounded-full border transition-all cursor-pointer ${
+              activeMenu === 'settings'
+                ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-500/30'
+                : 'bg-white/5 hover:bg-white/10 border-white/10 text-zinc-300 hover:text-white'
+            }`}
+            title="Open Settings"
+          >
+            <Settings className="w-4 h-4" />
+          </button>
           {/* App Studio Quick Link */}
           <button
             onClick={() => navigate(currentRoute === 'builder' ? '/' : '/builder')}
@@ -370,71 +433,84 @@ export default function App() {
           <div className="flex-1 w-full max-w-[1700px] mx-auto p-4 md:p-6 lg:p-8 pb-24 md:pb-8 flex flex-col gap-6 relative z-10 min-h-0">
           <div id="workspace-section" className="flex-1 flex flex-col md:flex-row gap-6 lg:gap-8 items-stretch min-h-0">
             
-            {/* Left Sidebar Navigation */}
+            {/* Left Sidebar Navigation matching wireframe */}
             <aside 
-              className="hidden md:flex w-20 bg-black/40 backdrop-blur-xl border border-white/10 rounded-[28px] flex-col items-center py-6 gap-6 flex-shrink-0 z-20 min-h-[550px] shadow-2xl relative"
+              className="hidden md:flex w-24 bg-black/50 backdrop-blur-xl border border-white/10 rounded-[28px] flex-col items-center py-5 gap-3 flex-shrink-0 z-20 min-h-[600px] shadow-2xl relative"
             >
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/25 text-lg font-extrabold text-white select-none">
-                📺
-              </div>
+              {/* Top (Logo/App Name) */}
+              <button
+                onClick={() => setActiveMenu('home')}
+                className="flex flex-col items-center gap-1 group cursor-pointer mb-2"
+                title="IPTV.MENU"
+              >
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/25 text-base font-extrabold text-white select-none group-hover:scale-105 transition-transform">
+                  IP
+                </div>
+                <span className="text-[10px] font-black tracking-tight text-zinc-400 group-hover:text-white transition-colors">
+                  IPTV.MENU
+                </span>
+              </button>
 
-              {/* Navigation Items List */}
-              <nav className="flex flex-col gap-3 items-center w-full relative">
-                {SIDEBAR_ITEMS.map((item, idx) => {
+              {/* Navigation Items List with stacked icon + label */}
+              <nav className="flex flex-col gap-2 items-center w-full px-2 relative">
+                {SIDEBAR_ITEMS.map((item) => {
                   const IconComponent = item.icon;
                   const isActive = activeMenu === item.id;
-                  const prevItem = SIDEBAR_ITEMS[idx - 1];
-                  const showDivider = prevItem && prevItem.section !== item.section;
                   
                   return (
-                    <React.Fragment key={item.id}>
-                      {showDivider && (
-                        <div className="w-8 h-[1px] bg-white/10 my-0.5" />
-                      )}
-                      <div className="relative group flex items-center justify-center w-full">
-                        {isActive && (
-                          <div 
-                            className="absolute left-0 w-1.5 h-8 bg-blue-500 rounded-r-full shadow-[0_0_12px_#3b82f6]"
-                          />
-                        )}
-
-                        <button
-                          onClick={() => setActiveMenu(item.id)}
-                          tabIndex={0}
-                          aria-label={item.label}
-                          className={`p-3 rounded-2xl transition-all duration-200 relative flex items-center justify-center outline-none cursor-pointer border ${
-                            isActive
-                              ? 'text-white border-blue-500/50 bg-blue-500/15 shadow-[0_0_20px_rgba(59,130,246,0.3)]'
-                              : 'text-zinc-400 hover:text-white border-transparent bg-transparent hover:bg-white/5'
-                          }`}
-                        >
-                          <IconComponent className="w-5 h-5" />
-                        </button>
-
-                        {/* Tooltip */}
-                        <div className="absolute left-full ml-4 px-3 py-1.5 bg-black/90 backdrop-blur-md text-[11px] font-bold text-white rounded-xl border border-white/10 opacity-0 translate-x-[-8px] pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 z-50 shadow-2xl whitespace-nowrap">
-                          {item.label}
-                        </div>
-                      </div>
-                    </React.Fragment>
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        if (item.id === 'recordings') {
+                          setIsDvrModalOpen(true);
+                        } else if (item.id === 'search') {
+                          const searchInput = document.getElementById('global-header-search');
+                          if (searchInput) searchInput.focus();
+                        } else {
+                          setActiveMenu(item.id);
+                        }
+                      }}
+                      tabIndex={0}
+                      aria-label={item.label}
+                      className={`w-full py-2.5 px-1 rounded-2xl flex flex-col items-center justify-center gap-1 transition-all duration-200 outline-none cursor-pointer border ${
+                        isActive
+                          ? 'bg-zinc-800/95 text-white border-white/20 shadow-xl shadow-black/50 ring-1 ring-white/10 scale-[1.02]'
+                          : 'text-zinc-400 hover:text-white border-transparent bg-transparent hover:bg-white/5'
+                      }`}
+                    >
+                      <IconComponent className={`w-5 h-5 ${isActive ? 'text-white' : 'text-zinc-400'}`} />
+                      <span className={`text-[10px] font-semibold tracking-tight text-center leading-none ${isActive ? 'text-white font-bold' : 'text-zinc-400'}`}>
+                        {item.label}
+                      </span>
+                    </button>
                   );
                 })}
               </nav>
 
-              {/* Bottom Pro Upgrade Button */}
-              <div className="mt-auto relative group flex items-center justify-center w-full">
+              {/* Bottom Profile Button matching wireframe */}
+              <div className="mt-auto flex flex-col items-center gap-2 w-full px-2 pt-2 border-t border-white/10">
                 <button
-                  onClick={() => navigate('/pricing')}
-                  className="p-2.5 rounded-2xl text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 transition-all outline-none cursor-pointer border border-amber-500/20"
-                  title="IPTV Pro Plans & Billing"
-                  aria-label="IPTV Pro Plans & Billing"
+                  onClick={() => {
+                    if (auth.isLoggedIn) {
+                      setIsProfileModalOpen(true);
+                    } else {
+                      setIsAuthModalOpen(true);
+                    }
+                  }}
+                  className={`w-full py-2 px-1 rounded-2xl flex flex-col items-center justify-center gap-1 transition-all duration-200 outline-none cursor-pointer border ${
+                    isProfileModalOpen
+                      ? 'bg-zinc-800/90 text-white border-white/25 shadow-xl'
+                      : 'text-zinc-400 hover:text-white border-transparent bg-transparent hover:bg-white/5'
+                  }`}
+                  title="Profile"
                 >
-                  <Crown className="w-4 h-4" />
+                  <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-bold text-white text-xs ring-1 ring-white/20 shadow-md">
+                    {auth.email ? auth.email.charAt(0).toUpperCase() : <User className="w-3.5 h-3.5" />}
+                  </div>
+                  <span className="text-[10px] font-semibold tracking-tight text-center leading-none text-zinc-400">
+                    Profile
+                  </span>
                 </button>
-                {/* Tooltip */}
-                <div className="absolute left-full ml-4 px-3 py-1.5 bg-black/90 backdrop-blur-md text-[11px] font-bold text-amber-300 rounded-xl border border-amber-500/20 opacity-0 translate-x-[-8px] pointer-events-none group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 z-50 shadow-2xl whitespace-nowrap">
-                  Pro Membership & Billing
-                </div>
               </div>
             </aside>
 
@@ -565,6 +641,12 @@ export default function App() {
         onClose={() => setIsTvPairingOpen(false)}
         triggerToast={triggerToast}
         initialCode={pairingParamCode}
+      />
+
+      {/* Global DVR Recordings Modal */}
+      <DvrModal
+        isOpen={isDvrModalOpen}
+        onClose={() => setIsDvrModalOpen(false)}
       />
 
       {/* Global Feedback Toast */}
