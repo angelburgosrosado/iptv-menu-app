@@ -205,9 +205,9 @@ export default function App() {
       case 'multiscreen':
         return <MultiScreenMatrix />;
       case 'favorites':
-        return <DesktopFavorites />;
+        return <DesktopFavorites onSelectChannel={(ch) => setGlobalCinemaChannel(ch)} />;
       case 'epg':
-        return <DesktopEpg />;
+        return <DesktopEpg onSelectChannel={(ch) => setGlobalCinemaChannel(ch)} />;
       case 'xtream':
         return <XtreamConnector onNavigateTab={(tab) => setActiveMenu(tab)} />;
       case 'upload':

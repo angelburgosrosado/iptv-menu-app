@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import * as React from 'react';
 import { usePlayerStore } from '../store/usePlayerStore';
 import { simRouter } from '../shims/expo-router';
@@ -15,19 +10,31 @@ import {
   Trash2, 
   Clock, 
   Tv, 
-  RotateCcw 
+  RotateCcw,
+  Radio,
+  Plus
 } from 'lucide-react';
 import { Channel } from '../types/iptv';
 import { PageProtocolHeader } from './PageProtocolHeader';
+import { StreamResolutionBadge, StreamCountryBadge } from './StreamInfoBadge';
+import { DEMO_FAST_CHANNELS } from '../data/demoChannels';
 
-export default function DesktopFavorites() {
+interface DesktopFavoritesProps {
+  onSelectChannel?: (channel: Channel) => void;
+}
+
+export default function DesktopFavorites({ onSelectChannel }: DesktopFavoritesProps = {}) {
   const { channels, vodChannels = [], seriesChannels = [], favorites, history, toggleFavorite, clearHistory } = usePlayerStore();
   const [activeTab, setActiveTab] = React.useState<'favorites' | 'history'>('favorites');
   const [showClearConfirm, setShowClearConfirm] = React.useState(false);
 
+  const effectiveChannels = React.useMemo(() => {
+    return channels && channels.length > 0 ? channels : DEMO_FAST_CHANNELS;
+  }, [channels]);
+
   const allChannels = React.useMemo(() => {
-    return [...channels, ...vodChannels, ...seriesChannels];
-  }, [channels, vodChannels, seriesChannels]);
+    return [...effectiveChannels, ...vodChannels, ...seriesChannels];
+  }, [effectiveChannels, vodChannels, seriesChannels]);
 
   // Find all actual channel structures for favorited channel IDs
   const favoriteChannels = React.useMemo(() => {
@@ -41,8 +48,12 @@ export default function DesktopFavorites() {
       .filter((c): c is Channel => Boolean(c));
   }, [allChannels, history]);
 
-  const handlePlayInSimulator = (channel: Channel) => {
-    simRouter.push(`/player/${channel.id}`);
+  const handlePlay = (channel: Channel) => {
+    if (onSelectChannel) {
+      onSelectChannel(channel);
+    } else {
+      simRouter.push(`/player/${channel.id}`);
+    }
   };
 
   const handleConfirmClearHistory = () => {
@@ -141,30 +152,92 @@ export default function DesktopFavorites() {
       {/* FAVORITES VIEW */}
       {activeTab === 'favorites' && (
         favoriteChannels.length === 0 ? (
-          <div className="flex-1 min-h-[350px] flex flex-col items-center justify-center border border-dashed border-white/10 rounded-3xl bg-white/[0.01] p-8 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-purple-500/10 flex items-center justify-center mb-4 border border-purple-500/20 text-purple-400">
-              <Star className="w-8 h-8 fill-current" />
+          <div className="flex flex-col gap-6">
+            <div className="p-6 rounded-3xl bg-gradient-to-br from-purple-900/20 via-[#16161a] to-black border border-purple-500/20 flex flex-col sm:flex-row items-center justify-between gap-6">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400 flex-shrink-0">
+                  <Star className="w-7 h-7 fill-current" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">Your Favorites Vault is Empty</h3>
+                  <p className="text-xs text-zinc-400 mt-1 max-w-xl">
+                    Bookmark your top channels for one-click access. Explore our recommended broadcast streams below or add any channel from the Live TV browser!
+                  </p>
+                </div>
+              </div>
             </div>
-            <h3 className="text-base font-bold text-white">No Favorites Selected</h3>
-            <p className="text-xs text-zinc-400 max-w-sm mt-1.5 leading-relaxed">
-              You haven't bookmarked any channels yet! Head over to the <strong className="text-white">Channels</strong> browser and click the heart icon on any stream to add it here.
-            </p>
+
+            {/* Recommended starter channels */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
+                  <Sparkles className="w-3.5 h-3.5 text-purple-400" /> Suggested Channels to Bookmark
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {DEMO_FAST_CHANNELS.slice(0, 8).map((c) => (
+                  <div
+                    key={c.id}
+                    className="group relative bg-[#16161a] hover:bg-[#1c1c21] border border-white/5 hover:border-purple-500/30 rounded-2xl p-4 flex flex-col transition-all hover:-translate-y-1 shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="w-12 h-12 rounded-xl bg-black/60 border border-white/10 flex items-center justify-center p-2 overflow-hidden flex-shrink-0">
+                        <img
+                          src={c.logo || 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=120&auto=format&fit=crop&q=60'}
+                          alt={c.name}
+                          className="max-w-full max-h-full object-contain"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=120&auto=format&fit=crop&q=60';
+                          }}
+                        />
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                        <StreamResolutionBadge channel={c} />
+                        <StreamCountryBadge channel={c} />
+                      </div>
+                    </div>
+
+                    <div className="min-w-0 mb-4">
+                      <h4 className="text-xs font-bold text-white truncate group-hover:text-purple-300 transition-colors">
+                        {c.name}
+                      </h4>
+                      <span className="text-[10px] text-zinc-400 font-semibold block truncate uppercase tracking-wider mt-0.5">
+                        {c.group || 'Live Broadcast'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 mt-auto">
+                      <button
+                        onClick={() => toggleFavorite(c.id)}
+                        className="py-2 px-3 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors border border-purple-500/20 cursor-pointer"
+                        title="Add to Favorites"
+                      >
+                        <Heart className="w-3.5 h-3.5" />
+                        Favorite
+                      </button>
+                      <button
+                        onClick={() => handlePlay(c)}
+                        className="py-2 px-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-md shadow-purple-500/20 transition-all cursor-pointer"
+                        title="Stream Now"
+                      >
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                        Stream
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 overflow-y-auto max-h-[520px] pr-2 scrollbar-thin">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 overflow-y-auto max-h-[560px] pr-2 scrollbar-thin">
             {favoriteChannels.map((c) => (
               <div
                 key={c.id}
                 className="group relative bg-[#16161a] hover:bg-[#1c1c21] border border-white/5 hover:border-purple-500/30 rounded-2xl p-4 flex flex-col transition-all hover:-translate-y-1 shadow-sm"
               >
-                <div className="absolute top-3 right-3 flex items-center gap-1">
-                  <span className="text-[9px] font-bold text-purple-300 uppercase tracking-widest px-1.5 py-0.5 bg-purple-500/10 rounded-md border border-purple-500/20 flex items-center gap-0.5">
-                    <Sparkles className="w-2.5 h-2.5" /> FAV
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-3.5 mb-4">
-                  <div className="w-12 h-12 rounded-xl bg-black/60 border border-white/5 flex items-center justify-center p-2 overflow-hidden flex-shrink-0">
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="w-12 h-12 rounded-xl bg-black/60 border border-white/10 flex items-center justify-center p-2 overflow-hidden flex-shrink-0">
                     <img
                       src={c.logo || 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=120&auto=format&fit=crop&q=60'}
                       alt={c.name}
@@ -174,14 +247,22 @@ export default function DesktopFavorites() {
                       }}
                     />
                   </div>
-                  <div className="min-w-0 pr-8">
-                    <h4 className="text-xs font-bold text-white truncate group-hover:text-purple-300 transition-colors">
-                      {c.name}
-                    </h4>
-                    <span className="text-[10px] text-zinc-400 font-semibold block truncate uppercase tracking-wider mt-0.5">
-                      {c.group}
+                  <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                    <StreamResolutionBadge channel={c} />
+                    <StreamCountryBadge channel={c} />
+                    <span className="text-[9px] font-bold text-purple-300 uppercase tracking-widest px-1.5 py-0.5 bg-purple-500/10 rounded-md border border-purple-500/20 flex items-center gap-0.5">
+                      <Sparkles className="w-2.5 h-2.5" /> FAV
                     </span>
                   </div>
+                </div>
+
+                <div className="min-w-0 mb-4">
+                  <h4 className="text-xs font-bold text-white truncate group-hover:text-purple-300 transition-colors">
+                    {c.name}
+                  </h4>
+                  <span className="text-[10px] text-zinc-400 font-semibold block truncate uppercase tracking-wider mt-0.5">
+                    {c.group || 'Live Stream'}
+                  </span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 mt-auto">
@@ -194,7 +275,7 @@ export default function DesktopFavorites() {
                     Remove
                   </button>
                   <button
-                    onClick={() => handlePlayInSimulator(c)}
+                    onClick={() => handlePlay(c)}
                     className="py-2 px-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-md shadow-purple-500/20 transition-all cursor-pointer"
                     aria-label={`Stream ${c.name}`}
                   >
@@ -211,17 +292,49 @@ export default function DesktopFavorites() {
       {/* WATCH HISTORY VIEW */}
       {activeTab === 'history' && (
         historyChannels.length === 0 ? (
-          <div className="flex-1 min-h-[350px] flex flex-col items-center justify-center border border-dashed border-white/10 rounded-3xl bg-white/[0.01] p-8 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 flex items-center justify-center mb-4 border border-cyan-500/20 text-cyan-400">
-              <History className="w-8 h-8" />
+          <div className="flex flex-col gap-6">
+            <div className="flex-1 min-h-[220px] flex flex-col items-center justify-center border border-dashed border-white/10 rounded-3xl bg-white/[0.01] p-8 text-center">
+              <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 flex items-center justify-center mb-4 border border-cyan-500/20 text-cyan-400">
+                <History className="w-8 h-8" />
+              </div>
+              <h3 className="text-base font-bold text-white">No Playback History Recorded</h3>
+              <p className="text-xs text-zinc-400 max-w-sm mt-1.5 leading-relaxed">
+                When you launch streams in the Web Cinema player or simulator, your recently viewed channels will automatically appear here.
+              </p>
             </div>
-            <h3 className="text-base font-bold text-white">No Playback History Recorded</h3>
-            <p className="text-xs text-zinc-400 max-w-sm mt-1.5 leading-relaxed">
-              When you launch streams in the phone simulator or Web Cinema player, your recently viewed channels will be automatically tracked here.
-            </p>
+
+            <div>
+              <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2 mb-3">
+                <Sparkles className="w-3.5 h-3.5 text-cyan-400" /> Start Watching Today
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {DEMO_FAST_CHANNELS.slice(0, 4).map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => handlePlay(c)}
+                    className="flex items-center gap-3 p-3 rounded-2xl bg-[#16161a] hover:bg-[#1c1c21] border border-white/5 hover:border-cyan-500/30 transition-all text-left group cursor-pointer"
+                  >
+                    <div className="w-10 h-10 rounded-xl bg-black/60 border border-white/10 p-1 flex items-center justify-center overflow-hidden flex-shrink-0">
+                      <img
+                        src={c.logo || 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=120&auto=format&fit=crop&q=60'}
+                        alt={c.name}
+                        className="max-w-full max-h-full object-contain"
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-bold text-white truncate group-hover:text-cyan-300 transition-colors">
+                        {c.name}
+                      </div>
+                      <div className="text-[10px] text-zinc-500 truncate">{c.group || 'Live'}</div>
+                    </div>
+                    <Play className="w-4 h-4 text-cyan-400 opacity-60 group-hover:opacity-100 flex-shrink-0" />
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         ) : (
-          <div className="flex flex-col gap-2 overflow-y-auto max-h-[520px] pr-2 scrollbar-thin">
+          <div className="flex flex-col gap-2 overflow-y-auto max-h-[560px] pr-2 scrollbar-thin">
             {historyChannels.map((c, idx) => (
               <div
                 key={c.id}
@@ -242,7 +355,10 @@ export default function DesktopFavorites() {
                     />
                   </div>
                   <div className="min-w-0">
-                    <h4 className="text-xs font-bold text-white truncate">{c.name}</h4>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-xs font-bold text-white truncate">{c.name}</h4>
+                      <StreamResolutionBadge channel={c} />
+                    </div>
                     <span className="text-[10px] text-zinc-400 flex items-center gap-1.5 mt-0.5">
                       <Clock className="w-3 h-3 text-cyan-400" />
                       Recently streamed • {c.group}
@@ -252,7 +368,7 @@ export default function DesktopFavorites() {
 
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => handlePlayInSimulator(c)}
+                    onClick={() => handlePlay(c)}
                     className="px-3.5 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-cyan-500/20 transition-all cursor-pointer"
                     aria-label={`Resume stream ${c.name}`}
                   >

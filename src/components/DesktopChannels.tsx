@@ -56,6 +56,7 @@ import {
   normalizeCategory, 
   getChannelAvatarDataUri
 } from '../utils/channelEnrichment';
+import { DEMO_FAST_CHANNELS } from '../data/demoChannels';
 
 interface DesktopChannelsProps {
   initialStreamType?: 'all' | 'live' | 'vod' | 'series';
@@ -134,18 +135,26 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
     return term.includes('movie') || term.includes('vod') || term.includes('film');
   }, [isSeriesChannel]);
 
-  // Segregated Active Catalog: Divided to avoid mixing tens of thousands of items into live TV
+  // Segregated Active Catalog: Fall back to DEMO_FAST_CHANNELS if user has not yet connected playlists
+  const effectiveChannels = React.useMemo(() => {
+    return channels && channels.length > 0 ? channels : DEMO_FAST_CHANNELS;
+  }, [channels]);
+
   const activeCatalog = React.useMemo(() => {
     if (selectedStreamType === 'vod') {
       if (vodChannels && vodChannels.length > 0) return vodChannels;
-      return channels.filter(isVodMovieChannel);
+      const vodList = effectiveChannels.filter(isVodMovieChannel);
+      if (vodList.length > 0) return vodList;
+      return DEMO_FAST_CHANNELS.filter(c => c.streamType === 'vod');
     }
     if (selectedStreamType === 'series') {
       if (seriesChannels && seriesChannels.length > 0) return seriesChannels;
-      return channels.filter(isSeriesChannel);
+      const seriesList = effectiveChannels.filter(isSeriesChannel);
+      if (seriesList.length > 0) return seriesList;
+      return DEMO_FAST_CHANNELS.filter(c => c.streamType === 'series');
     }
-    return channels.filter((c) => c.streamType === 'live' || (!c.streamType && !isVodMovieChannel(c) && !isSeriesChannel(c)));
-  }, [selectedStreamType, channels, vodChannels, seriesChannels, isVodMovieChannel, isSeriesChannel]);
+    return effectiveChannels.filter((c) => c.streamType === 'live' || (!c.streamType && !isVodMovieChannel(c) && !isSeriesChannel(c)));
+  }, [selectedStreamType, effectiveChannels, vodChannels, seriesChannels, isVodMovieChannel, isSeriesChannel]);
 
   // Available Categories derived cleanly from active catalog only, with top categories prioritized
   const { availableCategories, topCategories, overflowCategories, categoryCounts } = React.useMemo(() => {
@@ -793,11 +802,13 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
             )}
           </div>
         ) : (
-          /* Live TV Horizontal Strip Cards */
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3.5 overflow-y-auto max-h-[580px] pr-2 scrollbar-thin">
+          /* Live TV Enhanced Visual Cards Grid */
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto max-h-[620px] pr-2 scrollbar-thin">
             {visibleChannels.map((c) => {
               const isFav = favorites.includes(c.id);
               const isLocked = isChannelLocked({ id: c.id, name: c.name, group: c.group });
+              const pseudoProgress = Math.floor(((c.name.length * 19) % 55) + 35);
+
               return (
                 <div
                   key={c.id}
@@ -810,79 +821,85 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
                       handleOpenCinema(c);
                     }
                   }}
-                  className="group relative bg-[#16161a] hover:bg-[#1c1c21] border border-white/5 hover:border-cyan-500/30 rounded-2xl p-3.5 flex items-center justify-between transition-all hover:-translate-y-0.5 shadow-sm cursor-pointer"
+                  className="group relative bg-[#121216] hover:bg-[#181820] border border-white/10 hover:border-cyan-500/50 rounded-2xl p-4 flex flex-col justify-between gap-3.5 transition-all duration-200 hover:-translate-y-1 hover:shadow-2xl hover:shadow-cyan-500/10 cursor-pointer"
                 >
-                  {/* Channel Thumbnail & Info */}
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className="w-11 h-11 rounded-xl bg-black/60 border border-white/5 flex items-center justify-center p-2 overflow-hidden flex-shrink-0 relative">
-                      <img
-                        src={c.logo || getChannelAvatarDataUri(c.name)}
-                        alt={c.name}
-                        onError={(e) => {
-                          const target = e.currentTarget;
-                          if (!target.dataset.fallback) {
-                            target.dataset.fallback = 'true';
-                            target.src = getChannelAvatarDataUri(c.name);
-                          }
-                        }}
-                        className="w-full h-full object-contain"
-                        loading="lazy"
-                      />
-                      <div className="absolute bottom-1 right-1 w-2 h-2 rounded-full border border-black/80">
-                        <div className={`w-full h-full rounded-full ${
-                          c.healthStatus === 'blocked' ? 'bg-amber-400' : 'bg-emerald-400 health-badge-live'
-                        }`} />
+                  {/* Top Row: Channel Logo + Live Indicator + Quality Badges */}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-12 h-12 rounded-xl bg-black/80 border border-white/10 flex items-center justify-center p-2 overflow-hidden flex-shrink-0 relative shadow-inner group-hover:border-cyan-500/40 transition-colors">
+                        <img
+                          src={c.logo || getChannelAvatarDataUri(c.name)}
+                          alt={c.name}
+                          onError={(e) => {
+                            const target = e.currentTarget;
+                            if (!target.dataset.fallback) {
+                              target.dataset.fallback = 'true';
+                              target.src = getChannelAvatarDataUri(c.name);
+                            }
+                          }}
+                          className="w-full h-full object-contain"
+                          loading="lazy"
+                        />
+                        <div className="absolute bottom-1 right-1 w-2.5 h-2.5 rounded-full border border-black/90">
+                          <div className={`w-full h-full rounded-full ${
+                            c.healthStatus === 'blocked' ? 'bg-amber-400' : 'bg-emerald-400 animate-pulse'
+                          }`} />
+                        </div>
                       </div>
-                    </div>
-                    <div className="min-w-0 pr-2 flex-1">
-                      {/* Line 1: Channel Name + Resolution + Bitrate + Lock */}
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h4 className="text-xs font-bold text-white truncate leading-tight group-hover:text-cyan-400 transition-colors">
+
+                      <div className="min-w-0">
+                        <h4 className="text-sm font-bold text-white truncate leading-tight group-hover:text-cyan-400 transition-colors">
                           {c.name}
                         </h4>
-                        <StreamResolutionBadge resolution={c.resolution || '1080p FHD'} />
-                        {c.bitrate && <StreamBitrateBadge bitrate={c.bitrate} fps={c.fps} />}
-                        {isLocked && (
-                          <span className="text-rose-400 flex items-center gap-0.5 font-semibold text-[10px] bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20">
-                            <Lock className="w-2.5 h-2.5" /> Locked
+                        <div className="flex items-center gap-1.5 mt-1 text-[10px]">
+                          <span className="px-1.5 py-0.5 rounded-md bg-white/[0.06] font-semibold text-zinc-300 border border-white/10 truncate max-w-[110px]">
+                            {c.category || c.group}
                           </span>
-                        )}
-                      </div>
-
-                      {/* Line 2: Stream Metadata Ribbon (Live Status, Category, Country, Source) */}
-                      <div className="flex flex-wrap items-center gap-1.5 mt-1.5 text-[10px]">
-                        <StreamLiveIndicator streamType="live" healthStatus={c.healthStatus} />
-                        <span className="px-1.5 py-0.5 rounded-md bg-white/[0.04] text-[9px] font-semibold text-zinc-300 border border-white/5 truncate max-w-[100px]">
-                          {c.category || c.group}
-                        </span>
-                        <StreamCountryBadge countryCode={c.countryCode} countryName={c.countryName} countryFlag={c.countryFlag} />
-                        {c.directSource && (
-                          <span className="px-1.5 py-0.5 rounded-md bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-[9px] font-mono font-bold uppercase">
-                            {c.directSource === 'xtream' ? 'XTREAM' : c.directSource === 'stalker' ? 'STALKER' : 'HLS'}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Line 3: EPG Now Playing Broadcast Row */}
-                      {(c.currentProgram || c.epgDescription) && (
-                        <div className="flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-lg bg-emerald-500/[0.08] border border-emerald-500/20 text-[10px] text-emerald-300 font-medium">
-                          <Radio className="w-3 h-3 text-emerald-400 shrink-0 animate-pulse" />
-                          <span className="font-bold text-white truncate">{c.currentProgram || c.epgDescription}</span>
-                          {c.currentProgram && c.epgDescription && (
-                            <span className="text-zinc-400 truncate hidden md:inline">— {c.epgDescription}</span>
-                          )}
+                          <StreamCountryBadge countryCode={c.countryCode} countryName={c.countryName} countryFlag={c.countryFlag} />
                         </div>
+                      </div>
+                    </div>
+
+                    {/* Stream Resolution & Lock Badges */}
+                    <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                      <StreamResolutionBadge resolution={c.resolution || '1080p FHD'} />
+                      {c.bitrate && <StreamBitrateBadge bitrate={c.bitrate} fps={c.fps} />}
+                      {isLocked && (
+                        <span className="text-rose-400 flex items-center gap-0.5 font-semibold text-[10px] bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20">
+                          <Lock className="w-2.5 h-2.5" /> Locked
+                        </span>
                       )}
                     </div>
                   </div>
 
-                  {/* Primary Actions: Watch, Favorite, and Secondary Menu */}
-                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                  {/* Middle Row: Current Programme / Broadcast */}
+                  <div className="px-3 py-2 rounded-xl bg-white/[0.03] border border-white/5 flex items-center gap-2 text-xs">
+                    <Radio className="w-3.5 h-3.5 text-cyan-400 shrink-0 animate-pulse" />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-zinc-200 truncate">
+                        {c.currentProgram || c.epgDescription || 'Live Broadcast Transmission'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Live Progress Bar with Live Pulsing Tag */}
+                  <div className="flex items-center justify-between gap-3 pt-1 border-t border-white/5">
+                    <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full"
+                        style={{ width: `${pseudoProgress}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-red-500">
+                      <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                      <span>Live</span>
+                    </div>
+                  </div>
+
+                  {/* Bottom Actions Row: Watch Now, PiP, Favorite, More */}
+                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-white/5" onClick={(e) => e.stopPropagation()}>
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleFavorite(c.id);
-                      }}
+                      onClick={() => toggleFavorite(c.id)}
                       className={`p-2 rounded-xl border transition-all cursor-pointer ${
                         isFav
                           ? 'bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/20'
@@ -893,92 +910,87 @@ export default function DesktopChannels({ initialStreamType, onSwitchToMultiScre
                       <Heart className={`w-3.5 h-3.5 ${isFav ? 'fill-current' : ''}`} />
                     </button>
 
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenCinema(c);
-                      }}
-                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white shadow-md shadow-cyan-500/20 text-xs font-bold transition-all cursor-pointer"
-                      title="Watch"
-                    >
-                      <Play className="w-3.5 h-3.5 fill-current" />
-                      <span>Watch</span>
-                    </button>
-
-                    {/* Secondary Options Menu */}
-                    <div className="relative">
+                    <div className="flex items-center gap-1.5">
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setOpenMenuChannelId(openMenuChannelId === c.id ? null : c.id);
-                        }}
-                        className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-transparent transition-all cursor-pointer"
-                        title="More options"
+                        onClick={() => openPiP(c)}
+                        className="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer border border-white/5"
+                        title="Picture in Picture Mini-Player"
                       >
-                        <MoreVertical className="w-3.5 h-3.5" />
+                        <PictureInPicture className="w-3.5 h-3.5 text-sky-400" />
+                        <span>PiP</span>
                       </button>
 
-                      {openMenuChannelId === c.id && (
-                        <div 
-                          onClick={(e) => e.stopPropagation()}
-                          className="absolute right-0 top-full mt-1.5 w-44 bg-[#1a1a20] border border-white/15 rounded-xl shadow-2xl z-40 p-1 flex flex-col gap-0.5 text-xs text-zinc-300 animate-in fade-in duration-100"
+                      <button
+                        onClick={() => handleOpenCinema(c)}
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white shadow-lg shadow-cyan-500/25 text-xs font-bold transition-all cursor-pointer active:scale-95"
+                        title="Watch in Cinema Mode"
+                      >
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                        <span>Watch</span>
+                      </button>
+
+                      {/* Secondary Options Menu */}
+                      <div className="relative">
+                        <button
+                          onClick={() => setOpenMenuChannelId(openMenuChannelId === c.id ? null : c.id)}
+                          className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white border border-transparent transition-all cursor-pointer"
+                          title="More options"
                         >
-                          <button
-                            onClick={() => {
-                              openPiP(c);
-                              setOpenMenuChannelId(null);
-                            }}
-                            className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-left cursor-pointer"
+                          <MoreVertical className="w-3.5 h-3.5" />
+                        </button>
+
+                        {openMenuChannelId === c.id && (
+                          <div 
+                            onClick={(e) => e.stopPropagation()}
+                            className="absolute right-0 bottom-full mb-1.5 w-44 bg-[#1a1a20] border border-white/15 rounded-xl shadow-2xl z-40 p-1 flex flex-col gap-0.5 text-xs text-zinc-300 animate-in fade-in duration-100"
                           >
-                            <PictureInPicture className="w-3.5 h-3.5 text-cyan-400" />
-                            <span>Picture-in-Picture</span>
-                          </button>
-                          <button
-                            onClick={() => {
-                              handleAddToMultiScreen(c);
-                              setOpenMenuChannelId(null);
-                            }}
-                            className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-left cursor-pointer"
-                          >
-                            <LayoutGrid className="w-3.5 h-3.5 text-cyan-400" />
-                            <span>Quad Screen</span>
-                          </button>
-                          <button
-                            onClick={() => {
-                              setTaggingChannel(c);
-                              setOpenMenuChannelId(null);
-                            }}
-                            className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-left cursor-pointer"
-                          >
-                            <Tag className="w-3.5 h-3.5 text-cyan-400" />
-                            <span>Custom Tags</span>
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (!parentalControls.pinHash) {
-                                setShowParentalModal(true);
-                              } else {
-                                toggleChannelLock(c.id);
-                              }
-                              setOpenMenuChannelId(null);
-                            }}
-                            className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-left cursor-pointer"
-                          >
-                            {isLocked ? <Unlock className="w-3.5 h-3.5 text-amber-400" /> : <Lock className="w-3.5 h-3.5 text-rose-400" />}
-                            <span>{isLocked ? 'Unlock Channel' : 'Lock with PIN'}</span>
-                          </button>
-                          <button
-                            onClick={() => {
-                              handlePlayInSimulator(c);
-                              setOpenMenuChannelId(null);
-                            }}
-                            className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-left cursor-pointer"
-                          >
-                            <Smartphone className="w-3.5 h-3.5 text-cyan-400" />
-                            <span>Phone Simulator</span>
-                          </button>
-                        </div>
-                      )}
+                            <button
+                              onClick={() => {
+                                handleAddToMultiScreen(c);
+                                setOpenMenuChannelId(null);
+                              }}
+                              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-left cursor-pointer"
+                            >
+                              <LayoutGrid className="w-3.5 h-3.5 text-cyan-400" />
+                              <span>Add to Quad View</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                setTaggingChannel(c);
+                                setOpenMenuChannelId(null);
+                              }}
+                              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-left cursor-pointer"
+                            >
+                              <Tag className="w-3.5 h-3.5 text-cyan-400" />
+                              <span>Custom Tags</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (!parentalControls.pinHash) {
+                                  setShowParentalModal(true);
+                                } else {
+                                  toggleChannelLock(c.id);
+                                }
+                                setOpenMenuChannelId(null);
+                              }}
+                              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-left cursor-pointer"
+                            >
+                              {isLocked ? <Unlock className="w-3.5 h-3.5 text-amber-400" /> : <Lock className="w-3.5 h-3.5 text-rose-400" />}
+                              <span>{isLocked ? 'Unlock Channel' : 'Lock with PIN'}</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                handlePlayInSimulator(c);
+                                setOpenMenuChannelId(null);
+                              }}
+                              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-white/10 text-left cursor-pointer"
+                            >
+                              <Smartphone className="w-3.5 h-3.5 text-cyan-400" />
+                              <span>Phone Simulator</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

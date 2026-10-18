@@ -37,6 +37,7 @@ import { DvrModal } from './DvrModal';
 import { foldSearchText } from '../utils/searchQueryParser';
 import { isCatchupSupported, buildCatchupUrl } from '../utils/catchupEngine';
 import { fetchWithAuth } from '../lib/apiClient';
+import { DEMO_FAST_CHANNELS } from '../data/demoChannels';
 
 export const EPG_PRESETS = [
   { id: 'us', name: 'United States (IPTV-ORG)', url: 'https://iptv-org.github.io/epg/guides/us.xml', description: '850+ major broadcast, sports & cable channels' },
@@ -60,7 +61,11 @@ interface Show {
   isCatchupAvailable?: boolean;
 }
 
-export default function DesktopEpg() {
+interface DesktopEpgProps {
+  onSelectChannel?: (channel: Channel) => void;
+}
+
+export default function DesktopEpg({ onSelectChannel }: DesktopEpgProps = {}) {
   const { 
     channels, 
     activePlaylistId,
@@ -100,23 +105,27 @@ export default function DesktopEpg() {
   const [epgRefreshInterval, setEpgRefreshInterval] = React.useState(24);
   const [isAttachingEpg, setIsAttachingEpg] = React.useState(false);
 
+  const effectiveChannels = React.useMemo(() => {
+    return channels && channels.length > 0 ? channels : DEMO_FAST_CHANNELS;
+  }, [channels]);
+
   const categories = React.useMemo(() => {
     const set = new Set<string>();
-    for (const c of channels) {
+    for (const c of effectiveChannels) {
       if (c.group) set.add(c.group);
     }
     return ['all', ...Array.from(set).sort()];
-  }, [channels]);
+  }, [effectiveChannels]);
 
   const guideChannels = React.useMemo(() => {
     const foldedSearch = foldSearchText(searchTerm);
     const foldedCat = foldSearchText(selectedCategory);
-    return channels.filter((c) => {
+    return effectiveChannels.filter((c) => {
       const matchCat = selectedCategory === 'all' || foldSearchText(c.group || '') === foldedCat;
       const matchSearch = !foldedSearch || foldSearchText(c.name).includes(foldedSearch);
       return matchCat && matchSearch;
     }).slice(0, 100);
-  }, [channels, selectedCategory, searchTerm]);
+  }, [effectiveChannels, selectedCategory, searchTerm]);
 
   const formatHour = (h: number) => {
     const normalizedH = ((h % 24) + 24) % 24;
@@ -289,7 +298,11 @@ export default function DesktopEpg() {
   }, [guideChannels, selectedChannel, getProgramsForChannel]);
 
   const handlePlayInSimulator = (channel: Channel) => {
-    simRouter.push(`/player/${channel.id}`);
+    if (onSelectChannel) {
+      onSelectChannel(channel);
+    } else {
+      simRouter.push(`/player/${channel.id}`);
+    }
   };
 
   const handleRefreshXmltvFeed = async () => {

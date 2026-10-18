@@ -29,6 +29,8 @@ import { usePlayerStore } from '../store/usePlayerStore';
 import { PageProtocolHeader } from './PageProtocolHeader';
 import { resolvePlaybackUrlSourceKind } from '../utils/streamDispatcher';
 import { buildStreamProxyUrl } from '../lib/apiClient';
+import { DEMO_FAST_CHANNELS } from '../data/demoChannels';
+import { StreamResolutionBadge, StreamCountryBadge } from './StreamInfoBadge';
 
 interface MatrixSlotVideoProps {
   channel: Channel;
@@ -263,13 +265,18 @@ export default function MultiScreenMatrix() {
 
   const { layout, slots, mutedSlots, volumes, focusedAudioSlot } = matrixConfig;
 
+  const effectiveChannels = React.useMemo(() => {
+    return channels && channels.length > 0 ? channels : DEMO_FAST_CHANNELS;
+  }, [channels]);
+
   // Initial seed: If all slots are null, populate slots with the first available channels
   React.useEffect(() => {
-    if (channels.length > 0 && slots.every(s => s === null)) {
-      setMatrixSlot(0, channels[0] || null);
-      setMatrixSlot(1, channels[1] || null);
-      setMatrixSlot(2, channels[2] || null);
-      setMatrixSlot(3, channels[3] || null);
+    const pool = channels && channels.length > 0 ? channels : DEMO_FAST_CHANNELS;
+    if (pool.length > 0 && slots.every(s => s === null)) {
+      setMatrixSlot(0, pool[0] || null);
+      setMatrixSlot(1, pool[1] || null);
+      setMatrixSlot(2, pool[2] || null);
+      setMatrixSlot(3, pool[3] || null);
     }
   }, [channels]);
 
@@ -287,7 +294,7 @@ export default function MultiScreenMatrix() {
 
   // Filtered channels for stream assignment modal
   const filteredChannels = React.useMemo(() => {
-    let result = channels;
+    let result = effectiveChannels;
     if (selectedCategory !== 'All') {
       result = result.filter(c => (c.group || '').toLowerCase().includes(selectedCategory.toLowerCase()));
     }
@@ -300,16 +307,16 @@ export default function MultiScreenMatrix() {
       );
     }
     return result;
-  }, [channels, selectedCategory, searchQuery]);
+  }, [effectiveChannels, selectedCategory, searchQuery]);
 
   // Unique channel groups for filter chips
   const channelGroups = React.useMemo(() => {
     const set = new Set<string>();
-    channels.forEach(c => {
+    effectiveChannels.forEach(c => {
       if (c.group) set.add(c.group);
     });
     return ['All', ...Array.from(set).slice(0, 8)];
-  }, [channels]);
+  }, [effectiveChannels]);
 
   const handleSelectChannelForSlot = (channel: Channel, slotIdx: number) => {
     setMatrixSlot(slotIdx, channel);
@@ -806,10 +813,10 @@ export default function MultiScreenMatrix() {
                     <div
                       key={c.id}
                       onClick={() => handleSelectChannelForSlot(c, selectedSlotIdx)}
-                      className="flex items-center justify-between p-3 rounded-2xl bg-white/[0.02] hover:bg-cyan-500/10 border border-white/5 hover:border-cyan-500/30 cursor-pointer transition-all group"
+                      className="flex items-center justify-between p-3 rounded-2xl bg-white/[0.03] hover:bg-cyan-500/10 border border-white/5 hover:border-cyan-500/40 cursor-pointer transition-all group"
                     >
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-9 h-9 rounded-xl bg-black/60 border border-white/5 flex items-center justify-center p-1.5 overflow-hidden flex-shrink-0">
+                        <div className="w-10 h-10 rounded-xl bg-black/80 border border-white/10 flex items-center justify-center p-1.5 overflow-hidden flex-shrink-0 group-hover:border-cyan-500/40 transition-colors">
                           <img
                             src={c.logo || 'https://images.unsplash.com/photo-1611162617213-7d7a39e9b1d7?w=120&auto=format&fit=crop&q=60'}
                             alt={c.name}
@@ -820,19 +827,25 @@ export default function MultiScreenMatrix() {
                           />
                         </div>
                         <div className="min-w-0">
-                          <h4 className="text-xs font-bold text-white group-hover:text-cyan-400 truncate">{c.name}</h4>
-                          <span className="text-[10px] text-zinc-500 block truncate">{c.group || 'General'}</span>
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-xs font-bold text-white group-hover:text-cyan-400 truncate">{c.name}</h4>
+                            <StreamResolutionBadge resolution={c.resolution || '1080p FHD'} />
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-[10px] text-zinc-400 truncate">{c.group || 'General'}</span>
+                            <StreamCountryBadge countryCode={c.countryCode} countryName={c.countryName} countryFlag={c.countryFlag} />
+                          </div>
                         </div>
                       </div>
 
                       <div className="flex items-center gap-2">
                         {isAssignedToOtherSlot >= 0 && (
-                          <span className="text-[10px] text-amber-400/80 font-mono">
-                            in #Q{isAssignedToOtherSlot + 1}
+                          <span className="text-[10px] text-amber-400/90 font-mono px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20">
+                            Slot #{isAssignedToOtherSlot + 1}
                           </span>
                         )}
-                        <span className="text-[11px] font-bold text-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                          Assign & Play
+                        <span className="text-[11px] font-bold text-cyan-400 px-3 py-1 rounded-lg bg-cyan-500/10 border border-cyan-500/20 group-hover:bg-cyan-500 group-hover:text-white transition-all shadow-sm">
+                          Assign Slot
                         </span>
                       </div>
                     </div>
