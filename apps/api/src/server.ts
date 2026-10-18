@@ -1,10 +1,29 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
+
 const initialNodeEnv = process.env.NODE_ENV;
-dotenv.config();
-dotenv.config({ path: path.resolve(process.cwd(), '../../.env') });
-dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
+
+const envCandidates = [
+  path.resolve(process.cwd(), '.env'),
+  path.resolve(process.cwd(), '.env.local'),
+  path.resolve(process.cwd(), '../.env'),
+  path.resolve(process.cwd(), '../.env.local'),
+  path.resolve(process.cwd(), '../../.env'),
+  path.resolve(process.cwd(), '../../.env.local'),
+  path.resolve(__dirname, '.env'),
+  path.resolve(__dirname, '../.env'),
+  path.resolve(__dirname, '../../.env'),
+  path.resolve(__dirname, '../../../.env'),
+  path.resolve(__dirname, '../../../../.env'),
+];
+
+for (const envPath of envCandidates) {
+  if (fs.existsSync(envPath)) {
+    dotenv.config({ path: envPath });
+  }
+}
+
 if (initialNodeEnv) {
   process.env.NODE_ENV = initialNodeEnv;
 }

@@ -35,7 +35,7 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // node_modules/dotenv/lib/main.js
 var require_main = __commonJS({
   "node_modules/dotenv/lib/main.js"(exports2, module2) {
-    var fs4 = require("fs");
+    var fs5 = require("fs");
     var path4 = require("path");
     var os = require("os");
     var crypto14 = require("crypto");
@@ -167,7 +167,7 @@ var require_main = __commonJS({
       if (options && options.path && options.path.length > 0) {
         if (Array.isArray(options.path)) {
           for (const filepath of options.path) {
-            if (fs4.existsSync(filepath)) {
+            if (fs5.existsSync(filepath)) {
               possibleVaultPath = filepath.endsWith(".vault") ? filepath : `${filepath}.vault`;
             }
           }
@@ -177,7 +177,7 @@ var require_main = __commonJS({
       } else {
         possibleVaultPath = path4.resolve(process.cwd(), ".env.vault");
       }
-      if (fs4.existsSync(possibleVaultPath)) {
+      if (fs5.existsSync(possibleVaultPath)) {
         return possibleVaultPath;
       }
       return null;
@@ -230,7 +230,7 @@ var require_main = __commonJS({
       const parsedAll = {};
       for (const path5 of optionPaths) {
         try {
-          const parsed = DotenvModule.parse(fs4.readFileSync(path5, { encoding }));
+          const parsed = DotenvModule.parse(fs5.readFileSync(path5, { encoding }));
           DotenvModule.populate(parsedAll, parsed, options);
         } catch (e2) {
           if (debug) {
@@ -362,11 +362,26 @@ var require_dist = __commonJS({
     exports2.features = exports2.config = void 0;
     var dotenv_1 = __importDefault(require_main());
     var path_1 = __importDefault(require("path"));
+    var fs_1 = __importDefault(require("fs"));
     var initialNodeEnv2 = process.env.NODE_ENV;
-    dotenv_1.default.config();
-    dotenv_1.default.config({ path: path_1.default.resolve(process.cwd(), "../../.env") });
-    dotenv_1.default.config({ path: path_1.default.resolve(__dirname, "../../../.env") });
-    dotenv_1.default.config({ path: path_1.default.resolve(__dirname, "../../../../.env") });
+    var envCandidates2 = [
+      path_1.default.resolve(process.cwd(), ".env"),
+      path_1.default.resolve(process.cwd(), ".env.local"),
+      path_1.default.resolve(process.cwd(), "../.env"),
+      path_1.default.resolve(process.cwd(), "../.env.local"),
+      path_1.default.resolve(process.cwd(), "../../.env"),
+      path_1.default.resolve(process.cwd(), "../../.env.local"),
+      path_1.default.resolve(__dirname, ".env"),
+      path_1.default.resolve(__dirname, "../.env"),
+      path_1.default.resolve(__dirname, "../../.env"),
+      path_1.default.resolve(__dirname, "../../../.env"),
+      path_1.default.resolve(__dirname, "../../../../.env")
+    ];
+    for (const envPath of envCandidates2) {
+      if (fs_1.default.existsSync(envPath)) {
+        dotenv_1.default.config({ path: envPath });
+      }
+    }
     if (initialNodeEnv2) {
       process.env.NODE_ENV = initialNodeEnv2;
     }
@@ -9383,7 +9398,7 @@ var require_serverless = __commonJS({
       var Sr = xr;
       hs.exports = Sr;
     });
-    var ps = I((Rl, fs4) => {
+    var ps = I((Rl, fs5) => {
       "use strict";
       p();
       var Mu = Xe(), ls = /^([A-Za-z]+)(?: (\d+))?(?: (\d+))?/, vr = class vr {
@@ -9426,7 +9441,7 @@ var require_serverless = __commonJS({
       };
       a(vr, "Result");
       var Er = vr;
-      fs4.exports = Er;
+      fs5.exports = Er;
     });
     var gs = I((Dl, ms) => {
       "use strict";
@@ -31063,12 +31078,12 @@ var require_src6 = __commonJS({
     var _GoogleToken_requestToken;
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.GoogleToken = void 0;
-    var fs4 = require("fs");
+    var fs5 = require("fs");
     var gaxios_1 = require_src5();
     var jws = require_jws();
     var path4 = require("path");
     var util_1 = require("util");
-    var readFile = fs4.readFile ? (0, util_1.promisify)(fs4.readFile) : async () => {
+    var readFile = fs5.readFile ? (0, util_1.promisify)(fs5.readFile) : async () => {
       throw new ErrorWithCode("use key rather than keyFile.", "MISSING_CREDENTIALS");
     };
     var GOOGLE_TOKEN_URL = "https://www.googleapis.com/oauth2/v4/token";
@@ -32625,12 +32640,12 @@ var require_filesubjecttokensupplier = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.FileSubjectTokenSupplier = void 0;
     var util_1 = require("util");
-    var fs4 = require("fs");
-    var readFile = (0, util_1.promisify)((_a2 = fs4.readFile) !== null && _a2 !== void 0 ? _a2 : (() => {
+    var fs5 = require("fs");
+    var readFile = (0, util_1.promisify)((_a2 = fs5.readFile) !== null && _a2 !== void 0 ? _a2 : (() => {
     }));
-    var realpath = (0, util_1.promisify)((_b = fs4.realpath) !== null && _b !== void 0 ? _b : (() => {
+    var realpath = (0, util_1.promisify)((_b = fs5.realpath) !== null && _b !== void 0 ? _b : (() => {
     }));
-    var lstat = (0, util_1.promisify)((_c = fs4.lstat) !== null && _c !== void 0 ? _c : (() => {
+    var lstat = (0, util_1.promisify)((_c = fs5.lstat) !== null && _c !== void 0 ? _c : (() => {
     }));
     var FileSubjectTokenSupplier = class {
       /**
@@ -33348,7 +33363,7 @@ var require_pluggable_auth_handler = __commonJS({
     var pluggable_auth_client_1 = require_pluggable_auth_client();
     var executable_response_1 = require_executable_response();
     var childProcess = require("child_process");
-    var fs4 = require("fs");
+    var fs5 = require("fs");
     var PluggableAuthHandler = class _PluggableAuthHandler {
       /**
        * Instantiates a PluggableAuthHandler instance using the provided
@@ -33418,14 +33433,14 @@ var require_pluggable_auth_handler = __commonJS({
         }
         let filePath;
         try {
-          filePath = await fs4.promises.realpath(this.outputFile);
+          filePath = await fs5.promises.realpath(this.outputFile);
         } catch (_a2) {
           return void 0;
         }
-        if (!(await fs4.promises.lstat(filePath)).isFile()) {
+        if (!(await fs5.promises.lstat(filePath)).isFile()) {
           return void 0;
         }
-        const responseString = await fs4.promises.readFile(filePath, {
+        const responseString = await fs5.promises.readFile(filePath, {
           encoding: "utf8"
         });
         if (responseString === "") {
@@ -33846,7 +33861,7 @@ var require_googleauth = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.GoogleAuth = exports2.GoogleAuthExceptionMessages = exports2.CLOUD_SDK_CLIENT_ID = void 0;
     var child_process_1 = require("child_process");
-    var fs4 = require("fs");
+    var fs5 = require("fs");
     var gcpMetadata = require_src4();
     var os = require("os");
     var path4 = require("path");
@@ -34115,7 +34130,7 @@ var require_googleauth = __commonJS({
         }
         if (location) {
           location = path4.join(location, "gcloud", "application_default_credentials.json");
-          if (!fs4.existsSync(location)) {
+          if (!fs5.existsSync(location)) {
             location = null;
           }
         }
@@ -34136,8 +34151,8 @@ var require_googleauth = __commonJS({
           throw new Error("The file path is invalid.");
         }
         try {
-          filePath = fs4.realpathSync(filePath);
-          if (!fs4.lstatSync(filePath).isFile()) {
+          filePath = fs5.realpathSync(filePath);
+          if (!fs5.lstatSync(filePath).isFile()) {
             throw new Error();
           }
         } catch (err) {
@@ -34146,7 +34161,7 @@ var require_googleauth = __commonJS({
           }
           throw err;
         }
-        const readStream = fs4.createReadStream(filePath);
+        const readStream = fs5.createReadStream(filePath);
         return this.fromStream(readStream, options);
       }
       /**
@@ -34533,7 +34548,7 @@ var require_googleauth = __commonJS({
         return this._cacheClientFromJSON(this.jsonContent, this.clientOptions);
       } else if (this.keyFilename) {
         const filePath = path4.resolve(this.keyFilename);
-        const stream = fs4.createReadStream(filePath);
+        const stream = fs5.createReadStream(filePath);
         return await this.fromStreamAsync(stream, this.clientOptions);
       } else if (this.apiKey) {
         const client = await this.fromAPIKey(this.apiKey, this.clientOptions);
@@ -46549,7 +46564,7 @@ var require_file = __commonJS({
     var index_js_1 = require_nodejs_common();
     var promisify_1 = require_src12();
     var crypto14 = __importStar(require("crypto"));
-    var fs4 = __importStar(require("fs"));
+    var fs5 = __importStar(require("fs"));
     var mime_1 = __importDefault(require_mime());
     var resumableUpload = __importStar(require_resumable_upload());
     var stream_1 = require("stream");
@@ -48109,7 +48124,7 @@ var require_file = __commonJS({
         if (destination) {
           fileStream.on("error", callback).once("data", (data) => {
             receivedData = true;
-            const writable = fs4.createWriteStream(destination);
+            const writable = fs5.createWriteStream(destination);
             writable.write(data);
             fileStream.pipe(writable).on("error", (err) => {
               callback(err, Buffer.from(""));
@@ -48120,7 +48135,7 @@ var require_file = __commonJS({
             if (!receivedData) {
               const data = Buffer.alloc(0);
               try {
-                fs4.writeFileSync(destination, data);
+                fs5.writeFileSync(destination, data);
                 callback(null, data);
               } catch (e2) {
                 callback(e2, data);
@@ -50454,7 +50469,7 @@ var require_bucket = __commonJS({
     var index_js_1 = require_nodejs_common();
     var paginator_1 = require_src13();
     var promisify_1 = require_src12();
-    var fs4 = __importStar(require("fs"));
+    var fs5 = __importStar(require("fs"));
     var mime_1 = __importDefault(require_mime());
     var path4 = __importStar(require("path"));
     var p_limit_1 = __importDefault(require_p_limit());
@@ -53515,7 +53530,7 @@ var require_bucket = __commonJS({
               if (options.onUploadProgress) {
                 writable.on("progress", options.onUploadProgress);
               }
-              const readStream = fs4.createReadStream(pathString);
+              const readStream = fs5.createReadStream(pathString);
               readStream.on("error", (err) => {
                 readStream.destroy();
                 writable.destroy();
@@ -86058,7 +86073,7 @@ var require_form_data = __commonJS({
     var http4 = require("http");
     var https3 = require("https");
     var parseUrl = require("url").parse;
-    var fs4 = require("fs");
+    var fs5 = require("fs");
     var Stream4 = require("stream").Stream;
     var crypto14 = require("crypto");
     var mime = require_mime_types();
@@ -86128,7 +86143,7 @@ var require_form_data = __commonJS({
         if (value.end != void 0 && value.end != Infinity && value.start != void 0) {
           callback(null, value.end + 1 - (value.start ? value.start : 0));
         } else {
-          fs4.stat(value.path, function(err, stat3) {
+          fs5.stat(value.path, function(err, stat3) {
             if (err) {
               callback(err);
               return;
@@ -101364,7 +101379,7 @@ var require_util14 = __commonJS({
     exports2.removeUndefinedValuesInObject = removeUndefinedValuesInObject;
     exports2.isValidFile = isValidFile;
     exports2.getWellKnownCertificateConfigFileLocation = getWellKnownCertificateConfigFileLocation;
-    var fs4 = require("fs");
+    var fs5 = require("fs");
     var os = require("os");
     var path4 = require("path");
     var WELL_KNOWN_CERTIFICATE_CONFIG_FILE = "certificate_config.json";
@@ -101452,7 +101467,7 @@ var require_util14 = __commonJS({
     }
     async function isValidFile(filePath) {
       try {
-        const stats = await fs4.promises.lstat(filePath);
+        const stats = await fs5.promises.lstat(filePath);
         return stats.isFile();
       } catch (e2) {
         return false;
@@ -102866,10 +102881,10 @@ var require_getCredentials = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.getCredentials = getCredentials;
     var path4 = require("path");
-    var fs4 = require("fs");
+    var fs5 = require("fs");
     var util_1 = require("util");
     var errorWithCode_1 = require_errorWithCode();
-    var readFile = fs4.readFile ? (0, util_1.promisify)(fs4.readFile) : async () => {
+    var readFile = fs5.readFile ? (0, util_1.promisify)(fs5.readFile) : async () => {
       throw new errorWithCode_1.ErrorWithCode("use key rather than keyFile.", "MISSING_CREDENTIALS");
     };
     var ExtensionFiles;
@@ -104546,12 +104561,12 @@ var require_filesubjecttokensupplier2 = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.FileSubjectTokenSupplier = void 0;
     var util_1 = require("util");
-    var fs4 = require("fs");
-    var readFile = (0, util_1.promisify)(fs4.readFile ?? (() => {
+    var fs5 = require("fs");
+    var readFile = (0, util_1.promisify)(fs5.readFile ?? (() => {
     }));
-    var realpath = (0, util_1.promisify)(fs4.realpath ?? (() => {
+    var realpath = (0, util_1.promisify)(fs5.realpath ?? (() => {
     }));
-    var lstat = (0, util_1.promisify)(fs4.lstat ?? (() => {
+    var lstat = (0, util_1.promisify)(fs5.lstat ?? (() => {
     }));
     var FileSubjectTokenSupplier = class {
       filePath;
@@ -104669,7 +104684,7 @@ var require_certificatesubjecttokensupplier = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.CertificateSubjectTokenSupplier = exports2.InvalidConfigurationError = exports2.CertificateSourceUnavailableError = exports2.CERTIFICATE_CONFIGURATION_ENV_VARIABLE = void 0;
     var util_1 = require_util14();
-    var fs4 = require("fs");
+    var fs5 = require("fs");
     var crypto_1 = require("crypto");
     var https3 = require("https");
     exports2.CERTIFICATE_CONFIGURATION_ENV_VARIABLE = "GOOGLE_API_CERTIFICATE_CONFIG";
@@ -104763,7 +104778,7 @@ var require_certificatesubjecttokensupplier = __commonJS({
         const configPath = this.certificateConfigPath;
         let fileContents;
         try {
-          fileContents = await fs4.promises.readFile(configPath, "utf8");
+          fileContents = await fs5.promises.readFile(configPath, "utf8");
         } catch (err) {
           throw new CertificateSourceUnavailableError(`Failed to read certificate config file at: ${configPath}`);
         }
@@ -104788,14 +104803,14 @@ var require_certificatesubjecttokensupplier = __commonJS({
       async #getKeyAndCert(certPath, keyPath) {
         let cert, key;
         try {
-          cert = await fs4.promises.readFile(certPath);
+          cert = await fs5.promises.readFile(certPath);
           new crypto_1.X509Certificate(cert);
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           throw new CertificateSourceUnavailableError(`Failed to read certificate file at ${certPath}: ${message}`);
         }
         try {
-          key = await fs4.promises.readFile(keyPath);
+          key = await fs5.promises.readFile(keyPath);
           (0, crypto_1.createPrivateKey)(key);
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
@@ -104814,7 +104829,7 @@ var require_certificatesubjecttokensupplier = __commonJS({
           return JSON.stringify([leafCert.raw.toString("base64")]);
         }
         try {
-          const chainPems = await fs4.promises.readFile(this.trustChainPath, "utf8");
+          const chainPems = await fs5.promises.readFile(this.trustChainPath, "utf8");
           const pemBlocks = chainPems.match(/-----BEGIN CERTIFICATE-----[^-]+-----END CERTIFICATE-----/g) ?? [];
           const chainCerts = pemBlocks.map((pem, index) => {
             try {
@@ -105516,7 +105531,7 @@ var require_pluggable_auth_handler2 = __commonJS({
     exports2.PluggableAuthHandler = exports2.ExecutableError = void 0;
     var executable_response_1 = require_executable_response2();
     var childProcess = require("child_process");
-    var fs4 = require("fs");
+    var fs5 = require("fs");
     var ExecutableError = class extends Error {
       /**
        * The exit code returned by the executable.
@@ -105601,14 +105616,14 @@ var require_pluggable_auth_handler2 = __commonJS({
         }
         let filePath;
         try {
-          filePath = await fs4.promises.realpath(this.outputFile);
+          filePath = await fs5.promises.realpath(this.outputFile);
         } catch {
           return void 0;
         }
-        if (!(await fs4.promises.lstat(filePath)).isFile()) {
+        if (!(await fs5.promises.lstat(filePath)).isFile()) {
           return void 0;
         }
-        const responseString = await fs4.promises.readFile(filePath, {
+        const responseString = await fs5.promises.readFile(filePath, {
           encoding: "utf8"
         });
         if (responseString === "") {
@@ -106019,7 +106034,7 @@ var require_googleauth2 = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.GoogleAuth = exports2.GoogleAuthExceptionMessages = void 0;
     var child_process_1 = require("child_process");
-    var fs4 = require("fs");
+    var fs5 = require("fs");
     var gaxios_1 = require_src16();
     var gcpMetadata = require_src18();
     var os = require("os");
@@ -106314,7 +106329,7 @@ var require_googleauth2 = __commonJS({
         }
         if (location) {
           location = path4.join(location, "gcloud", "application_default_credentials.json");
-          if (!fs4.existsSync(location)) {
+          if (!fs5.existsSync(location)) {
             location = null;
           }
         }
@@ -106335,8 +106350,8 @@ var require_googleauth2 = __commonJS({
           throw new Error("The file path is invalid.");
         }
         try {
-          filePath = fs4.realpathSync(filePath);
-          if (!fs4.lstatSync(filePath).isFile()) {
+          filePath = fs5.realpathSync(filePath);
+          if (!fs5.lstatSync(filePath).isFile()) {
             throw new Error();
           }
         } catch (err) {
@@ -106345,7 +106360,7 @@ var require_googleauth2 = __commonJS({
           }
           throw err;
         }
-        const readStream = fs4.createReadStream(filePath);
+        const readStream = fs5.createReadStream(filePath);
         return this.fromStream(readStream, options);
       }
       /**
@@ -106658,7 +106673,7 @@ var require_googleauth2 = __commonJS({
           return this._cacheClientFromJSON(this.jsonContent, this.clientOptions);
         } else if (this.keyFilename) {
           const filePath = path4.resolve(this.keyFilename);
-          const stream = fs4.createReadStream(filePath);
+          const stream = fs5.createReadStream(filePath);
           return await this.fromStreamAsync(stream, this.clientOptions);
         } else if (this.apiKey) {
           const client = await this.fromAPIKey(this.apiKey, this.clientOptions);
@@ -132121,6 +132136,7 @@ __export(server_exports, {
 module.exports = __toCommonJS(server_exports);
 var import_dotenv = __toESM(require_main());
 var import_path2 = __toESM(require("path"));
+var import_fs3 = __toESM(require("fs"));
 var import_express = __toESM(require("express"));
 var import_cors = __toESM(require("cors"));
 var import_body_parser = __toESM(require("body-parser"));
@@ -133199,9 +133215,24 @@ async function fetchAndCacheLogo(logoUrl) {
 
 // apps/api/src/server.ts
 var initialNodeEnv = process.env.NODE_ENV;
-import_dotenv.default.config();
-import_dotenv.default.config({ path: import_path2.default.resolve(process.cwd(), "../../.env") });
-import_dotenv.default.config({ path: import_path2.default.resolve(__dirname, "../../../.env") });
+var envCandidates = [
+  import_path2.default.resolve(process.cwd(), ".env"),
+  import_path2.default.resolve(process.cwd(), ".env.local"),
+  import_path2.default.resolve(process.cwd(), "../.env"),
+  import_path2.default.resolve(process.cwd(), "../.env.local"),
+  import_path2.default.resolve(process.cwd(), "../../.env"),
+  import_path2.default.resolve(process.cwd(), "../../.env.local"),
+  import_path2.default.resolve(__dirname, ".env"),
+  import_path2.default.resolve(__dirname, "../.env"),
+  import_path2.default.resolve(__dirname, "../../.env"),
+  import_path2.default.resolve(__dirname, "../../../.env"),
+  import_path2.default.resolve(__dirname, "../../../../.env")
+];
+for (const envPath of envCandidates) {
+  if (import_fs3.default.existsSync(envPath)) {
+    import_dotenv.default.config({ path: envPath });
+  }
+}
 if (initialNodeEnv) {
   process.env.NODE_ENV = initialNodeEnv;
 }
@@ -133360,6 +133391,77 @@ app.get("/api/public/devices", (req, res) => {
       { id: "formuler_z11", brand: "Formuler", name: "Z11 Pro Max Android Box", status: "certified" }
     ]
   });
+});
+app.get("/api/public/downloads", (req, res) => {
+  res.json({
+    appName: "IPTV.Menu Pro",
+    version: "1.2.0",
+    downloaderCode: "94218",
+    directApkUrl: "/api/download/latest.apk",
+    clients: [
+      {
+        id: "firetv",
+        name: "Amazon Fire TV & Android TV",
+        type: "apk",
+        badge: "TV Optimized",
+        architecture: "Universal APK (arm64-v8a / armeabi-v7a)",
+        downloaderCode: "94218",
+        downloadUrl: "/api/download/latest.apk",
+        instructions: "Open Downloader on Fire TV / Android TV, enter code 94218, and press Go to install."
+      },
+      {
+        id: "android_mobile",
+        name: "Android Mobile & Tablet",
+        type: "apk",
+        badge: "Touch Optimized",
+        architecture: "Universal APK",
+        downloadUrl: "/api/download/latest.apk",
+        instructions: "Download APK directly on mobile browser and install."
+      },
+      {
+        id: "apple_pwa",
+        name: "Apple iOS & macOS Web Player",
+        type: "pwa",
+        badge: "Instant Play",
+        downloadUrl: "/",
+        instructions: "Open Safari, tap Share, and select 'Add to Home Screen' for fullscreen app experience."
+      },
+      {
+        id: "web_player",
+        name: "Desktop Web Player",
+        type: "web",
+        badge: "4K Fullscreen",
+        downloadUrl: "/",
+        instructions: "Instant zero-install web streaming via Chrome, Edge, Safari, or Firefox."
+      }
+    ]
+  });
+});
+app.get(["/api/download/latest.apk", "/download/latest.apk", "/api/public/download/latest.apk"], (req, res) => {
+  const remoteUrl = process.env.APK_DOWNLOAD_URL || process.env.EXPO_APK_URL || process.env.LATEST_APK_URL;
+  if (remoteUrl) {
+    return res.redirect(302, remoteUrl);
+  }
+  const candidatePaths = [
+    import_path2.default.resolve(process.cwd(), "public/IPTV-Menu-Pro.apk"),
+    import_path2.default.resolve(process.cwd(), "dist/IPTV-Menu-Pro.apk"),
+    import_path2.default.resolve(process.cwd(), "mobile/android/app/build/outputs/apk/release/app-release.apk"),
+    import_path2.default.resolve(__dirname, "../../../public/IPTV-Menu-Pro.apk"),
+    import_path2.default.resolve(__dirname, "../../../dist/IPTV-Menu-Pro.apk")
+  ];
+  for (const p of candidatePaths) {
+    if (import_fs3.default.existsSync(p)) {
+      res.setHeader("Content-Type", "application/vnd.android.package-archive");
+      res.setHeader("Content-Disposition", 'attachment; filename="IPTV-Menu-Pro.apk"');
+      return res.sendFile(p);
+    }
+  }
+  const fallbackUrl = "https://github.com/angelburgosrosado/iptv-menu-app/releases/latest/download/IPTV-Menu-Pro.apk";
+  return res.redirect(302, fallbackUrl);
+});
+app.get(["/api/download/source.zip", "/download/source.zip", "/api/download/code.zip"], (req, res) => {
+  const remoteUrl = process.env.SOURCE_ZIP_URL || "https://github.com/angelburgosrosado/iptv-menu-app/archive/refs/heads/main.zip";
+  return res.redirect(302, remoteUrl);
 });
 app.post("/api/public/contact", async (req, res) => {
   const { name: name2, email, message } = req.body;
