@@ -1,0 +1,8 @@
+# EAS Build Ignore File for Mobile Project
+node_modules/
+.expo/
+android/.gradle/
+android/app/build/
+dist/
+*.log
+.DS_Store

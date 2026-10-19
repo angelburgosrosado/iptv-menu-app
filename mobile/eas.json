@@ -1,6 +1,7 @@
 {
   "cli": {
-    "version": ">= 14.0.0"
+    "version": ">= 14.0.0",
+    "appVersionSource": "remote"
   },
   "build": {
     "base": {
@@ -19,6 +20,7 @@
       }
     },
     "production-apk": {
+      "distribution": "internal",
       "node": "20.18.0",
       "android": {
         "buildType": "apk"
@@ -31,6 +33,7 @@
       }
     },
     "production": {
+      "distribution": "internal",
       "node": "20.18.0",
       "android": {
         "buildType": "apk"

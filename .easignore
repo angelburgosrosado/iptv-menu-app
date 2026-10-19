@@ -1,0 +1,30 @@
+# EAS Build Ignore File
+# Ignore heavy monorepo components unrelated to mobile Expo build
+/api/
+/apps/
+/packages/
+/dist/
+/output/
+/docs/
+/tests/
+/electron/
+/public/
+/src/
+/infra/
+/data/
+/scratch/
+/coverage/
+.git/
+.firebase/
+.vercel/
+.env*
+!.env.example
+*.log
+.DS_Store
+
+# Ignore mobile generated caches and build directories
+mobile/node_modules/
+mobile/.expo/
+mobile/android/.gradle/
+mobile/android/app/build/
+mobile/dist/
