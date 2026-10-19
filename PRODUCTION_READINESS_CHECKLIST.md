@@ -54,19 +54,19 @@ This master checklist covers every infrastructure, security, billing, packaging,
     cd mobile
     npm run build:apk:prod
     ```
-- [ ] **APK Hosting & Direct Distribution**
-  - Move the release APK to `public/IPTV-Menu-Pro.apk` or upload to an S3/GCS bucket and define `APK_DOWNLOAD_URL` in `.env`.
-- [ ] **AFTVnews Downloader Shortcut Code Registration**
-  - Register the direct URL `https://iptv.menu/api/download/latest.apk` on [AFTVnews Link Shortener](https://link.aftvnews.com).
-  - Verify numeric shortcode **`94218`** redirects directly to the production APK download.
+- [x] **APK Hosting & Direct Distribution**
+  - Compiled release APK uploaded and verified on Expo EAS / AWS S3 (`78.8 MB`), mirrored to `public/IPTV-Menu-Pro.apk`, and routed via `APK_DOWNLOAD_URL`.
+- [x] **AFTVnews Downloader Shortcut Code Registration**
+  - Registered direct URL `https://iptv-api-6xqo.onrender.com/api/download/latest.apk` on [AFTVnews Link Shortener](https://link.aftvnews.com).
+  - Verified numeric shortcode **`3739589`** (and short URL `http://aftv.news/3739589`) redirects directly to the production APK download.
 
 ### Phase 5: Client Portal & Source Code Distribution
-- [ ] **Public Download API Verification**
-  - Verify `GET /api/public/downloads` returns 200 with platform catalog.
-  - Verify `GET /api/download/latest.apk` and `/download/latest.apk` serve or redirect to the APK.
-  - Verify `GET /api/download/source.zip` and `/download/source.zip` serve or redirect to the repository source archive.
-- [ ] **Frontend Download Page (`/download`)**
-  - Confirm `/download` renders the platform cards, copyable shortcode `94218`, direct APK download buttons, and source code archive download.
+- [x] **Public Download API Verification**
+  - Verified `GET /api/public/downloads` returns 200 with platform catalog.
+  - Verified `GET /api/download/latest.apk` and `/download/latest.apk` redirect directly to the APK.
+  - Verified `GET /api/download/source.zip` and `/download/source.zip` serve or redirect to the repository source archive.
+- [x] **Frontend Download Page (`/download`)**
+  - Confirmed `/download` renders the platform cards, copyable shortcode `3739589`, direct APK download buttons, and source code archive download.
 
 ---
 
@@ -107,7 +107,7 @@ Provide these exact instructions to customers installing **IPTV.Menu Pro** on th
 ├────────────────────┬────────────────────┬──────────────────────────────┤
 │ Step 1             │ Step 2             │ Step 3                       │
 │ Enable Developer   │ Open Downloader    │ Launch & Pair                │
-│ Options & Install  │ Enter code: 94218  │ Scan QR or enter TV code     │
+│ Options & Install  │ Enter code: 3739589│ Scan QR or enter TV code     │
 └────────────────────┴────────────────────┴──────────────────────────────┘
 ```
 
@@ -119,14 +119,14 @@ Provide these exact instructions to customers installing **IPTV.Menu Pro** on th
 3. Go back one screen into **Developer Options** > **Install Unknown Apps**.
 4. Find **Downloader** and toggle it to **ON**.
 
-### Step 2: Download with Code 94218
+### Step 2: Download with Code 3739589
 1. Search for **Downloader** (orange icon by AFTVnews) in the Amazon Appstore or Google Play Store and install it.
 2. Launch Downloader, accept storage permissions, and navigate to the URL entry box.
 3. Type the numeric code:
    ```text
-   94218
+   3739589
    ```
-   *(or enter direct URL: `iptv.menu/api/download/latest.apk`)*
+   *(or enter short URL: `aftv.news/3739589` or direct URL: `iptv-api-6xqo.onrender.com/api/download/latest.apk`)*
 4. Click **Go**. Downloader will connect and download `IPTV-Menu-Pro.apk`.
 
 ### Step 3: Install & Launch
@@ -156,7 +156,7 @@ The application includes unauthenticated endpoints to serve both binary installe
 The `/download` view in `src/components/DesktopDownloads.tsx` provides:
 1. **Direct Android APK Button**: Instant 1-tap download of the compiled client.
 2. **Direct Source Code Button**: 1-tap download of `iptv-menu-pro-main.zip`.
-3. **Copyable TV Downloader Code**: Interactive widget for code `94218`.
+3. **Copyable TV Downloader Code**: Interactive widget for code `3739589` (and short URL `http://aftv.news/3739589`).
 4. **Git Clone Command Box**: 1-click clipboard copy of `git clone https://github.com/angelburgosrosado/iptv-menu-app.git`.
 5. **Developer Build Matrix**: Quick reference cards for local web dev (`npm run dev`), APK build (`cd mobile && npm run build:apk`), and testing (`npm test`).
 

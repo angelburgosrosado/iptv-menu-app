@@ -608,7 +608,7 @@ export default function DesktopHome({ onSelectChannel, onNavigateTab }: DesktopH
             Take IPTV.Menu Pro to Your TV & Mobile
           </h3>
           <p className="text-sm text-[#9aa0b3]">
-            Sideload directly onto Amazon Fire TV and Android TV with Downloader code <span className="font-mono font-bold text-white px-1.5 py-0.5 rounded bg-white/10">94218</span>, or install on Android & iOS.
+            Sideload directly onto Amazon Fire TV and Android TV with Downloader code <span className="font-mono font-bold text-white px-1.5 py-0.5 rounded bg-white/10">3739589</span>, or install on Android & iOS.
           </p>
         </div>
 

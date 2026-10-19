@@ -10,14 +10,16 @@ describe('Public Client Downloads & Sideload API', () => {
     res.json({
       appName: 'IPTV.Menu Pro',
       version: '1.2.0',
-      downloaderCode: '94218',
+      downloaderCode: '3739589',
+      downloaderShortUrl: 'http://aftv.news/3739589',
       directApkUrl: '/api/download/latest.apk',
       clients: [
         {
           id: 'firetv',
           name: 'Amazon Fire TV & Android TV',
           type: 'apk',
-          downloaderCode: '94218',
+          downloaderCode: '3739589',
+          downloaderShortUrl: 'http://aftv.news/3739589',
           downloadUrl: '/api/download/latest.apk'
         },
         {
@@ -45,11 +47,11 @@ describe('Public Client Downloads & Sideload API', () => {
     return res.redirect(302, fallbackUrl);
   });
 
-  it('should return app info, platforms, and Downloader code 94218', async () => {
+  it('should return app info, platforms, and Downloader code 3739589', async () => {
     const res = await request(app).get('/api/public/downloads');
     expect(res.status).toBe(200);
     expect(res.body.appName).toBe('IPTV.Menu Pro');
-    expect(res.body.downloaderCode).toBe('94218');
+    expect(res.body.downloaderCode).toBe('3739589');
     expect(res.body.directApkUrl).toBe('/api/download/latest.apk');
     expect(res.body.clients.length).toBeGreaterThanOrEqual(3);
   });

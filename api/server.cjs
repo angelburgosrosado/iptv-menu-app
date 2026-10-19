@@ -133396,7 +133396,8 @@ app.get("/api/public/downloads", (req, res) => {
   res.json({
     appName: "IPTV.Menu Pro",
     version: "1.2.0",
-    downloaderCode: "94218",
+    downloaderCode: "3739589",
+    downloaderShortUrl: "http://aftv.news/3739589",
     directApkUrl: "/api/download/latest.apk",
     clients: [
       {
@@ -133405,9 +133406,10 @@ app.get("/api/public/downloads", (req, res) => {
         type: "apk",
         badge: "TV Optimized",
         architecture: "Universal APK (arm64-v8a / armeabi-v7a)",
-        downloaderCode: "94218",
+        downloaderCode: "3739589",
+        downloaderShortUrl: "http://aftv.news/3739589",
         downloadUrl: "/api/download/latest.apk",
-        instructions: "Open Downloader on Fire TV / Android TV, enter code 94218, and press Go to install."
+        instructions: "Open Downloader on Fire TV / Android TV, enter code 3739589 (or aftv.news/3739589), and press Go to install."
       },
       {
         id: "android_mobile",

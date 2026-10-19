@@ -5,7 +5,7 @@ A modern, high-performance IPTV streaming player, multi-screen matrix, Xtream Co
 Built with **React 19**, **Vite**, **TypeScript**, **Expo React Native**, **Drizzle ORM**, **Neon Serverless PostgreSQL**, **Vercel Blob / GCS**, **Expo EAS**, and containerized background workers.
 
 * **Production Checklist & TV Manual:** [`PRODUCTION_READINESS_CHECKLIST.md`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/PRODUCTION_READINESS_CHECKLIST.md)
-* **Living Room TV Sideload Code:** `94218` (via Amazon / Android TV Downloader app)
+* **Living Room TV Sideload Code:** `3739589` (Short URL: `http://aftv.news/3739589` via Downloader app)
 * **Client & Code Download Portal:** `https://iptv.menu/download`
 
 ---
@@ -111,7 +111,7 @@ The platform generates custom-branded, functional Android release APKs with pre-
 - **Direct Endpoints**:
   - Direct APK Download: `/api/download/latest.apk` (or `/download/latest.apk`)
   - Complete Source Code Archive: `/api/download/source.zip` (or `/download/source.zip`)
-  - Fire TV Downloader Numeric Code: **`94218`**
+  - Fire TV Downloader Numeric Code: **`3739589`** (Short URL: **`http://aftv.news/3739589`**)
   - Web Customer Download Portal: [`/download`](https://iptv.menu/download)
 
 - **Trigger New Builds Locally**:

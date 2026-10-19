@@ -39,7 +39,8 @@ export default function DesktopDownloads() {
     ? `${window.location.origin}/api/download/source.zip`
     : 'https://iptv.menu/api/download/source.zip';
 
-  const downloaderCode = '94218';
+  const downloaderCode = '3739589';
+  const downloaderShortUrl = 'http://aftv.news/3739589';
   const gitCloneCmd = 'git clone https://github.com/angelburgosrosado/iptv-menu-app.git';
 
   const handleCopyLink = () => {
@@ -356,7 +357,7 @@ export default function DesktopDownloads() {
             </div>
             <h4 className="text-sm font-bold text-white">Enter Downloader Code</h4>
             <p className="text-xs text-zinc-400 leading-relaxed">
-              Open Downloader, enter numeric code <strong className="text-[#00e0c6] font-mono">{downloaderCode}</strong> (or URL <code className="text-zinc-300">iptv.menu/apk</code>), and click <strong className="text-zinc-200">Go</strong>.
+              Open Downloader, enter numeric code <strong className="text-[#00e0c6] font-mono">{downloaderCode}</strong> (or short URL <code className="text-zinc-300">aftv.news/3739589</code>), and click <strong className="text-zinc-200">Go</strong>.
             </p>
           </div>
 
