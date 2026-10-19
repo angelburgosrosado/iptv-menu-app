@@ -25,6 +25,8 @@ services:
         value: 1437b933-39d1-42b3-bb8d-803a5f33909e
       - key: EXPO_ACCESS_TOKEN
         sync: false
+      - key: JWT_SECRET
+        sync: false
 
   # 2. REST API & Stripe Webhook Backend Web Service
   - type: web
@@ -43,6 +45,8 @@ services:
         value: production
       - key: PORT
         value: 3001
+      - key: JWT_SECRET
+        sync: false
       - key: DATABASE_URL
         sync: false
       - key: STRIPE_SECRET_KEY
