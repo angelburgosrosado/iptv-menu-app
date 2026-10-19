@@ -133456,7 +133456,7 @@ app.get(["/api/download/latest.apk", "/download/latest.apk", "/api/public/downlo
       return res.sendFile(p);
     }
   }
-  const fallbackUrl = "https://github.com/angelburgosrosado/iptv-menu-app/releases/latest/download/IPTV-Menu-Pro.apk";
+  const fallbackUrl = process.env.APK_DOWNLOAD_URL || "https://expo.dev/artifacts/eas/chBxRWNxm8mVtrGRP9uU73lvBKHEOyp-THz-3sJVX34.apk";
   return res.redirect(302, fallbackUrl);
 });
 app.get(["/api/download/source.zip", "/download/source.zip", "/api/download/code.zip"], (req, res) => {

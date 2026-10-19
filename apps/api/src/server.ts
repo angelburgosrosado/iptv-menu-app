@@ -328,8 +328,8 @@ app.get(['/api/download/latest.apk', '/download/latest.apk', '/api/public/downlo
     }
   }
 
-  // Fallback to latest GitHub release artifact
-  const fallbackUrl = 'https://github.com/angelburgosrosado/iptv-menu-app/releases/latest/download/IPTV-Menu-Pro.apk';
+  // Fallback to verified Expo EAS production release artifact or GitHub release
+  const fallbackUrl = process.env.APK_DOWNLOAD_URL || 'https://expo.dev/artifacts/eas/chBxRWNxm8mVtrGRP9uU73lvBKHEOyp-THz-3sJVX34.apk';
   return res.redirect(302, fallbackUrl);
 });
 

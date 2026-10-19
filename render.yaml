@@ -61,6 +61,8 @@ services:
         sync: false
       - key: ADMIN_ALLOWED_EMAILS
         value: angelburgosrosado@gmail.com,admin@iptv.menu
+      - key: APK_DOWNLOAD_URL
+        value: https://expo.dev/artifacts/eas/chBxRWNxm8mVtrGRP9uU73lvBKHEOyp-THz-3sJVX34.apk
 
   # 3. Static Web App Frontend
   - type: web
@@ -76,5 +78,5 @@ services:
       - key: NODE_VERSION
         value: 20.11.0
       - key: VITE_API_URL
-        sync: false
+        value: https://iptv-api-6xqo.onrender.com
 

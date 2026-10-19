@@ -29,8 +29,8 @@
     "build:apk:wait": "cd mobile && eas build --platform android --profile preview --wait",
     "desktop": "electron electron/main.cjs",
     "desktop:dev": "electron electron/main.cjs",
-    "db:push": "npm --workspace=@iptv-menu/db run db:push",
-    "db:studio": "npm --workspace=@iptv-menu/db run db:studio",
+    "db:push": "npm --prefix packages/db run db:push",
+    "db:studio": "npm --prefix packages/db run db:studio",
     "iptv:upgrade": "tsx scripts/iptv-upgrade.ts",
     "test": "vitest run",
     "test:watch": "vitest"
