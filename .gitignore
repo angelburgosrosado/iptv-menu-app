@@ -12,3 +12,4 @@ coverage/
 stream_status_report*.json
 *.apk
 *.aab
+*.zip
