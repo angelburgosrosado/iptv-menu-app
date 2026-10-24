@@ -47,7 +47,7 @@ This assessment catalogs all verified security vulnerabilities, architectural re
 ### SEC-02: Live Production Database Connection String in Local `.env`
 - **Severity:** **CRITICAL**
 - **Location:** [`.env`](file:///Volumes/MacAI/ABGlobalCEO/iptv-menu-app/.env) line 2:  
-  `DATABASE_URL="postgresql://neondb_owner:REDACTED_PASSWORD@ep-winter-poetry-ae51hoth-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require"`
+  `DATABASE_URL="postgresql://USER:PASSWORD@ep-winter-poetry-ae51hoth.us-east-2.aws.neon.tech/neondb?sslmode=require"`
 - **Impact:** Direct read/write access to the Neon PostgreSQL cluster hosting user records, hashed passwords, workspaces, and playlist feeds. Anyone with disk access can dump or modify all customer data.
 - **Mitigation Recommendation:**
   1. Reset the `neondb_owner` password immediately in the Neon console.
