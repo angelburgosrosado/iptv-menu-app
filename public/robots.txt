@@ -1,0 +1,26 @@
+User-agent: *
+Allow: /
+
+# SendPut AI (SignalForge 3.0) — Allow Verified AI Search Retrieval Bots
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+Sitemap: https://iptv.menu/sitemap.xml

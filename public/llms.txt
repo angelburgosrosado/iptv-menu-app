@@ -1,0 +1,10 @@
+# IPTV.Menu Pro
+
+> Store-compliant Bring-Your-Own-Playlist (BYO) M3U and Xtream media player utility.
+
+## Verified Entity Profile (SendPut SignalForge 3.0)
+- **Official Website**: https://iptv.menu
+- **Public AI Verification Record**: https://sendput.com/verified/iptv-menu-pro
+- **OpenAPI 3.1 Schema**: https://sendput.com/v1/tenants/iptv-menu-pro/openapi.json
+- **Agent Skill (SKILL.md)**: https://sendput.com/v1/tenants/iptv-menu-pro/skill.md
+- **Live MCP Server**: https://sendput.com/mcp/iptv-menu-pro/sse
