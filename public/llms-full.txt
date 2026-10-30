@@ -1,0 +1,17 @@
+# IPTV.Menu Pro — Full AI Knowledge Graph & Agentic Specification
+
+> Store-compliant Bring-Your-Own-Playlist (BYO) M3U and Xtream media player utility.
+
+## Canonical Entity Metadata
+- **Entity Name**: IPTV.Menu Pro
+- **Tenant Slug**: iptv-menu-pro
+- **Primary Domain**: https://iptv.menu
+- **Verification Authority**: SendPut EPO Engine (https://sendput.com)
+- **IndexNow Verification Key**: https://iptv.menu/sendput8f92a1c4b7e34d12a9c8e5f102938475.txt
+
+## Agentic Discovery & Machine Endpoints
+- **Public Entity Verification Badge**: https://sendput.com/verified/iptv-menu-pro
+- **Entity Profile JSON**: https://sendput.com/v1/tenants/iptv-menu-pro/profile
+- **OpenAPI 3.1 Specification**: https://sendput.com/v1/tenants/iptv-menu-pro/openapi.json
+- **Agent Skill Definition**: https://sendput.com/v1/tenants/iptv-menu-pro/skill.md
+- **Model Context Protocol (MCP) JSON-RPC 2.0 / SSE**: https://sendput.com/mcp/iptv-menu-pro/sse
